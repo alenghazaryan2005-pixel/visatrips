@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(kill 3001)",
+      "Bash(python3 -c \"import sys,json; data=json.loads\\(sys.stdin.read\\(\\)\\); print\\(data.get\\(''''result'''',''''no result''''\\)[:5000]\\)\")",
+      "Bash(docker compose:*)",
+      "Bash(pnpm db:migrate)",
+      "Bash(docker exec:*)",
+      "Bash(xargs kill:*)",
+      "Bash(npx prisma:*)",
+      "Bash(source ~/.zshrc)",
+      "Bash(pnpm --version)",
+      "Bash(pnpm dev:*)"
+    ]
+  }
+}

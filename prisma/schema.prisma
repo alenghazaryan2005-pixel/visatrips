@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  REFUNDED
+  ON_HOLD
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  orderNumber  Int         @default(autoincrement())
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  destination  String
+  visaType     String
+  totalUSD     Float
+  status       OrderStatus @default(PENDING)
+  notes        String?
+  travelers    String
+  billingEmail String
+  cardLast4       String?
+  processingSpeed String   @default("standard")
+  lastEditedBy    String?
+  applicationId   String?
+  refundAmount    Float?
+  refundReason    String?
+  refundedAt      DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model AbandonedApplication {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  destination String?
+  visaType    String?
+  email       String?
+  travelers   String?  // JSON string of partial traveler data
+  passportData String? // JSON string of partial passport data
+  lastStep    String   @default("step1") // step1, step2, step2b, step3
+  ipAddress   String?
+  userAgent   String?
+
+  @@index([createdAt])
+  @@index([email])
+  @@map("abandoned_applications")
+}
+
+model AdminUser {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+
+  @@map("admin_users")
+}
