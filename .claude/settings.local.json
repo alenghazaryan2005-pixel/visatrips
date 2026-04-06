@@ -15,7 +15,9 @@
       "WebSearch",
       "WebFetch(domain:developers.freshdesk.com)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git remote:*)"
     ]
   }
 }
