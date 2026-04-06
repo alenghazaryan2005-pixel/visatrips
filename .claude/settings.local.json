@@ -11,7 +11,11 @@
       "Bash(npx prisma:*)",
       "Bash(source ~/.zshrc)",
       "Bash(pnpm --version)",
-      "Bash(pnpm dev:*)"
+      "Bash(pnpm dev:*)",
+      "WebSearch",
+      "WebFetch(domain:developers.freshdesk.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
