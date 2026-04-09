@@ -61,6 +61,7 @@ interface Traveler {
   city?: string;
   state?: string;
   zip?: string;
+  [key: string]: any;
 }
 
 interface Order {

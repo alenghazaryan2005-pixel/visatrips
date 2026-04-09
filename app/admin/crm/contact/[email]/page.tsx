@@ -47,7 +47,7 @@ export default function ContactPage({ params }: { params: Promise<{ email: strin
       const matched = allOrders.filter((o: any) => {
         if (o.billingEmail.toLowerCase() === email.toLowerCase()) return true;
         try {
-          const t = JSON.parse(o.travelers);
+          const t = (typeof o.travelers === 'string' ? JSON.parse(o.travelers) : o.travelers);
           return t.some((tr: any) => tr.email?.toLowerCase() === email.toLowerCase());
         } catch { return false; }
       });
@@ -130,7 +130,7 @@ export default function ContactPage({ params }: { params: Promise<{ email: strin
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '2rem' }}>
                 {orders.map(o => {
                   let travelerName = '';
-                  try { const t = JSON.parse(o.travelers); travelerName = `${t[0]?.firstName || ''} ${t[0]?.lastName || ''}`.trim(); } catch {}
+                  try { const t = (typeof o.travelers === 'string' ? JSON.parse(o.travelers) : o.travelers); travelerName = `${t[0]?.firstName || ''} ${t[0]?.lastName || ''}`.trim(); } catch {}
                   return (
                     <Link key={o.id} href={`/admin/orders/${formatOrderNum(o.orderNumber)}`} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',

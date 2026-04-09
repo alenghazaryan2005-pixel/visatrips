@@ -441,7 +441,7 @@ function Step2b({ travelers, travelerNames, visaId, onBack, onNext }: any) {
 }
 
 /* ── Step 3: Checkout ── */
-function Step3({ visaId, travelers, travelerData, passportData, onBack }: { visaId:string; travelers:number; travelerData:any[]; passportData:PassportInfo[]; onBack:()=>void }) {
+function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, onBack }: { visaId:string; travelers:number; travelerData:any[]; passportData:PassportInfo[]; purposeOfVisit:string; onBack:()=>void }) {
   const router = useRouter();
   const visa  = VISA_OPTIONS.find(v=>v.id===visaId)!;
   const PROCESSING_OPTIONS = [
@@ -676,7 +676,7 @@ function ApplyForm() {
           saveAbandoned({ destination: 'India', visaType: visaId, passportData: pData, lastStep: 'step2b' });
           setStep(3);
         }}/>}
-        {step===3 && <Step3 visaId={visaId} travelers={travelers} travelerData={travelerData} passportData={passportData} onBack={()=>setStep(2)}/>}
+        {step===3 && <Step3 visaId={visaId} travelers={travelers} travelerData={travelerData} passportData={passportData} purposeOfVisit={purposeOfVisit} onBack={()=>setStep(2)}/>}
       </div>
     </>
   );

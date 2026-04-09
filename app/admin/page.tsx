@@ -380,7 +380,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       let email = o.billingEmail;
       let name = '';
       try {
-        const t = JSON.parse(o.travelers);
+        const t = typeof o.travelers === 'string' ? JSON.parse(o.travelers) : o.travelers;
         if (t[0]?.email) email = t[0].email;
         if (t[0]?.firstName) name = `${t[0].firstName} ${t[0].lastName || ''}`.trim();
       } catch {}
@@ -472,8 +472,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     switch (orderSortBy) {
       case 'order': cmp = a.orderNumber - b.orderNumber; break;
       case 'applicant': {
-        const nameA = (() => { try { const t = JSON.parse(a.travelers); return `${t[0]?.firstName || ''} ${t[0]?.lastName || ''}`; } catch { return ''; } })();
-        const nameB = (() => { try { const t = JSON.parse(b.travelers); return `${t[0]?.firstName || ''} ${t[0]?.lastName || ''}`; } catch { return ''; } })();
+        const nameA = (() => { try { const t = typeof a.travelers === 'string' ? JSON.parse(a.travelers) : a.travelers; return `${t[0]?.firstName || ''} ${t[0]?.lastName || ''}`; } catch { return ''; } })();
+        const nameB = (() => { try { const t = typeof b.travelers === 'string' ? JSON.parse(b.travelers) : b.travelers; return `${t[0]?.firstName || ''} ${t[0]?.lastName || ''}`; } catch { return ''; } })();
         cmp = nameA.localeCompare(nameB); break;
       }
       case 'visa': cmp = a.destination.localeCompare(b.destination); break;
@@ -601,7 +601,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                   // Group by first traveler's email (contact email)
                   let key = o.billingEmail;
                   try {
-                    const travelers = JSON.parse(o.travelers);
+                    const travelers = (typeof o.travelers === 'string' ? JSON.parse(o.travelers) : o.travelers);
                     if (travelers[0]?.email) key = travelers[0].email;
                   } catch {}
                   if (!acc[key]) acc[key] = [];
@@ -705,7 +705,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                     <tbody>
                       {refundedOrders.map(o => {
                         let applicant = o.billingEmail;
-                        try { const t = JSON.parse(o.travelers); if (t[0]) applicant = `${t[0].firstName} ${t[0].lastName}`; } catch {}
+                        try { const t = (typeof o.travelers === 'string' ? JSON.parse(o.travelers) : o.travelers); if (t[0]) applicant = `${t[0].firstName} ${t[0].lastName}`; } catch {}
                         return (
                           <tr key={o.id} className="admin-tr">
                             <td className="admin-td">
@@ -780,7 +780,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                       let travelerCount = 0;
                       let travelerNames = '';
                       try {
-                        const t = a.travelers ? JSON.parse(a.travelers) : [];
+                        const t = a.travelers ? (typeof a.travelers === 'string' ? JSON.parse(a.travelers) : a.travelers) : [];
                         travelerCount = t.length;
                         travelerNames = t.map((tr: any) => `${tr.firstName || ''} ${tr.lastName || ''}`.trim()).filter(Boolean).join(', ');
                       } catch {}
@@ -867,7 +867,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                   return filtered.map(c => {
                     const customerOrders = orders.filter(o => {
                       let email = o.billingEmail;
-                      try { const t = JSON.parse(o.travelers); if (t[0]?.email) email = t[0].email; } catch {}
+                      try { const t = (typeof o.travelers === 'string' ? JSON.parse(o.travelers) : o.travelers); if (t[0]?.email) email = t[0].email; } catch {}
                       return email.toLowerCase() === c.email.toLowerCase();
                     });
                     const totalSpent = customerOrders.reduce((s: number, o: any) => s + o.totalUSD, 0);
@@ -901,7 +901,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 ) : (() => {
                   const customerOrders = orders.filter(o => {
                     let email = o.billingEmail;
-                    try { const t = JSON.parse(o.travelers); if (t[0]?.email) email = t[0].email; } catch {}
+                    try { const t = (typeof o.travelers === 'string' ? JSON.parse(o.travelers) : o.travelers); if (t[0]?.email) email = t[0].email; } catch {}
                     return email.toLowerCase() === crmSelected.email.toLowerCase();
                   });
                   const tags = crmTags ? crmTags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];

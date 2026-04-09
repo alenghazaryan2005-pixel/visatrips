@@ -246,10 +246,7 @@ export default function Home() {
 
       </main>
 
-      <Footer
-        onOpenPrivacy={() => setPrivacyOpen(true)}
-        onOpenTerms={()   => setTermsOpen(true)}
-      />
+      <Footer />
 
       {/* ── PRIVACY MODAL ── */}
       <LegalModal
