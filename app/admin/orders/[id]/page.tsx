@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useRef } from 'react';
 import Link from 'next/link';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
@@ -23,6 +23,9 @@ interface Order {
   processingSpeed: string;
   lastEditedBy:    string | null;
   applicationId:   string | null;
+  evisaUrl:        string | null;
+  flaggedFields:   string | null;
+  specialistNotes: string | null;
   refundAmount:    number | null;
   refundReason:    string | null;
   refundedAt:      string | null;
@@ -44,6 +47,7 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
         <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'customers'); }}>👤 Customer Accounts</Link>
         <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'refunds'); }}>💸 Refunds</Link>
         <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'abandoned'); }}>🚫 Abandoned</Link>
+        <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>💬 CRM</Link>
       </nav>
       <button className="admin-logout-btn" onClick={onLogout}>← Sign Out</button>
     </aside>
@@ -52,12 +56,59 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
 
 /* ── Notes Dropdown ────────────────────────────────────────────────────────── */
 
-function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, saving, saved, saveNotes, orderNotes, applicationId, setApplicationId, orderApplicationId, orderId }: any) {
+function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, saving, saved, saveNotes, orderNotes, applicationId, setApplicationId, orderApplicationId, orderId, order, setOrder }: any) {
   const [open, setOpen] = useState(false);
   const [appIdSaving, setAppIdSaving] = useState(false);
   const [appIdSaved, setAppIdSaved] = useState(false);
+  const [evisaUploading, setEvisaUploading] = useState(false);
+  const [evisaRemoving, setEvisaRemoving] = useState(false);
+  const evisaInputRef = useRef<HTMLInputElement>(null);
   const hasNotes = editing ? !!editData?.notes : !!notes;
   const hasAppId = editing ? !!editData?.applicationId : !!applicationId;
+
+  const handleEvisaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEvisaUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('orderId', orderId);
+      fd.append('type', 'evisa');
+      const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd });
+      const uploadData = await uploadRes.json();
+      if (uploadData.url) {
+        const patchRes = await fetch(`/api/orders/${order.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ evisaUrl: uploadData.url, status: 'APPROVED' }),
+        });
+        if (patchRes.ok) {
+          const updated = await patchRes.json();
+          setOrder(updated);
+          // Send eVisa ready email
+          await fetch('/api/orders/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: order.id, type: 'evisa' }),
+          });
+        }
+      }
+    } catch (err) { console.error('eVisa upload error:', err); }
+    finally { setEvisaUploading(false); }
+  };
+
+  const handleEvisaRemove = async () => {
+    setEvisaRemoving(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evisaUrl: '' }),
+      });
+      if (res.ok) setOrder(await res.json());
+    } catch {} finally { setEvisaRemoving(false); }
+  };
 
   const saveApplicationId = async () => {
     setAppIdSaving(true);
@@ -123,6 +174,147 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
               {saving ? 'Saving...' : saved ? '✓ Saved!' : 'Save Notes'}
             </button>
           )}
+
+          {/* eVisa Upload */}
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--cloud)', paddingTop: '1rem' }}>
+            <div className="od-evisa-header">
+              <span className="od-evisa-title">📄 E-Visa Document</span>
+              {order?.evisaUrl && <span className="od-evisa-badge">Uploaded</span>}
+            </div>
+            <input ref={evisaInputRef} type="file" accept=".pdf,image/*" style={{ display: 'none' }} onChange={handleEvisaUpload} />
+            {order?.evisaUrl ? (
+              <div className="od-evisa-preview">
+                <a href={order.evisaUrl} target="_blank" rel="noopener noreferrer" className="od-evisa-link">
+                  {order.evisaUrl.endsWith('.pdf') ? (
+                    <div className="od-evisa-pdf">📄 <span>View E-Visa PDF</span></div>
+                  ) : (
+                    <img src={order.evisaUrl} alt="E-Visa" className="od-evisa-img" />
+                  )}
+                </a>
+                <div className="od-evisa-actions">
+                  <a href={order.evisaUrl} download className="od-evisa-download">⬇ Download</a>
+                  <button className="od-evisa-remove" onClick={handleEvisaRemove} disabled={evisaRemoving}>
+                    {evisaRemoving ? '...' : '✕ Remove'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginTop: '0.5rem' }}>
+                <button className="od-evisa-upload-btn" onClick={() => evisaInputRef.current?.click()} disabled={evisaUploading}>
+                  {evisaUploading ? 'Uploading...' : '📤 Upload E-Visa'}
+                </button>
+                <p className="od-evisa-hint">Upload the approved eVisa (PDF or image). Status will be set to Approved.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Flaggable Row ────────────────────────────────────────────────────────── */
+
+function FlagRow({ field, label, value, flagged, onToggle, className, showFlags }: { field: string; label: string; value: React.ReactNode; flagged: string[]; onToggle: (f: string) => void; className?: string; showFlags?: boolean }) {
+  if (!value) return null;
+  const isFlagged = flagged.includes(field);
+  return (
+    <div className={`modal-row${isFlagged ? ' flagged-row' : ''}`}>
+      {(showFlags || isFlagged) && (
+        <button type="button" className={`flag-btn${isFlagged ? ' active' : ''}`} onClick={(e) => { e.stopPropagation(); onToggle(field); }} title={isFlagged ? 'Remove flag' : 'Flag this field'}>
+          🚩
+        </button>
+      )}
+      <span className="modal-row-label">{label}</span>
+      <span className={`modal-row-value${className ? ' ' + className : ''}`}>{value}</span>
+    </div>
+  );
+}
+
+/* ── eVisa Upload (standalone, kept for compatibility) ────────────────────── */
+
+function EvisaUpload({ orderId, order, setOrder }: { orderId: string; order: Order; setOrder: (o: Order) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('orderId', orderId);
+      fd.append('type', 'evisa');
+      const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd });
+      const uploadData = await uploadRes.json();
+      if (uploadData.url) {
+        const patchRes = await fetch(`/api/orders/${order.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ evisaUrl: uploadData.url, status: 'APPROVED' }),
+        });
+        if (patchRes.ok) {
+          const updated = await patchRes.json();
+          setOrder(updated);
+        }
+      }
+    } catch (err) {
+      console.error('eVisa upload error:', err);
+    } finally { setUploading(false); }
+  };
+
+  const handleRemove = async () => {
+    setRemoving(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evisaUrl: '' }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setOrder(updated);
+      }
+    } catch {} finally { setRemoving(false); }
+  };
+
+  return (
+    <div className="od-evisa-section">
+      <div className="od-evisa-header">
+        <span className="od-evisa-title">📄 E-Visa Document</span>
+        {order.evisaUrl && <span className="od-evisa-badge">Uploaded</span>}
+      </div>
+      <input
+        id={`evisa-upload-${orderId}`}
+        type="file"
+        accept=".pdf,image/*"
+        style={{ display: 'none' }}
+        onChange={handleUpload}
+        disabled={uploading}
+      />
+      {order.evisaUrl ? (
+        <div className="od-evisa-preview">
+          <a href={order.evisaUrl} target="_blank" rel="noopener noreferrer" className="od-evisa-link">
+            {order.evisaUrl.endsWith('.pdf') ? (
+              <div className="od-evisa-pdf">📄 <span>View E-Visa PDF</span></div>
+            ) : (
+              <img src={order.evisaUrl} alt="E-Visa" className="od-evisa-img" />
+            )}
+          </a>
+          <div className="od-evisa-actions">
+            <a href={order.evisaUrl} download className="od-evisa-download">⬇ Download</a>
+            <button className="od-evisa-remove" onClick={handleRemove} disabled={removing}>
+              {removing ? '...' : '✕ Remove'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="od-evisa-upload">
+          <button className="od-evisa-upload-btn" onClick={() => document.getElementById(`evisa-upload-${orderId}`)?.click()} disabled={uploading}>
+            {uploading ? 'Uploading...' : '📤 Upload E-Visa'}
+          </button>
+          <p className="od-evisa-hint">Upload the approved eVisa (PDF or image). This will be visible to the customer and the order status will be set to Approved.</p>
         </div>
       )}
     </div>
@@ -146,6 +338,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [error, setError]     = useState('');
   const [notes, setNotes]     = useState('');
   const [applicationId, setApplicationId] = useState('');
+  const [flaggedFields, setFlaggedFields] = useState<string[]>([]);
+  const [flagMode, setFlagMode] = useState(false);
+  const [specialistNotes, setSpecialistNotes] = useState('');
+  const [notifying, setNotifying] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
 
@@ -168,6 +364,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         setOrder(data);
         setNotes(data.notes ?? '');
         setApplicationId(data.applicationId ?? '');
+        try { setFlaggedFields(data.flaggedFields ? JSON.parse(data.flaggedFields) : []); } catch { setFlaggedFields([]); }
+        setSpecialistNotes(data.specialistNotes ?? '');
       })
       .catch(() => setError('Order not found.'))
       .finally(() => setLoading(false));
@@ -299,6 +497,52 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     setEditTravelers(prev => prev.map((t, i) => i === index ? { ...t, ...fields } : t));
   };
 
+  const toggleFlag = (field: string) => {
+    setFlaggedFields(prev => prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]);
+  };
+
+  const [flagSaving, setFlagSaving] = useState(false);
+  const [flagSaved, setFlagSaved] = useState(false);
+  const saveFlags = async () => {
+    if (!order) return;
+    setFlagSaving(true);
+    try {
+      await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flaggedFields: JSON.stringify(flaggedFields) }),
+      });
+      setFlagSaved(true);
+      setTimeout(() => setFlagSaved(false), 2000);
+    } catch {} finally { setFlagSaving(false); }
+  };
+
+  const notifyCustomer = async () => {
+    if (!order || flaggedFields.length === 0) return;
+    setNotifying(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          flaggedFields: JSON.stringify(flaggedFields),
+          specialistNotes,
+          status: 'NEEDS_CORRECTION',
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setOrder(updated);
+        // Send correction email
+        await fetch('/api/orders/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id, type: 'correction' }),
+        });
+      }
+    } catch {} finally { setNotifying(false); }
+  };
+
   const handleLogout = async () => {
     await fetch('/api/admin/logout', { method: 'POST' });
     window.location.href = '/admin';
@@ -394,6 +638,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <option value="REJECTED">Rejected</option>
             <option value="REFUNDED">Refunded</option>
             <option value="ON_HOLD">On Hold</option>
+            <option value="NEEDS_CORRECTION">Needs Correction</option>
           </select>
           {order.status !== 'REFUNDED' && !editing && (
             <button className="od-refund-btn" onClick={() => setShowRefundModal(true)}>
@@ -402,6 +647,34 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           )}
         </div>
       </div>
+
+      {/* Flag & Notify section */}
+      {flaggedFields.length > 0 && (
+        <div className="od-flag-section">
+          <div className="od-flag-header">
+            <span>🚩 {flaggedFields.length} field{flaggedFields.length !== 1 ? 's' : ''} flagged</span>
+            <button className="od-flag-clear" onClick={() => setFlaggedFields([])}>Clear all flags</button>
+          </div>
+          <div className="od-flag-tags">
+            {flaggedFields.map(f => (
+              <span key={f} className="od-flag-tag" onClick={() => toggleFlag(f)}>{f} ✕</span>
+            ))}
+          </div>
+          <div className="ap-field" style={{ marginTop: '0.75rem' }}>
+            <label className="ap-field-label">Specialist&apos;s Note (visible to customer)</label>
+            <textarea
+              className="ap-input contact-textarea"
+              rows={3}
+              placeholder="Explain what needs to be corrected..."
+              value={specialistNotes}
+              onChange={e => setSpecialistNotes(e.target.value)}
+            />
+          </div>
+          <button className="od-notify-btn" onClick={notifyCustomer} disabled={notifying}>
+            {notifying ? 'Notifying...' : '📨 Notify Customer'}
+          </button>
+        </div>
+      )}
 
       {/* Refund info banner */}
       {order.status === 'REFUNDED' && (
@@ -475,12 +748,24 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         setApplicationId={setApplicationId}
         orderApplicationId={order.applicationId}
         orderId={id}
+        order={order}
+        setOrder={setOrder}
       />
 
-      {/* ── FULL EDIT BUTTON ── */}
-      <div style={{ marginBottom: '1.5rem' }}>
+      {/* ── ACTION BUTTONS ── */}
+      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
         {!editing ? (
-          <button className="od-edit-btn" onClick={startEditing}>✏️ Full Edit</button>
+          <>
+            <button className="od-edit-btn" onClick={startEditing}>✏️ Full Edit</button>
+            <button className={`od-flag-mode-btn${flagMode ? ' active' : ''}`} onClick={() => setFlagMode(!flagMode)}>
+              🚩 {flagMode ? 'Done Flagging' : 'Flag Errors'}
+            </button>
+            {(flagMode || JSON.stringify(flaggedFields) !== (order.flaggedFields || '[]')) && (
+              <button className="od-save-btn" onClick={saveFlags} disabled={flagSaving} style={{ padding: '0.5rem 1rem' }}>
+                {flagSaving ? 'Saving...' : flagSaved ? '✓ Saved' : '💾 Save Flags'}
+              </button>
+            )}
+          </>
         ) : (
           <div className="od-edit-actions">
             <button className="od-cancel-btn" onClick={cancelEditing}>Cancel</button>
@@ -509,31 +794,31 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* Personal */}
                   <div className="modal-subsection-title">Personal Details</div>
                   <div className="modal-rows">
-                    <div className="modal-row"><span className="modal-row-label">Full name</span><span className="modal-row-value">{t.firstName} {t.lastName}</span></div>
-                    {t.dob && <div className="modal-row"><span className="modal-row-label">Date of birth</span><span className="modal-row-value">{t.dob}</span></div>}
-                    <div className="modal-row"><span className="modal-row-label">Email</span><span className="modal-row-value">{t.email}</span></div>
-                    {t.gender && <div className="modal-row"><span className="modal-row-label">Gender</span><span className="modal-row-value">{t.gender}</span></div>}
-                    {t.countryOfBirth && <div className="modal-row"><span className="modal-row-label">Country of birth</span><span className="modal-row-value">{t.countryOfBirth}</span></div>}
-                    {t.cityOfBirth && <div className="modal-row"><span className="modal-row-label">City of birth</span><span className="modal-row-value">{t.cityOfBirth}</span></div>}
-                    {t.maritalStatus && <div className="modal-row"><span className="modal-row-label">Marital status</span><span className="modal-row-value">{t.maritalStatus}</span></div>}
-                    {t.citizenshipId && <div className="modal-row"><span className="modal-row-label">Citizenship/National ID</span><span className="modal-row-value modal-mono">{t.citizenshipId}</span></div>}
-                    {t.religion && <div className="modal-row"><span className="modal-row-label">Religion</span><span className="modal-row-value">{t.religion}</span></div>}
-                    {t.visibleMarks && <div className="modal-row"><span className="modal-row-label">Visible marks</span><span className="modal-row-value">{t.visibleMarks}</span></div>}
-                    {t.educationalQualification && <div className="modal-row"><span className="modal-row-label">Education</span><span className="modal-row-value">{t.educationalQualification}</span></div>}
-                    {t.nationalityByBirth && <div className="modal-row"><span className="modal-row-label">Nationality acquired</span><span className="modal-row-value">{t.nationalityByBirth === 'birth' ? 'By birth' : 'By naturalization'}</span></div>}
-                    {t.livedTwoYears && <div className="modal-row"><span className="modal-row-label">Lived 2+ yrs in applying country</span><span className="modal-row-value">{t.livedTwoYears === 'yes' ? 'Yes' : 'No'}</span></div>}
-                    {t.phoneNumber && <div className="modal-row"><span className="modal-row-label">Phone</span><span className="modal-row-value">{t.phoneNumber}</span></div>}
-                    {t.holdAnotherNationality && <div className="modal-row"><span className="modal-row-label">Holds another nationality</span><span className="modal-row-value">{t.holdAnotherNationality === 'yes' ? `Yes — ${t.otherNationality}` : 'No'}</span></div>}
-                    {t.parentsFromPakistan && <div className="modal-row"><span className="modal-row-label">Parents/grandparents from Pakistan</span><span className="modal-row-value">{t.parentsFromPakistan === 'yes' ? 'Yes' : 'No'}</span></div>}
+                    <FlagRow field="firstName" label="Full name" value={`${t.firstName} ${t.lastName}`} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="dob" label="Date of birth" value={t.dob} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="email" label="Email" value={t.email} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="gender" label="Gender" value={t.gender} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="countryOfBirth" label="Country of birth" value={t.countryOfBirth} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="cityOfBirth" label="City of birth" value={t.cityOfBirth} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="maritalStatus" label="Marital status" value={t.maritalStatus} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="citizenshipId" label="Citizenship/National ID" value={t.citizenshipId} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
+                    <FlagRow field="religion" label="Religion" value={t.religion} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="visibleMarks" label="Visible marks" value={t.visibleMarks} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="educationalQualification" label="Education" value={t.educationalQualification} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="nationalityByBirth" label="Nationality acquired" value={t.nationalityByBirth ? (t.nationalityByBirth === 'birth' ? 'By birth' : 'By naturalization') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="livedTwoYears" label="Lived 2+ yrs" value={t.livedTwoYears ? (t.livedTwoYears === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="phoneNumber" label="Phone" value={t.phoneNumber} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="holdAnotherNationality" label="Other nationality" value={t.holdAnotherNationality ? (t.holdAnotherNationality === 'yes' ? `Yes — ${t.otherNationality}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    <FlagRow field="parentsFromPakistan" label="Parents from Pakistan" value={t.parentsFromPakistan ? (t.parentsFromPakistan === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                   </div>
 
                   {/* Trip Details */}
                   {(t.arrivalDate || t.arrivalPoint || (t.visitedCountries && t.visitedCountries.length > 0)) && <>
                     <div className="modal-subsection-title">Trip Details</div>
                     <div className="modal-rows">
-                      {t.arrivalDate && <div className="modal-row"><span className="modal-row-label">Arrival date</span><span className="modal-row-value">{t.arrivalDate}</span></div>}
-                      {t.arrivalPoint && <div className="modal-row"><span className="modal-row-label">Arrival point</span><span className="modal-row-value">{t.arrivalPoint}</span></div>}
-                      {t.visitedCountries && t.visitedCountries.length > 0 && <div className="modal-row"><span className="modal-row-label">Countries visited (10 yrs)</span><span className="modal-row-value">{t.visitedCountries.join(', ')}</span></div>}
+                      <FlagRow field="arrivalDate" label="Arrival date" value={t.arrivalDate} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="arrivalPoint" label="Arrival point" value={t.arrivalPoint} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="visitedCountries" label="Countries visited (10 yrs)" value={t.visitedCountries?.length ? t.visitedCountries.join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                     </div>
                   </>}
 
@@ -541,9 +826,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {(t.address || t.city || t.state || t.zip || t.residenceCountry) && <>
                     <div className="modal-subsection-title">Address</div>
                     <div className="modal-rows">
-                      {t.residenceCountry && <div className="modal-row"><span className="modal-row-label">Country of residence</span><span className="modal-row-value">{t.residenceCountry}</span></div>}
-                      {t.address && <div className="modal-row"><span className="modal-row-label">Home address</span><span className="modal-row-value">{t.address}</span></div>}
-                      {(t.city || t.state || t.zip) && <div className="modal-row"><span className="modal-row-label">City / State / ZIP</span><span className="modal-row-value">{[t.city, t.state, t.zip].filter(Boolean).join(', ')}</span></div>}
+                      <FlagRow field="residenceCountry" label="Country of residence" value={t.residenceCountry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="address" label="Home address" value={t.address} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="city" label="City / State / ZIP" value={(t.city || t.state || t.zip) ? [t.city, t.state, t.zip].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                     </div>
                   </>}
 
@@ -551,12 +836,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {(t.employmentStatus || t.isEmployed || t.servedMilitary) && <>
                     <div className="modal-subsection-title">Employment</div>
                     <div className="modal-rows">
-                      {t.employmentStatus && <div className="modal-row"><span className="modal-row-label">Status</span><span className="modal-row-value">{t.employmentStatus}</span></div>}
-                      {t.employerName && <div className="modal-row"><span className="modal-row-label">Employer</span><span className="modal-row-value">{t.employerName}</span></div>}
-                      {t.employerAddress && <div className="modal-row"><span className="modal-row-label">Employer address</span><span className="modal-row-value">{[t.employerAddress, t.employerCity, t.employerState, t.employerCountry, t.employerZip].filter(Boolean).join(', ')}</span></div>}
-                      {t.studentProvider && <div className="modal-row"><span className="modal-row-label">Student provider</span><span className="modal-row-value">{t.studentProvider === 'father' ? "Father's details" : "Spouse's details"}</span></div>}
-                      {t.servedMilitary && <div className="modal-row"><span className="modal-row-label">Military/police service</span><span className="modal-row-value">{t.servedMilitary === 'yes' ? 'Yes' : 'No'}</span></div>}
-                      {t.isEmployed && !t.employmentStatus && <div className="modal-row"><span className="modal-row-label">Employed</span><span className="modal-row-value">{t.isEmployed === 'yes' ? 'Yes' : 'No'}</span></div>}
+                      <FlagRow field="employmentStatus" label="Status" value={t.employmentStatus} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="employerName" label="Employer" value={t.employerName} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="employerAddress" label="Employer address" value={t.employerAddress ? [t.employerAddress, t.employerCity, t.employerState, t.employerCountry, t.employerZip].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="servedMilitary" label="Military/police" value={t.servedMilitary ? (t.servedMilitary === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                     </div>
                   </>}
 
@@ -573,13 +856,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {(t.fatherName || t.motherName || t.spouseName || t.knowParents) && <>
                     <div className="modal-subsection-title">Family Details</div>
                     <div className="modal-rows">
-                      {t.fatherName && <div className="modal-row"><span className="modal-row-label">Father</span><span className="modal-row-value">{t.fatherName}{t.fatherNationality ? ` (${t.fatherNationality})` : ''}</span></div>}
-                      {(t.fatherPlaceOfBirth || t.fatherCountryOfBirth) && <div className="modal-row"><span className="modal-row-label">Father&apos;s birthplace</span><span className="modal-row-value">{[t.fatherPlaceOfBirth, t.fatherCountryOfBirth].filter(Boolean).join(', ')}</span></div>}
-                      {t.motherName && <div className="modal-row"><span className="modal-row-label">Mother</span><span className="modal-row-value">{t.motherName}{t.motherNationality ? ` (${t.motherNationality})` : ''}</span></div>}
-                      {(t.motherPlaceOfBirth || t.motherCountryOfBirth) && <div className="modal-row"><span className="modal-row-label">Mother&apos;s birthplace</span><span className="modal-row-value">{[t.motherPlaceOfBirth, t.motherCountryOfBirth].filter(Boolean).join(', ')}</span></div>}
-                      {t.spouseName && <div className="modal-row"><span className="modal-row-label">Spouse</span><span className="modal-row-value">{t.spouseName}{t.spouseNationality ? ` (${t.spouseNationality})` : ''}</span></div>}
-                      {(t.spousePlaceOfBirth || t.spouseCountryOfBirth) && <div className="modal-row"><span className="modal-row-label">Spouse&apos;s birthplace</span><span className="modal-row-value">{[t.spousePlaceOfBirth, t.spouseCountryOfBirth].filter(Boolean).join(', ')}</span></div>}
-                      {t.knowParents === 'none' && <div className="modal-row"><span className="modal-row-label">Parents</span><span className="modal-row-value">Unknown</span></div>}
+                      <FlagRow field="fatherName" label="Father" value={t.fatherName ? `${t.fatherName}${t.fatherNationality ? ` (${t.fatherNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="fatherPlaceOfBirth" label="Father's birthplace" value={(t.fatherPlaceOfBirth || t.fatherCountryOfBirth) ? [t.fatherPlaceOfBirth, t.fatherCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="motherName" label="Mother" value={t.motherName ? `${t.motherName}${t.motherNationality ? ` (${t.motherNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="motherPlaceOfBirth" label="Mother's birthplace" value={(t.motherPlaceOfBirth || t.motherCountryOfBirth) ? [t.motherPlaceOfBirth, t.motherCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="spouseName" label="Spouse" value={t.spouseName ? `${t.spouseName}${t.spouseNationality ? ` (${t.spouseNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="spousePlaceOfBirth" label="Spouse's birthplace" value={(t.spousePlaceOfBirth || t.spouseCountryOfBirth) ? [t.spousePlaceOfBirth, t.spouseCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                     </div>
                   </>}
 
@@ -587,13 +869,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {(t.passportCountry || t.passportNumber) && <>
                     <div className="modal-subsection-title">Passport Details</div>
                     <div className="modal-rows">
-                      {t.passportCountry && <div className="modal-row"><span className="modal-row-label">Country</span><span className="modal-row-value">{t.passportCountry}</span></div>}
-                      {t.passportNumber && <div className="modal-row"><span className="modal-row-label">Number</span><span className="modal-row-value modal-mono">{t.passportNumber}</span></div>}
-                      {t.passportPlaceOfIssue && <div className="modal-row"><span className="modal-row-label">Place of issue</span><span className="modal-row-value">{t.passportPlaceOfIssue}</span></div>}
-                      {t.passportCountryOfIssue && <div className="modal-row"><span className="modal-row-label">Country of issue</span><span className="modal-row-value">{t.passportCountryOfIssue}</span></div>}
-                      {t.passportIssued && <div className="modal-row"><span className="modal-row-label">Issued</span><span className="modal-row-value">{t.passportIssued}</span></div>}
-                      {t.passportExpiry && <div className="modal-row"><span className="modal-row-label">Expiry</span><span className="modal-row-value">{t.passportExpiry}</span></div>}
-                      {t.hasOtherPassport && <div className="modal-row"><span className="modal-row-label">Other passport/IC</span><span className="modal-row-value">{t.hasOtherPassport === 'yes' ? `Yes — ${t.otherPassportNumber || ''}` : 'No'}</span></div>}
+                      <FlagRow field="passportCountry" label="Country" value={t.passportCountry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="passportNumber" label="Number" value={t.passportNumber} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
+                      <FlagRow field="passportPlaceOfIssue" label="Place of issue" value={t.passportPlaceOfIssue} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="passportCountryOfIssue" label="Country of issue" value={t.passportCountryOfIssue} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="passportIssued" label="Issued" value={t.passportIssued} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="passportExpiry" label="Expiry" value={t.passportExpiry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="hasOtherPassport" label="Other passport/IC" value={t.hasOtherPassport ? (t.hasOtherPassport === 'yes' ? `Yes — ${t.otherPassportNumber || ''}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                     </div>
                   </>}
 
@@ -601,12 +883,20 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {(t.placesToVisit || t.bookedHotel || t.exitPort || t.visitedIndiaBefore) && <>
                     <div className="modal-subsection-title">Travel &amp; Accommodation</div>
                     <div className="modal-rows">
-                      {t.placesToVisit && <div className="modal-row"><span className="modal-row-label">Places to visit</span><span className="modal-row-value">{t.placesToVisit}</span></div>}
-                      {t.bookedHotel && <div className="modal-row"><span className="modal-row-label">Hotel booked</span><span className="modal-row-value">{t.bookedHotel === 'yes' ? `Yes — ${t.hotelName || ''}, ${t.hotelPlace || ''}` : 'No'}</span></div>}
-                      {t.tourOperatorName && <div className="modal-row"><span className="modal-row-label">Tour operator</span><span className="modal-row-value">{t.tourOperatorName}</span></div>}
-                      {t.exitPort && <div className="modal-row"><span className="modal-row-label">Exit airport</span><span className="modal-row-value">{t.exitPort}</span></div>}
-                      {t.visitedIndiaBefore && <div className="modal-row"><span className="modal-row-label">Visited India before</span><span className="modal-row-value">{t.visitedIndiaBefore === 'yes' ? 'Yes' : 'No'}</span></div>}
-                      {t.visaRefusedBefore && <div className="modal-row"><span className="modal-row-label">Visa refused before</span><span className={`modal-row-value${t.visaRefusedBefore === 'yes' ? ' text-red-600 font-semibold' : ''}`}>{t.visaRefusedBefore === 'yes' ? 'Yes' : 'No'}</span></div>}
+                      <FlagRow field="placesToVisit" label="Places to visit" value={t.placesToVisit} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="bookedHotel" label="Hotel booked" value={t.bookedHotel ? (t.bookedHotel === 'yes' ? `Yes — ${t.hotelName || ''}, ${t.hotelPlace || ''}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="tourOperatorName" label="Tour operator" value={t.tourOperatorName} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="exitPort" label="Exit airport" value={t.exitPort} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="visitedIndiaBefore" label="Visited India before" value={t.visitedIndiaBefore ? (t.visitedIndiaBefore === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      {t.visitedIndiaBefore === 'yes' && <>
+                        <FlagRow field="prevIndiaAddress" label="Previous address in India" value={(t as any).prevIndiaAddress} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="prevIndiaCities" label="Cities visited" value={(t as any).prevIndiaCities} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="prevIndiaVisaNo" label="Last visa number" value={(t as any).prevIndiaVisaNo} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
+                        <FlagRow field="prevIndiaVisaType" label="Last visa type" value={(t as any).prevIndiaVisaType} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="prevIndiaVisaPlace" label="Last visa place of issue" value={(t as any).prevIndiaVisaPlace} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="prevIndiaVisaDate" label="Last visa date of issue" value={(t as any).prevIndiaVisaDate} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      </>}
+                      <FlagRow field="visaRefusedBefore" label="Visa refused before" value={t.visaRefusedBefore ? (t.visaRefusedBefore === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.visaRefusedBefore === 'yes' ? 'text-red-600 font-semibold' : ''} />
                     </div>
                   </>}
 
@@ -614,11 +904,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {(t.refNameIndia || t.refAddressHome) && <>
                     <div className="modal-subsection-title">References</div>
                     <div className="modal-rows">
-                      {t.refNameIndia && <div className="modal-row"><span className="modal-row-label">India reference</span><span className="modal-row-value">{t.refNameIndia}</span></div>}
-                      {t.refAddressIndia && <div className="modal-row"><span className="modal-row-label">India address</span><span className="modal-row-value">{[t.refAddressIndia, t.refStateIndia, t.refDistrictIndia].filter(Boolean).join(', ')}</span></div>}
-                      {t.refPhoneIndia && <div className="modal-row"><span className="modal-row-label">India phone</span><span className="modal-row-value">{t.refPhoneIndia}</span></div>}
-                      {t.refAddressHome && <div className="modal-row"><span className="modal-row-label">Home country address</span><span className="modal-row-value">{[t.refAddressHome, t.refStateHome, t.refDistrictHome].filter(Boolean).join(', ')}</span></div>}
-                      {t.refPhoneHome && <div className="modal-row"><span className="modal-row-label">Home country phone</span><span className="modal-row-value">{t.refPhoneHome}</span></div>}
+                      <FlagRow field="refNameIndia" label="India reference" value={t.refNameIndia} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="refAddressIndia" label="India address" value={t.refAddressIndia ? [t.refAddressIndia, t.refStateIndia, t.refDistrictIndia].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="refPhoneIndia" label="India phone" value={t.refPhoneIndia} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="refAddressHome" label="Home country address" value={t.refAddressHome ? [t.refAddressHome, t.refStateHome, t.refDistrictHome].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="refPhoneHome" label="Home country phone" value={t.refPhoneHome} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                     </div>
                   </>}
 
@@ -626,9 +916,9 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {(t.everArrested || t.everRefusedEntry || t.soughtAsylum) && <>
                     <div className="modal-subsection-title">Security</div>
                     <div className="modal-rows">
-                      {t.everArrested && <div className="modal-row"><span className="modal-row-label">Arrested/convicted</span><span className={`modal-row-value${t.everArrested === 'yes' ? ' text-red-600 font-semibold' : ''}`}>{t.everArrested === 'yes' ? 'Yes' : 'No'}</span></div>}
-                      {t.everRefusedEntry && <div className="modal-row"><span className="modal-row-label">Refused entry/deported</span><span className={`modal-row-value${t.everRefusedEntry === 'yes' ? ' text-red-600 font-semibold' : ''}`}>{t.everRefusedEntry === 'yes' ? 'Yes' : 'No'}</span></div>}
-                      {t.soughtAsylum && <div className="modal-row"><span className="modal-row-label">Sought asylum</span><span className={`modal-row-value${t.soughtAsylum === 'yes' ? ' text-red-600 font-semibold' : ''}`}>{t.soughtAsylum === 'yes' ? 'Yes' : 'No'}</span></div>}
+                      <FlagRow field="everArrested" label="Arrested/convicted" value={t.everArrested ? (t.everArrested === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.everArrested === 'yes' ? 'text-red-600 font-semibold' : ''} />
+                      <FlagRow field="everRefusedEntry" label="Refused entry/deported" value={t.everRefusedEntry ? (t.everRefusedEntry === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.everRefusedEntry === 'yes' ? 'text-red-600 font-semibold' : ''} />
+                      <FlagRow field="soughtAsylum" label="Sought asylum" value={t.soughtAsylum ? (t.soughtAsylum === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.soughtAsylum === 'yes' ? 'text-red-600 font-semibold' : ''} />
                     </div>
                   </>}
 
@@ -637,18 +927,25 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     <div className="modal-subsection-title">Uploaded Documents</div>
                     <div style={{display:'flex',gap:'1.5rem',flexWrap:'wrap',marginTop:'0.5rem'}}>
                       {t.photoUrl && (
-                        <div style={{textAlign:'center'}}>
+                        <div style={{textAlign:'center', border: flaggedFields.includes('photoUrl') ? '2px solid #dc2626' : 'none', borderRadius:'1rem', padding:'0.5rem'}}>
                           <a href={t.photoUrl} target="_blank" rel="noopener noreferrer">
                             <img src={t.photoUrl} alt="Traveler photo" style={{maxWidth:'140px',maxHeight:'140px',borderRadius:'0.75rem',border:'2px solid var(--cloud)',objectFit:'cover',cursor:'pointer'}} />
                           </a>
                           <div style={{fontSize:'0.75rem',color:'var(--slate)',marginTop:'0.25rem'}}>Traveler Photo</div>
-                          <a href={t.photoUrl} download style={{display:'inline-block',marginTop:'0.35rem',fontSize:'0.75rem',fontWeight:600,color:'var(--blue)',textDecoration:'none',padding:'0.25rem 0.75rem',borderRadius:'0.5rem',border:'1px solid var(--cloud)',background:'white'}}>
-                            ⬇ Download
-                          </a>
+                          <div style={{display:'flex',gap:'0.35rem',justifyContent:'center',marginTop:'0.35rem'}}>
+                            <a href={t.photoUrl} download style={{fontSize:'0.75rem',fontWeight:600,color:'var(--blue)',textDecoration:'none',padding:'0.25rem 0.5rem',borderRadius:'0.5rem',border:'1px solid var(--cloud)',background:'white'}}>
+                              ⬇
+                            </a>
+                            {(flagMode || flaggedFields.includes('photoUrl')) && (
+                              <button type="button" className={`flag-btn${flaggedFields.includes('photoUrl') ? ' active' : ''}`} onClick={() => toggleFlag('photoUrl')} style={{opacity: flaggedFields.includes('photoUrl') ? 1 : 0.4, fontSize:'0.85rem'}}>
+                                🚩
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                       {t.passportBioUrl && (
-                        <div style={{textAlign:'center'}}>
+                        <div style={{textAlign:'center', border: flaggedFields.includes('passportBioUrl') ? '2px solid #dc2626' : 'none', borderRadius:'1rem', padding:'0.5rem'}}>
                           <a href={t.passportBioUrl} target="_blank" rel="noopener noreferrer">
                             {t.passportBioUrl.endsWith('.pdf') ? (
                               <div style={{width:'140px',height:'140px',background:'#f1f5f9',borderRadius:'0.75rem',border:'2px solid var(--cloud)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'2rem',cursor:'pointer'}}>📄</div>
@@ -657,9 +954,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                             )}
                           </a>
                           <div style={{fontSize:'0.75rem',color:'var(--slate)',marginTop:'0.25rem'}}>Passport Bio Page</div>
-                          <a href={t.passportBioUrl} download style={{display:'inline-block',marginTop:'0.35rem',fontSize:'0.75rem',fontWeight:600,color:'var(--blue)',textDecoration:'none',padding:'0.25rem 0.75rem',borderRadius:'0.5rem',border:'1px solid var(--cloud)',background:'white'}}>
-                            ⬇ Download
-                          </a>
+                          <div style={{display:'flex',gap:'0.35rem',justifyContent:'center',marginTop:'0.35rem'}}>
+                            <a href={t.passportBioUrl} download style={{fontSize:'0.75rem',fontWeight:600,color:'var(--blue)',textDecoration:'none',padding:'0.25rem 0.5rem',borderRadius:'0.5rem',border:'1px solid var(--cloud)',background:'white'}}>
+                              ⬇
+                            </a>
+                            {(flagMode || flaggedFields.includes('passportBioUrl')) && (
+                              <button type="button" className={`flag-btn${flaggedFields.includes('passportBioUrl') ? ' active' : ''}`} onClick={() => toggleFlag('passportBioUrl')} style={{opacity: flaggedFields.includes('passportBioUrl') ? 1 : 0.4, fontSize:'0.85rem'}}>
+                                🚩
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

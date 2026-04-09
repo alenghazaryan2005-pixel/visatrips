@@ -68,33 +68,63 @@ interface Order {
   visaType: string;
   destination: string;
   travelers: string;
+  flaggedFields: string | null;
+  specialistNotes: string | null;
 }
 
 const INDIA_AIRPORTS = [
-  'Ahmedabad Airport',
-  'Amritsar Airport',
-  'Bangalore Airport',
-  'Calicut Airport',
-  'Chennai Airport',
-  'Cochin Airport',
-  'Coimbatore Airport',
-  'Delhi Airport',
-  'Gaya Airport',
-  'Goa Airport',
-  'Guwahati Airport',
-  'Hyderabad Airport',
-  'Jaipur Airport',
-  'Kolkata Airport',
-  'Lucknow Airport',
-  'Mangalore Airport',
-  'Mumbai Airport',
-  'Nagpur Airport',
-  'Pune Airport',
-  'Tiruchirappalli Airport',
-  'Trivandrum Airport',
-  'Varanasi Airport',
-  'Visakhapatnam Airport',
+  'Ahmedabad','Amritsar','Bagdogra','Bengaluru','Bhubaneswar','Calicut',
+  'Chandigarh','Chennai','Cochin','Coimbatore','Delhi','Gaya','Goa (Dabolim)',
+  'Goa (Mopa)','Guwahati','Hyderabad','Indore','Jaipur','Kannur','Kolkata',
+  'Lucknow','Madurai','Mangalore','Mumbai','Nagpur','Port Blair','Pune',
+  'Surat','Thiruvananthapuram','Trichy','Varanasi','Vijayawada','Visakhapatnam',
 ];
+
+const INDIA_SEAPORTS = [
+  'Agatti','Alang','Bedi Bandar','Bhavnagar','Calicut','Kamarajar','Kandla',
+  'Kattupalli','Cochin','Kolkata','Kollam','Krishnapatnam','Mundra',
+  'Mumbai','Nagapattinam','New Mangalore','Nhava Sheva','Paradeep',
+  'Pipavav','Port Blair','Porbandar','Tuticorin','Vallarpadam',
+  'Vishakhapatnam','Vizhinjam','Vizhinjam International','Dhamra',
+  'Chennai','Mormugao','Cuddalore','Hazira','Mandvi','Kakinada',
+];
+
+const INDIA_LAND_PORTS = [
+  'Raxaul','Rupaidiha','Darranga','Jogbani',
+];
+
+const ALL_INDIA_PORTS = [
+  ...INDIA_AIRPORTS.map(p => `${p} (Airport)`),
+  ...INDIA_SEAPORTS.map(p => `${p} (Seaport)`),
+  ...INDIA_LAND_PORTS.map(p => `${p} (Land Port)`),
+];
+
+const INDIA_STATES = [
+  'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
+  'Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh',
+  'Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan',
+  'Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal',
+  'Delhi','Chandigarh','Puducherry','Jammu and Kashmir','Ladakh',
+  'Andaman and Nicobar Islands','Dadra and Nagar Haveli and Daman and Diu','Lakshadweep',
+];
+
+const INDIA_DISTRICTS: Record<string, string[]> = {
+  'Delhi': ['Central Delhi','East Delhi','New Delhi','North Delhi','North East Delhi','North West Delhi','Shahdara','South Delhi','South East Delhi','South West Delhi','West Delhi'],
+  'Maharashtra': ['Ahmednagar','Akola','Amravati','Aurangabad','Beed','Bhandara','Buldhana','Chandrapur','Dhule','Gadchiroli','Gondia','Hingoli','Jalgaon','Jalna','Kolhapur','Latur','Mumbai City','Mumbai Suburban','Nagpur','Nanded','Nandurbar','Nashik','Osmanabad','Palghar','Parbhani','Pune','Raigad','Ratnagiri','Sangli','Satara','Sindhudurg','Solapur','Thane','Wardha','Washim','Yavatmal'],
+  'Karnataka': ['Bagalkot','Ballari','Belagavi','Bengaluru Rural','Bengaluru Urban','Bidar','Chamarajanagar','Chikkaballapur','Chikkamagaluru','Chitradurga','Dakshina Kannada','Davanagere','Dharwad','Gadag','Hassan','Haveri','Kalaburagi','Kodagu','Kolar','Koppal','Mandya','Mysuru','Raichur','Ramanagara','Shivamogga','Tumakuru','Udupi','Uttara Kannada','Vijayapura','Yadgir'],
+  'Tamil Nadu': ['Ariyalur','Chengalpattu','Chennai','Coimbatore','Cuddalore','Dharmapuri','Dindigul','Erode','Kallakurichi','Kancheepuram','Kanyakumari','Karur','Krishnagiri','Madurai','Mayiladuthurai','Nagapattinam','Namakkal','Nilgiris','Perambalur','Pudukkottai','Ramanathapuram','Ranipet','Salem','Sivaganga','Tenkasi','Thanjavur','Theni','Thoothukudi','Tiruchirappalli','Tirunelveli','Tirupathur','Tiruppur','Tiruvallur','Tiruvannamalai','Tiruvarur','Vellore','Viluppuram','Virudhunagar'],
+  'Uttar Pradesh': ['Agra','Aligarh','Allahabad','Ambedkar Nagar','Amethi','Amroha','Auraiya','Ayodhya','Azamgarh','Baghpat','Bahraich','Ballia','Balrampur','Banda','Barabanki','Bareilly','Basti','Bijnor','Budaun','Bulandshahr','Chandauli','Chitrakoot','Deoria','Etah','Etawah','Farrukhabad','Fatehpur','Firozabad','Gautam Buddh Nagar','Ghaziabad','Ghazipur','Gonda','Gorakhpur','Hamirpur','Hapur','Hardoi','Hathras','Jalaun','Jaunpur','Jhansi','Kannauj','Kanpur Dehat','Kanpur Nagar','Kasganj','Kaushambi','Kushinagar','Lakhimpur Kheri','Lalitpur','Lucknow','Maharajganj','Mahoba','Mainpuri','Mathura','Mau','Meerut','Mirzapur','Moradabad','Muzaffarnagar','Pilibhit','Pratapgarh','Raebareli','Rampur','Saharanpur','Sambhal','Sant Kabir Nagar','Shahjahanpur','Shamli','Shravasti','Siddharthnagar','Sitapur','Sonbhadra','Sultanpur','Unnao','Varanasi'],
+  'West Bengal': ['Alipurduar','Bankura','Birbhum','Cooch Behar','Dakshin Dinajpur','Darjeeling','Hooghly','Howrah','Jalpaiguri','Jhargram','Kalimpong','Kolkata','Malda','Murshidabad','Nadia','North 24 Parganas','Paschim Bardhaman','Paschim Medinipur','Purba Bardhaman','Purba Medinipur','Purulia','South 24 Parganas','Uttar Dinajpur'],
+  'Gujarat': ['Ahmedabad','Amreli','Anand','Aravalli','Banaskantha','Bharuch','Bhavnagar','Botad','Chhota Udaipur','Dahod','Dang','Devbhoomi Dwarka','Gandhinagar','Gir Somnath','Jamnagar','Junagadh','Kachchh','Kheda','Mahisagar','Mehsana','Morbi','Narmada','Navsari','Panchmahal','Patan','Porbandar','Rajkot','Sabarkantha','Surat','Surendranagar','Tapi','Vadodara','Valsad'],
+  'Rajasthan': ['Ajmer','Alwar','Banswara','Baran','Barmer','Bharatpur','Bhilwara','Bikaner','Bundi','Chittorgarh','Churu','Dausa','Dholpur','Dungarpur','Hanumangarh','Jaipur','Jaisalmer','Jalore','Jhalawar','Jhunjhunu','Jodhpur','Karauli','Kota','Nagaur','Pali','Pratapgarh','Rajsamand','Sawai Madhopur','Sikar','Sirohi','Sri Ganganagar','Tonk','Udaipur'],
+  'Kerala': ['Alappuzha','Ernakulam','Idukki','Kannur','Kasaragod','Kollam','Kottayam','Kozhikode','Malappuram','Palakkad','Pathanamthitta','Thiruvananthapuram','Thrissur','Wayanad'],
+  'Telangana': ['Adilabad','Bhadradri Kothagudem','Hyderabad','Jagtial','Jangaon','Jayashankar Bhupalpally','Jogulamba Gadwal','Kamareddy','Karimnagar','Khammam','Kumuram Bheem','Mahabubabad','Mahbubnagar','Mancherial','Medak','Medchal-Malkajgiri','Mulugu','Nagarkurnool','Nalgonda','Narayanpet','Nirmal','Nizamabad','Peddapalli','Rajanna Sircilla','Rangareddy','Sangareddy','Siddipet','Suryapet','Vikarabad','Wanaparthy','Warangal Rural','Warangal Urban','Yadadri Bhuvanagiri'],
+  'Andhra Pradesh': ['Anantapur','Chittoor','East Godavari','Guntur','Krishna','Kurnool','Nellore','Prakasam','Srikakulam','Visakhapatnam','Vizianagaram','West Godavari','YSR Kadapa'],
+  'Punjab': ['Amritsar','Barnala','Bathinda','Faridkot','Fatehgarh Sahib','Fazilka','Ferozepur','Gurdaspur','Hoshiarpur','Jalandhar','Kapurthala','Ludhiana','Mansa','Moga','Muktsar','Nawanshahr','Pathankot','Patiala','Rupnagar','Sangrur','SAS Nagar','Tarn Taran'],
+  'Haryana': ['Ambala','Bhiwani','Charkhi Dadri','Faridabad','Fatehabad','Gurugram','Hisar','Jhajjar','Jind','Kaithal','Karnal','Kurukshetra','Mahendragarh','Nuh','Palwal','Panchkula','Panipat','Rewari','Rohtak','Sirsa','Sonipat','Yamunanagar'],
+  'Bihar': ['Araria','Arwal','Aurangabad','Banka','Begusarai','Bhagalpur','Bhojpur','Buxar','Darbhanga','East Champaran','Gaya','Gopalganj','Jamui','Jehanabad','Kaimur','Katihar','Khagaria','Kishanganj','Lakhisarai','Madhepura','Madhubani','Munger','Muzaffarpur','Nalanda','Nawada','Patna','Purnia','Rohtas','Saharsa','Samastipur','Saran','Sheikhpura','Sheohar','Sitamarhi','Siwan','Supaul','Vaishali','West Champaran'],
+  'Goa': ['North Goa','South Goa'],
+};
 
 const COUNTRIES = [
   'Afghanistan','Albania','Algeria','Andorra','Angola','Argentina','Armenia','Australia','Austria','Azerbaijan',
@@ -250,12 +280,27 @@ function FinishContent() {
   const [everRefusedEntry, setEverRefusedEntry] = useState('');
   const [soughtAsylum, setSoughtAsylum] = useState('');
 
+  /* Previous India visit */
+  const [prevIndiaVisit, setPrevIndiaVisit] = useState('');
+  const [prevIndiaAddress, setPrevIndiaAddress] = useState('');
+  const [prevIndiaCities, setPrevIndiaCities] = useState('');
+  const [prevIndiaVisaNo, setPrevIndiaVisaNo] = useState('');
+  const [prevIndiaVisaType, setPrevIndiaVisaType] = useState('');
+  const [prevIndiaVisaPlace, setPrevIndiaVisaPlace] = useState('');
+  const [prevIndiaVisaDate, setPrevIndiaVisaDate] = useState('');
+
+  /* Flagged fields from admin */
+  const [orderFlaggedFields, setOrderFlaggedFields] = useState<string[]>([]);
+  const [orderSpecialistNotes, setOrderSpecialistNotes] = useState('');
+
   useEffect(() => {
     if (!orderId) return;
     fetch(`/api/orders/${orderId}`)
       .then(r => r.json())
       .then(data => {
         setOrder(data);
+        try { setOrderFlaggedFields(data.flaggedFields ? JSON.parse(data.flaggedFields) : []); } catch { setOrderFlaggedFields([]); }
+        setOrderSpecialistNotes(data.specialistNotes ?? '');
         try {
           const parsed = JSON.parse(data.travelers);
           setTravelers(parsed);
@@ -356,13 +401,21 @@ function FinishContent() {
           if (t.everArrested) setEverArrested(t.everArrested);
           if (t.everRefusedEntry) setEverRefusedEntry(t.everRefusedEntry);
           if (t.soughtAsylum) setSoughtAsylum(t.soughtAsylum);
+          if (t.prevIndiaVisit) setPrevIndiaVisit(t.prevIndiaVisit);
+          if (t.prevIndiaAddress) setPrevIndiaAddress(t.prevIndiaAddress);
+          if (t.prevIndiaCities) setPrevIndiaCities(t.prevIndiaCities);
+          if (t.prevIndiaVisaNo) setPrevIndiaVisaNo(t.prevIndiaVisaNo);
+          if (t.prevIndiaVisaType) setPrevIndiaVisaType(t.prevIndiaVisaType);
+          if (t.prevIndiaVisaPlace) setPrevIndiaVisaPlace(t.prevIndiaVisaPlace);
+          if (t.prevIndiaVisaDate) setPrevIndiaVisaDate(t.prevIndiaVisaDate);
 
           // Restore upload URLs
           if (t.photoUrl) { setPhotoUrl(t.photoUrl); setTravelerPhotoPreview(t.photoUrl); }
           if (t.passportBioUrl) { setPassportBioUrl(t.passportBioUrl); setPassportBioPreview(t.passportBioUrl); }
 
-          // Resume from saved step
-          if (t.finishStep) setStep(t.finishStep as FinishStep);
+          // Resume from saved step (unless fix mode — start from beginning)
+          const isFix = searchParams.get('fix') === 'true';
+          if (!isFix && t.finishStep) setStep(t.finishStep as FinishStep);
         } catch { setTravelers([]); }
       })
       .catch(() => {})
@@ -471,6 +524,14 @@ function FinishContent() {
         everArrested: everArrested || t.everArrested,
         everRefusedEntry: everRefusedEntry || t.everRefusedEntry,
         soughtAsylum: soughtAsylum || t.soughtAsylum,
+        // Previous India visit
+        prevIndiaVisit: prevIndiaVisit || t.prevIndiaVisit,
+        prevIndiaAddress: prevIndiaAddress || t.prevIndiaAddress,
+        prevIndiaCities: prevIndiaCities || t.prevIndiaCities,
+        prevIndiaVisaNo: prevIndiaVisaNo || t.prevIndiaVisaNo,
+        prevIndiaVisaType: prevIndiaVisaType || t.prevIndiaVisaType,
+        prevIndiaVisaPlace: prevIndiaVisaPlace || t.prevIndiaVisaPlace,
+        prevIndiaVisaDate: prevIndiaVisaDate || t.prevIndiaVisaDate,
         // Upload URLs
         photoUrl: photoUrl || t.photoUrl,
         passportBioUrl: passportBioUrl || t.passportBioUrl,
@@ -483,7 +544,7 @@ function FinishContent() {
       await fetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ travelers: JSON.stringify(extendedTravelers) }),
+        body: JSON.stringify({ travelers: JSON.stringify(extendedTravelers), flaggedFields: JSON.stringify(orderFlaggedFields) }),
       });
     } catch (err) {
       console.error('Failed to save progress:', err);
@@ -491,6 +552,24 @@ function FinishContent() {
 
     setStep(nextStep);
   };
+
+  const isFlagged = (field: string) => orderFlaggedFields.includes(field);
+  const flagClass = (field: string) => isFlagged(field) ? ' finish-flagged-field' : '';
+  const clearFlag = (field: string) => {
+    if (isFlagged(field)) setOrderFlaggedFields(prev => prev.filter(f => f !== field));
+  };
+  const FlagHint = ({ field }: { field: string }) => isFlagged(field) ? (
+    <span className="finish-flag-hint">🚩 Correct this field</span>
+  ) : null;
+
+  const CorrectionBanner = () => orderFlaggedFields.length > 0 && orderSpecialistNotes ? (
+    <div className="finish-correction-banner">
+      <span>⚠️</span>
+      <div>
+        <strong>Specialist&apos;s Note:</strong> {orderSpecialistNotes}
+      </div>
+    </div>
+  ) : null;
 
   if (loading) return <div className="finish-loading">Loading...</div>;
   if (!order) return <div className="finish-loading">Order not found.</div>;
@@ -694,12 +773,12 @@ function FinishContent() {
             </div>
 
             <div className="finish-form-group">
-              <label className="finish-form-label">Arrival point in {order.destination}</label>
+              <label className="finish-form-label">Port of arrival in {order.destination}</label>
               <CustomDropdown
-                options={INDIA_AIRPORTS}
+                options={ALL_INDIA_PORTS}
                 value={arrivalPoint}
                 onChange={setArrivalPoint}
-                placeholder="Select arrival point"
+                placeholder="Select port of arrival"
               />
               <a href="#" className="finish-learn-more" onClick={e => e.preventDefault()}>
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -767,6 +846,7 @@ function FinishContent() {
         {sidebar}
         <main className="finish-main">
           <div className="finish-main-inner">
+            <CorrectionBanner />
             <h1 className="finish-heading">Personal Details</h1>
 
             {/* Parents/grandparents question */}
@@ -787,20 +867,21 @@ function FinishContent() {
             </div>
 
             {/* Gender */}
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('gender')}`}>
               <label className="finish-form-label">Gender</label>
               <div className="finish-radio-stack">
-                {['Male', 'Female'].map(g => (
-                  <button key={g} type="button" className={`finish-radio-btn-full${gender === g ? ' selected' : ''}`} onClick={() => setGender(g)}>
+                {['Male', 'Female', 'Transgender'].map(g => (
+                  <button key={g} type="button" className={`finish-radio-btn-full${gender === g ? ' selected' : ''}`} onClick={() => { setGender(g); clearFlag('gender'); }}>
                     <span className={`finish-radio-circle${gender === g ? ' active' : ''}`}/>
                     {g}
                   </button>
                 ))}
               </div>
+              <FlagHint field="gender" />
             </div>
 
             {/* Country of birth */}
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('countryOfBirth')}`}>
               <label className="finish-form-label">Country of birth</label>
               <CustomDropdown
                 options={COUNTRIES}
@@ -808,13 +889,15 @@ function FinishContent() {
                 onChange={setCountryOfBirth}
                 placeholder="Select country"
               />
+              <FlagHint field="countryOfBirth" />
             </div>
 
             {/* City / Place of birth */}
             <div className="finish-form-group">
               <label className="finish-form-label">City / Place of birth</label>
-              <input className={`finish-form-input${cityBirthErr ? ' error' : ''}`} value={cityOfBirth} onChange={e => setCityOfBirth(e.target.value)} placeholder="Enter city or town" />
+              <input className={`finish-form-input${cityBirthErr ? ' error' : ''}${flagClass('cityOfBirth')}`} value={cityOfBirth} onChange={e => { setCityOfBirth(e.target.value); clearFlag('cityOfBirth'); }} placeholder="Enter city or town" />
               {cityBirthErr && <span className="finish-form-error">{cityBirthErr}</span>}
+              <FlagHint field="cityOfBirth" />
             </div>
 
             {/* Citizenship / National ID */}
@@ -884,8 +967,9 @@ function FinishContent() {
             {/* Phone number */}
             <div className="finish-form-group">
               <label className="finish-form-label">Phone number</label>
-              <input className={`finish-form-input${phoneErr ? ' error' : ''}`} type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} placeholder="+1 234 567 8900" />
+              <input className={`finish-form-input${phoneErr ? ' error' : ''}${flagClass('phoneNumber')}`} type="tel" value={phoneNumber} onChange={e => { setPhoneNumber(e.target.value); clearFlag('phoneNumber'); }} placeholder="+1 234 567 8900" />
               {phoneErr && <span className="finish-form-error">{phoneErr}</span>}
+              <FlagHint field="phoneNumber" />
             </div>
 
             {/* Another nationality */}
@@ -954,6 +1038,7 @@ function FinishContent() {
         <main className="finish-main">
           <div className="finish-main-inner">
             <h1 className="finish-heading">{travelers[0]?.firstName} {travelers[0]?.lastName}</h1>
+            <CorrectionBanner />
             <p className="finish-subheading">— Home address</p>
 
             {addressError && (
@@ -982,10 +1067,11 @@ function FinishContent() {
                 className={`finish-form-input${addrErr ? ' error' : ''}`}
                 type="text"
                 value={homeAddress}
-                onChange={e => setHomeAddress(e.target.value)}
+                onChange={e => { setHomeAddress(e.target.value); clearFlag('address'); }}
                 placeholder="Enter your home address"
               />
               {addrErr ? <span className="finish-form-error">{addrErr}</span> : <span className="finish-form-hint">The address must be in the country where you live.</span>}
+              <FlagHint field="address" />
             </div>
 
             {/* City or town */}
@@ -1063,6 +1149,7 @@ function FinishContent() {
         <main className="finish-main">
           <div className="finish-main-inner">
             <h1 className="finish-heading">{travelers[0]?.firstName} {travelers[0]?.lastName}</h1>
+            <CorrectionBanner />
             <p className="finish-subheading">— Employment</p>
 
             {/* Employment status */}
@@ -1190,6 +1277,7 @@ function FinishContent() {
         <main className="finish-main">
           <div className="finish-main-inner">
             <h1 className="finish-heading">{travelers[0]?.firstName} {travelers[0]?.lastName}</h1>
+            <CorrectionBanner />
             <p className="finish-subheading">— Family</p>
 
             {/* Parents' names */}
@@ -1215,8 +1303,9 @@ function FinishContent() {
               <>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Father&apos;s first and last name</label>
-                  <input className={`finish-form-input${fatherNameErr ? ' error' : ''}`} type="text" value={fatherName} onChange={e => setFatherName(e.target.value)} placeholder="" />
+                  <input className={`finish-form-input${fatherNameErr ? ' error' : ''}`} type="text" value={fatherName} onChange={e => { setFatherName(e.target.value); clearFlag('fatherName'); }} placeholder="" />
                   {fatherNameErr && <span className="finish-form-error">{fatherNameErr}</span>}
+                  <FlagHint field="fatherName" />
                 </div>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Father&apos;s nationality</label>
@@ -1238,8 +1327,9 @@ function FinishContent() {
               <>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Mother&apos;s first and last name</label>
-                  <input className={`finish-form-input${motherNameErr ? ' error' : ''}`} type="text" value={motherName} onChange={e => setMotherName(e.target.value)} placeholder="" />
+                  <input className={`finish-form-input${motherNameErr ? ' error' : ''}`} type="text" value={motherName} onChange={e => { setMotherName(e.target.value); clearFlag('motherName'); }} placeholder="" />
                   {motherNameErr && <span className="finish-form-error">{motherNameErr}</span>}
+                  <FlagHint field="motherName" />
                 </div>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Mother&apos;s nationality</label>
@@ -1261,8 +1351,9 @@ function FinishContent() {
               <>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Spouse&apos;s first and last name</label>
-                  <input className={`finish-form-input${spouseNameErr ? ' error' : ''}`} type="text" value={spouseName} onChange={e => setSpouseName(e.target.value)} placeholder="" />
+                  <input className={`finish-form-input${spouseNameErr ? ' error' : ''}`} type="text" value={spouseName} onChange={e => { setSpouseName(e.target.value); clearFlag('spouseName'); }} placeholder="" />
                   {spouseNameErr && <span className="finish-form-error">{spouseNameErr}</span>}
+                  <FlagHint field="spouseName" />
                 </div>
 
                 <div className="finish-form-group">
@@ -1573,25 +1664,10 @@ function FinishContent() {
 
   /* ── Additional Details Step ── */
   if (step === 'additional') {
-    const INDIA_STATES = [
-      'Andhra Pradesh','Arunachal Pradesh','Assam','Bihar','Chhattisgarh','Goa','Gujarat',
-      'Haryana','Himachal Pradesh','Jharkhand','Karnataka','Kerala','Madhya Pradesh',
-      'Maharashtra','Manipur','Meghalaya','Mizoram','Nagaland','Odisha','Punjab','Rajasthan',
-      'Sikkim','Tamil Nadu','Telangana','Tripura','Uttar Pradesh','Uttarakhand','West Bengal',
-      'Delhi','Chandigarh','Puducherry','Jammu and Kashmir','Ladakh',
-    ];
-
-    const refNameIndiaErr = refNameIndia ? validateName(refNameIndia, 'Reference name') : '';
-    const refAddrIndiaErr = refAddressIndia ? validateAddress(refAddressIndia, 'Address') : '';
-    const refPhoneIndiaErr = refPhoneIndia ? validatePhone(refPhoneIndia) : '';
-    const refAddrHomeErr = refAddressHome ? validateAddress(refAddressHome, 'Address') : '';
-    const refPhoneHomeErr = refPhoneHome ? validatePhone(refPhoneHome) : '';
-    const placeOfIssueErr = passportPlaceOfIssue ? validateCityState(passportPlaceOfIssue, 'Place of issue') : '';
-
-    const canProceedAdditional = passportPlaceOfIssue && !placeOfIssueErr && passportCountryOfIssue && hasOtherPassport &&
+    const canProceedAdditional = hasOtherPassport &&
       placesToVisit && bookedHotel && exitPort && visitedIndiaBefore && visaRefusedBefore &&
-      refNameIndia && !refNameIndiaErr && refAddressIndia && !refAddrIndiaErr && refStateIndia && refPhoneIndia && !refPhoneIndiaErr &&
-      refAddressHome && !refAddrHomeErr && refStateHome && refPhoneHome && !refPhoneHomeErr &&
+      refNameIndia && refAddressIndia && refStateIndia && refPhoneIndia &&
+      refAddressHome && refStateHome && refPhoneHome &&
       everArrested && everRefusedEntry && soughtAsylum;
 
     return (
@@ -1599,6 +1675,7 @@ function FinishContent() {
         {sidebar}
         <main className="finish-main">
           <div className="finish-main-inner">
+            <CorrectionBanner />
             <h1 className="finish-heading">Additional Details</h1>
 
             {/* Passport Extras */}
@@ -1643,17 +1720,18 @@ function FinishContent() {
             {/* Travel / Accommodation */}
             <h2 className="finish-section-title" style={{ marginTop: '2rem' }}>Travel &amp; Accommodation</h2>
 
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('placesToVisit')}`}>
               <label className="finish-form-label">Places you will visit</label>
-              <input className="finish-form-input" value={placesToVisit} onChange={e => setPlacesToVisit(e.target.value)} placeholder="e.g. Delhi, Mumbai, Agra" />
+              <input className={`finish-form-input${flagClass('placesToVisit')}`} value={placesToVisit} onChange={e => { setPlacesToVisit(e.target.value); clearFlag('placesToVisit'); }} placeholder="e.g. Delhi, Mumbai, Agra" />
+              <FlagHint field="placesToVisit" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('bookedHotel')}`}>
               <label className="finish-form-label">Have you booked any room in a hotel/resort?</label>
               <div className="finish-radio-row">
-                <button type="button" className={`finish-radio-btn${bookedHotel === 'yes' ? ' selected' : ''}`} onClick={() => setBookedHotel('yes')}>
+                <button type="button" className={`finish-radio-btn${bookedHotel === 'yes' ? ' selected' : ''}`} onClick={() => { setBookedHotel('yes'); clearFlag('bookedHotel'); }}>
                   <span className={`finish-radio-circle${bookedHotel === 'yes' ? ' active' : ''}`}/>Yes
                 </button>
-                <button type="button" className={`finish-radio-btn${bookedHotel === 'no' ? ' selected' : ''}`} onClick={() => setBookedHotel('no')}>
+                <button type="button" className={`finish-radio-btn${bookedHotel === 'no' ? ' selected' : ''}`} onClick={() => { setBookedHotel('no'); clearFlag('bookedHotel'); }}>
                   <span className={`finish-radio-circle${bookedHotel === 'no' ? ' active' : ''}`}/>No
                 </button>
               </div>
@@ -1669,122 +1747,177 @@ function FinishContent() {
                   </div>
                 </div>
               )}
+              <FlagHint field="bookedHotel" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('tourOperatorName')}`}>
               <label className="finish-form-label">Name of tour operator (if any)</label>
-              <input className="finish-form-input" value={tourOperatorName} onChange={e => setTourOperatorName(e.target.value)} placeholder="Enter name or N/A" />
+              <input className={`finish-form-input${flagClass('tourOperatorName')}`} value={tourOperatorName} onChange={e => { setTourOperatorName(e.target.value); clearFlag('tourOperatorName'); }} placeholder="Enter name or N/A" />
+              <FlagHint field="tourOperatorName" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('tourOperatorAddress')}`}>
               <label className="finish-form-label">Address of tour operator</label>
-              <input className="finish-form-input" value={tourOperatorAddress} onChange={e => setTourOperatorAddress(e.target.value)} placeholder="Enter address or N/A" />
+              <input className={`finish-form-input${flagClass('tourOperatorAddress')}`} value={tourOperatorAddress} onChange={e => { setTourOperatorAddress(e.target.value); clearFlag('tourOperatorAddress'); }} placeholder="Enter address or N/A" />
+              <FlagHint field="tourOperatorAddress" />
             </div>
-            <div className="finish-form-group">
-              <label className="finish-form-label">Departure airport (Exit port)</label>
-              <CustomDropdown options={INDIA_AIRPORTS} value={exitPort} onChange={setExitPort} placeholder="Select airport" />
+            <div className={`finish-form-group${flagClass('exitPort')}`}>
+              <label className="finish-form-label">Expected port of exit from India</label>
+              <CustomDropdown options={ALL_INDIA_PORTS} value={exitPort} onChange={setExitPort} placeholder="Select exit port" />
+              <FlagHint field="exitPort" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('visitedIndiaBefore')}`}>
               <label className="finish-form-label">Have you ever visited India before?</label>
               <div className="finish-radio-row">
-                <button type="button" className={`finish-radio-btn${visitedIndiaBefore === 'yes' ? ' selected' : ''}`} onClick={() => setVisitedIndiaBefore('yes')}>
+                <button type="button" className={`finish-radio-btn${visitedIndiaBefore === 'yes' ? ' selected' : ''}`} onClick={() => { setVisitedIndiaBefore('yes'); clearFlag('visitedIndiaBefore'); }}>
                   <span className={`finish-radio-circle${visitedIndiaBefore === 'yes' ? ' active' : ''}`}/>Yes
                 </button>
-                <button type="button" className={`finish-radio-btn${visitedIndiaBefore === 'no' ? ' selected' : ''}`} onClick={() => setVisitedIndiaBefore('no')}>
+                <button type="button" className={`finish-radio-btn${visitedIndiaBefore === 'no' ? ' selected' : ''}`} onClick={() => { setVisitedIndiaBefore('no'); clearFlag('visitedIndiaBefore'); }}>
                   <span className={`finish-radio-circle${visitedIndiaBefore === 'no' ? ' active' : ''}`}/>No
                 </button>
               </div>
+              {visitedIndiaBefore === 'yes' && (
+                <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div className="finish-form-group" style={{ marginBottom: 0 }}>
+                    <label className="finish-form-label">Address during last visit</label>
+                    <input className="finish-form-input" value={prevIndiaAddress} onChange={e => setPrevIndiaAddress(e.target.value)} placeholder="Enter address in India" />
+                  </div>
+                  <div className="finish-form-group" style={{ marginBottom: 0 }}>
+                    <label className="finish-form-label">Cities previously visited</label>
+                    <input className="finish-form-input" value={prevIndiaCities} onChange={e => setPrevIndiaCities(e.target.value)} placeholder="e.g. Delhi, Mumbai, Agra" />
+                  </div>
+                  <div className="finish-form-group" style={{ marginBottom: 0 }}>
+                    <label className="finish-form-label">Last Indian Visa number</label>
+                    <input className="finish-form-input" value={prevIndiaVisaNo} onChange={e => setPrevIndiaVisaNo(e.target.value)} placeholder="Enter visa number" />
+                  </div>
+                  <div className="finish-form-group" style={{ marginBottom: 0 }}>
+                    <label className="finish-form-label">Type of last visa</label>
+                    <CustomDropdown options={['Tourist','Business','Medical','Conference','Student','Entry','Transit','Other']} value={prevIndiaVisaType} onChange={setPrevIndiaVisaType} placeholder="Select visa type" />
+                  </div>
+                  <div className="finish-form-group" style={{ marginBottom: 0 }}>
+                    <label className="finish-form-label">Place of issue</label>
+                    <input className="finish-form-input" value={prevIndiaVisaPlace} onChange={e => setPrevIndiaVisaPlace(e.target.value)} placeholder="Enter place of issue" />
+                  </div>
+                  <div className="finish-form-group" style={{ marginBottom: 0 }}>
+                    <label className="finish-form-label">Date of issue</label>
+                    <input className="finish-form-input" value={prevIndiaVisaDate} onChange={e => setPrevIndiaVisaDate(e.target.value)} placeholder="e.g. January 15, 2020" />
+                  </div>
+                </div>
+              )}
+              <FlagHint field="visitedIndiaBefore" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('visaRefusedBefore')}`}>
               <label className="finish-form-label">Has permission to visit or to extend stay in India previously been refused?</label>
               <div className="finish-radio-row">
-                <button type="button" className={`finish-radio-btn${visaRefusedBefore === 'yes' ? ' selected' : ''}`} onClick={() => setVisaRefusedBefore('yes')}>
+                <button type="button" className={`finish-radio-btn${visaRefusedBefore === 'yes' ? ' selected' : ''}`} onClick={() => { setVisaRefusedBefore('yes'); clearFlag('visaRefusedBefore'); }}>
                   <span className={`finish-radio-circle${visaRefusedBefore === 'yes' ? ' active' : ''}`}/>Yes
                 </button>
-                <button type="button" className={`finish-radio-btn${visaRefusedBefore === 'no' ? ' selected' : ''}`} onClick={() => setVisaRefusedBefore('no')}>
+                <button type="button" className={`finish-radio-btn${visaRefusedBefore === 'no' ? ' selected' : ''}`} onClick={() => { setVisaRefusedBefore('no'); clearFlag('visaRefusedBefore'); }}>
                   <span className={`finish-radio-circle${visaRefusedBefore === 'no' ? ' active' : ''}`}/>No
                 </button>
               </div>
+              <FlagHint field="visaRefusedBefore" />
             </div>
 
             {/* Reference in India */}
             <h2 className="finish-section-title" style={{ marginTop: '2rem' }}>Reference in India</h2>
             <p className="finish-form-hint" style={{ marginBottom: '1rem' }}>Provide details of a friend, relative, or hotel in India.</p>
 
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('refNameIndia')}`}>
               <label className="finish-form-label">Reference name</label>
-              <input className="finish-form-input" value={refNameIndia} onChange={e => setRefNameIndia(e.target.value)} placeholder="Name of friend, relative, or hotel" />
+              <input className={`finish-form-input${flagClass('refNameIndia')}`} value={refNameIndia} onChange={e => { setRefNameIndia(e.target.value); clearFlag('refNameIndia'); }} placeholder="Name of friend, relative, or hotel" />
+              <FlagHint field="refNameIndia" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('refAddressIndia')}`}>
               <label className="finish-form-label">Reference address</label>
-              <input className="finish-form-input" value={refAddressIndia} onChange={e => setRefAddressIndia(e.target.value)} placeholder="Full address" />
+              <input className={`finish-form-input${flagClass('refAddressIndia')}`} value={refAddressIndia} onChange={e => { setRefAddressIndia(e.target.value); clearFlag('refAddressIndia'); }} placeholder="Full address" />
+              <FlagHint field="refAddressIndia" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('refStateIndia')}`}>
               <label className="finish-form-label">State</label>
               <CustomDropdown options={INDIA_STATES} value={refStateIndia} onChange={setRefStateIndia} placeholder="Select state" />
+              <FlagHint field="refStateIndia" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('refDistrictIndia')}`}>
               <label className="finish-form-label">District</label>
-              <input className="finish-form-input" value={refDistrictIndia} onChange={e => setRefDistrictIndia(e.target.value)} placeholder="Enter district" />
+              {refStateIndia && INDIA_DISTRICTS[refStateIndia] ? (
+                <CustomDropdown
+                  options={INDIA_DISTRICTS[refStateIndia]}
+                  value={refDistrictIndia}
+                  onChange={(v) => { setRefDistrictIndia(v); clearFlag('refDistrictIndia'); }}
+                  placeholder="Select district"
+                />
+              ) : (
+                <input className={`finish-form-input${flagClass('refDistrictIndia')}`} value={refDistrictIndia} onChange={e => { setRefDistrictIndia(e.target.value); clearFlag('refDistrictIndia'); }} placeholder="Enter district" />
+              )}
+              <FlagHint field="refDistrictIndia" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('refPhoneIndia')}`}>
               <label className="finish-form-label">Phone number</label>
-              <input className="finish-form-input" type="tel" value={refPhoneIndia} onChange={e => setRefPhoneIndia(e.target.value)} placeholder="+91 XXXXX XXXXX" />
+              <input className={`finish-form-input${flagClass('refPhoneIndia')}`} type="tel" value={refPhoneIndia} onChange={e => { setRefPhoneIndia(e.target.value); clearFlag('refPhoneIndia'); }} placeholder="+91 XXXXX XXXXX" />
+              <FlagHint field="refPhoneIndia" />
             </div>
 
             {/* Reference in Home Country */}
             <h2 className="finish-section-title" style={{ marginTop: '2rem' }}>Reference in Home Country</h2>
 
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('refAddressHome')}`}>
               <label className="finish-form-label">Address</label>
-              <input className="finish-form-input" value={refAddressHome} onChange={e => setRefAddressHome(e.target.value)} placeholder="Full address" />
+              <input className={`finish-form-input${flagClass('refAddressHome')}`} value={refAddressHome} onChange={e => { setRefAddressHome(e.target.value); clearFlag('refAddressHome'); }} placeholder="Full address" />
+              <FlagHint field="refAddressHome" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('refStateHome')}`}>
               <label className="finish-form-label">State / Province</label>
-              <input className="finish-form-input" value={refStateHome} onChange={e => setRefStateHome(e.target.value)} placeholder="Enter state or province" />
+              <input className={`finish-form-input${flagClass('refStateHome')}`} value={refStateHome} onChange={e => { setRefStateHome(e.target.value); clearFlag('refStateHome'); }} placeholder="Enter state or province" />
+              <FlagHint field="refStateHome" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('refDistrictHome')}`}>
               <label className="finish-form-label">District</label>
-              <input className="finish-form-input" value={refDistrictHome} onChange={e => setRefDistrictHome(e.target.value)} placeholder="Enter district" />
+              <input className={`finish-form-input${flagClass('refDistrictHome')}`} value={refDistrictHome} onChange={e => { setRefDistrictHome(e.target.value); clearFlag('refDistrictHome'); }} placeholder="Enter district" />
+              <FlagHint field="refDistrictHome" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('refPhoneHome')}`}>
               <label className="finish-form-label">Phone number</label>
-              <input className="finish-form-input" type="tel" value={refPhoneHome} onChange={e => setRefPhoneHome(e.target.value)} placeholder="+1 234 567 8900" />
+              <input className={`finish-form-input${flagClass('refPhoneHome')}`} type="tel" value={refPhoneHome} onChange={e => { setRefPhoneHome(e.target.value); clearFlag('refPhoneHome'); }} placeholder="+1 234 567 8900" />
+              <FlagHint field="refPhoneHome" />
             </div>
 
             {/* Security Questions */}
             <h2 className="finish-section-title" style={{ marginTop: '2rem' }}>Security Questions</h2>
 
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('everArrested')}`}>
               <label className="finish-form-label">Have you ever been arrested/prosecuted/convicted by a court of law in any country?</label>
               <div className="finish-radio-row">
-                <button type="button" className={`finish-radio-btn${everArrested === 'yes' ? ' selected' : ''}`} onClick={() => setEverArrested('yes')}>
+                <button type="button" className={`finish-radio-btn${everArrested === 'yes' ? ' selected' : ''}`} onClick={() => { setEverArrested('yes'); clearFlag('everArrested'); }}>
                   <span className={`finish-radio-circle${everArrested === 'yes' ? ' active' : ''}`}/>Yes
                 </button>
-                <button type="button" className={`finish-radio-btn${everArrested === 'no' ? ' selected' : ''}`} onClick={() => setEverArrested('no')}>
+                <button type="button" className={`finish-radio-btn${everArrested === 'no' ? ' selected' : ''}`} onClick={() => { setEverArrested('no'); clearFlag('everArrested'); }}>
                   <span className={`finish-radio-circle${everArrested === 'no' ? ' active' : ''}`}/>No
                 </button>
               </div>
+              <FlagHint field="everArrested" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('everRefusedEntry')}`}>
               <label className="finish-form-label">Have you ever been refused entry/deported by any country including India?</label>
               <div className="finish-radio-row">
-                <button type="button" className={`finish-radio-btn${everRefusedEntry === 'yes' ? ' selected' : ''}`} onClick={() => setEverRefusedEntry('yes')}>
+                <button type="button" className={`finish-radio-btn${everRefusedEntry === 'yes' ? ' selected' : ''}`} onClick={() => { setEverRefusedEntry('yes'); clearFlag('everRefusedEntry'); }}>
                   <span className={`finish-radio-circle${everRefusedEntry === 'yes' ? ' active' : ''}`}/>Yes
                 </button>
-                <button type="button" className={`finish-radio-btn${everRefusedEntry === 'no' ? ' selected' : ''}`} onClick={() => setEverRefusedEntry('no')}>
+                <button type="button" className={`finish-radio-btn${everRefusedEntry === 'no' ? ' selected' : ''}`} onClick={() => { setEverRefusedEntry('no'); clearFlag('everRefusedEntry'); }}>
                   <span className={`finish-radio-circle${everRefusedEntry === 'no' ? ' active' : ''}`}/>No
                 </button>
               </div>
+              <FlagHint field="everRefusedEntry" />
             </div>
-            <div className="finish-form-group">
+            <div className={`finish-form-group${flagClass('soughtAsylum')}`}>
               <label className="finish-form-label">Have you sought asylum in any country?</label>
               <div className="finish-radio-row">
-                <button type="button" className={`finish-radio-btn${soughtAsylum === 'yes' ? ' selected' : ''}`} onClick={() => setSoughtAsylum('yes')}>
+                <button type="button" className={`finish-radio-btn${soughtAsylum === 'yes' ? ' selected' : ''}`} onClick={() => { setSoughtAsylum('yes'); clearFlag('soughtAsylum'); }}>
                   <span className={`finish-radio-circle${soughtAsylum === 'yes' ? ' active' : ''}`}/>Yes
                 </button>
-                <button type="button" className={`finish-radio-btn${soughtAsylum === 'no' ? ' selected' : ''}`} onClick={() => setSoughtAsylum('no')}>
+                <button type="button" className={`finish-radio-btn${soughtAsylum === 'no' ? ' selected' : ''}`} onClick={() => { setSoughtAsylum('no'); clearFlag('soughtAsylum'); }}>
                   <span className={`finish-radio-circle${soughtAsylum === 'no' ? ' active' : ''}`}/>No
                 </button>
               </div>
+              <FlagHint field="soughtAsylum" />
             </div>
 
             <div className="finish-nav">
@@ -1860,6 +1993,14 @@ function FinishContent() {
         ...(bookedHotel === 'yes' ? [['Hotel', `${hotelName || ''}, ${hotelPlace || ''}`]] : []),
         ['Exit airport', exitPort || '—'],
         ['Visited India before', visitedIndiaBefore || '—'],
+        ...(visitedIndiaBefore === 'yes' ? [
+          ['Previous address in India', prevIndiaAddress || '—'],
+          ['Cities visited', prevIndiaCities || '—'],
+          ['Last visa number', prevIndiaVisaNo || '—'],
+          ['Last visa type', prevIndiaVisaType || '—'],
+          ['Last visa place of issue', prevIndiaVisaPlace || '—'],
+          ['Last visa date of issue', prevIndiaVisaDate || '—'],
+        ] : []),
         ['Visa refused before', visaRefusedBefore || '—'],
       ]},
       { title: 'Reference in India', items: [
@@ -1887,7 +2028,7 @@ function FinishContent() {
         await fetch(`/api/orders/${orderId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'UNDER_REVIEW' }),
+          body: JSON.stringify({ status: 'UNDER_REVIEW', flaggedFields: '[]', specialistNotes: '' }),
         });
       } catch {}
     };

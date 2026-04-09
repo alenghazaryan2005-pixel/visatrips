@@ -19,6 +19,9 @@ interface Order {
   cardLast4: string | null;
   processingSpeed: string;
   travelers: string;
+  evisaUrl: string | null;
+  flaggedFields: string | null;
+  specialistNotes: string | null;
 }
 
 interface Traveler {
@@ -106,9 +109,52 @@ export default function StatusPage() {
       .catch(() => router.replace('/login'));
   }, [router]);
 
+  const [reuploadingDoc, setReuploadingDoc] = useState('');
+
   const handleLogout = async () => {
     await fetch('/api/customer/logout', { method: 'POST' });
     router.push('/login');
+  };
+
+  // Parse flagged fields to check for document flags
+  const flaggedFields: string[] = (() => {
+    try { return order?.flaggedFields ? JSON.parse(order.flaggedFields) : []; } catch { return []; }
+  })();
+  const flaggedDocs = flaggedFields.filter(f => f === 'photoUrl' || f === 'passportBioUrl');
+
+  const handleDocReupload = async (e: React.ChangeEvent<HTMLInputElement>, type: string, fieldName: string) => {
+    const file = e.target.files?.[0];
+    if (!file || !order) return;
+    setReuploadingDoc(type);
+    try {
+      // Upload file
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('orderId', formatOrderNum(order.orderNumber));
+      fd.append('type', type);
+      const uploadRes = await fetch('/api/upload', { method: 'POST', body: fd });
+      const uploadData = await uploadRes.json();
+      if (uploadData.url) {
+        // Update traveler data with new URL and remove flag
+        const updatedTravelers = travelers.map((t: any, i: number) => {
+          if (i !== 0) return t;
+          return { ...t, [fieldName]: uploadData.url };
+        });
+        const updatedFlags = flaggedFields.filter(f => f !== fieldName);
+        await fetch(`/api/orders/${order.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            travelers: JSON.stringify(updatedTravelers),
+            flaggedFields: JSON.stringify(updatedFlags),
+            ...(updatedFlags.length === 0 ? { status: 'UNDER_REVIEW', specialistNotes: '' } : {}),
+          }),
+        });
+        // Refresh page
+        window.location.reload();
+      }
+    } catch (err) { console.error('Reupload error:', err); }
+    finally { setReuploadingDoc(''); }
   };
 
   if (loading) return <div style={{ paddingTop: '120px', textAlign: 'center' }}>Loading...</div>;
@@ -128,10 +174,81 @@ export default function StatusPage() {
           <button className="customer-status-logout" onClick={handleLogout}>Log Out</button>
         </div>
 
+        {/* Needs Correction Banner */}
+        {order.status === 'NEEDS_CORRECTION' && (
+          <div className="customer-correction-banner">
+            <div className="customer-correction-header">
+              <span className="customer-correction-icon">⚠️</span>
+              <h3 className="customer-correction-title">There are errors on your application. Please double-check your info.</h3>
+            </div>
+            {order.specialistNotes && (
+              <div className="customer-correction-note">
+                <strong>Specialist&apos;s Note:</strong> {order.specialistNotes}
+              </div>
+            )}
+            {flaggedFields.length > flaggedDocs.length && (
+              <Link href={`/apply/finish?id=${formatOrderNum(order.orderNumber)}&fix=true`} className="customer-correction-btn">
+                Fix Your Application →
+              </Link>
+            )}
+          </div>
+        )}
+
+        {/* Document Re-upload */}
+        {flaggedDocs.length > 0 && order.status === 'NEEDS_CORRECTION' && (
+          <div className="customer-reupload-section">
+            <h3 className="customer-reupload-title">📄 Please re-upload the following documents</h3>
+            {flaggedDocs.includes('photoUrl') && (
+              <div className="customer-reupload-item">
+                <div className="customer-reupload-label">Traveler&apos;s Photo</div>
+                <p className="customer-reupload-hint">Upload a clear, front-facing photo. No passport photos.</p>
+                <input id="reupload-photo" type="file" accept="image/*" style={{display:'none'}} onChange={e => handleDocReupload(e, 'photo', 'photoUrl')} />
+                <button className="customer-reupload-btn" onClick={() => document.getElementById('reupload-photo')?.click()}>
+                  {reuploadingDoc === 'photo' ? 'Uploading...' : '📤 Upload New Photo'}
+                </button>
+              </div>
+            )}
+            {flaggedDocs.includes('passportBioUrl') && (
+              <div className="customer-reupload-item">
+                <div className="customer-reupload-label">Passport Bio Page</div>
+                <p className="customer-reupload-hint">Upload a clear scan of your passport data page.</p>
+                <input id="reupload-passport" type="file" accept="image/*,.pdf" style={{display:'none'}} onChange={e => handleDocReupload(e, 'passport', 'passportBioUrl')} />
+                <button className="customer-reupload-btn" onClick={() => document.getElementById('reupload-passport')?.click()}>
+                  {reuploadingDoc === 'passport' ? 'Uploading...' : '📤 Upload New Passport Scan'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* eVisa Document — shown when approved and uploaded */}
+        {order.evisaUrl && (
+          <div className="customer-evisa-card">
+            <div className="customer-evisa-header">
+              <span className="customer-evisa-icon">✅</span>
+              <div>
+                <h3 className="customer-evisa-title">Your E-Visa is Ready!</h3>
+                <p className="customer-evisa-sub">Your electronic visa has been approved. Download it below and print a copy for your trip.</p>
+              </div>
+            </div>
+            <div className="customer-evisa-content">
+              {order.evisaUrl.endsWith('.pdf') ? (
+                <div className="customer-evisa-pdf">📄 E-Visa Document (PDF)</div>
+              ) : (
+                <img src={order.evisaUrl} alt="Your E-Visa" className="customer-evisa-img" />
+              )}
+              <div className="customer-evisa-actions">
+                <a href={order.evisaUrl} target="_blank" rel="noopener noreferrer" className="customer-evisa-view">View E-Visa</a>
+                <a href={order.evisaUrl} download className="customer-evisa-download">⬇ Download E-Visa</a>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* CTA */}
         {(() => {
           const isProcessing = order.status === 'UNDER_REVIEW' || order.status === 'APPROVED' || travelers.some(t => t.finishStep === 'complete');
-          return isProcessing ? (
+          return order.evisaUrl ? null : order.status === 'NEEDS_CORRECTION' ? null : isProcessing ? (
             <div className="customer-status-cta" style={{ background: '#16a34a' }}>
               <div>
                 <h3 className="customer-status-cta-title">Your Application is Processing!</h3>

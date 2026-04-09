@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { parseOrderNumber } from '@/lib/constants';
-
-function getAdminName(cookieStore: any): string | null {
-  const session = cookieStore.get('ev_admin_session');
-  if (!session?.value) return null;
-  try {
-    if (session.value === 'authenticated') return 'Admin';
-    const data = JSON.parse(session.value);
-    return data.name ?? null;
-  } catch { return null; }
-}
+import { getAdminSession, getCustomerSession } from '@/lib/auth';
 
 async function findOrder(idOrNumber: string) {
-  // Try as order number first (if it looks numeric or has dashes like 00001-00001)
   const parsed = parseOrderNumber(idOrNumber);
   if (!isNaN(parsed) && parsed > 0) {
     const order = await prisma.order.findFirst({ where: { orderNumber: parsed } });
     if (order) return order;
   }
-  // Fall back to database ID
   return prisma.order.findUnique({ where: { id: idOrNumber } });
 }
 
@@ -29,11 +17,27 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const order = await findOrder(id);
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    return NextResponse.json(order);
+
+    // Check auth — admin can see any order, customer can see their own
+    const admin = await getAdminSession();
+    if (admin) return NextResponse.json(order);
+
+    const customer = await getCustomerSession();
+    if (customer && customer.orderId === order.id) return NextResponse.json(order);
+
+    // Also allow if customer's order number matches
+    if (customer && customer.orderNumber === order.orderNumber) return NextResponse.json(order);
+
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   } catch {
     return NextResponse.json({ error: 'Failed to fetch order' }, { status: 500 });
   }
 }
+
+// Fields customers are allowed to update
+const CUSTOMER_ALLOWED = ['travelers', 'flaggedFields'];
+// Fields only admins can update
+const ADMIN_ALLOWED = ['status', 'notes', 'destination', 'visaType', 'totalUSD', 'billingEmail', 'cardLast4', 'processingSpeed', 'travelers', 'applicationId', 'evisaUrl', 'flaggedFields', 'specialistNotes', 'refundAmount', 'refundReason', 'refundedAt'];
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -42,18 +46,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
 
     const body = await req.json();
+    const admin = await getAdminSession();
+    const customer = await getCustomerSession();
 
-    // Build update data — only include fields that are present in the request
+    // Must be either admin or the order's customer
+    const isOwner = customer && (customer.orderId === order.id || customer.orderNumber === order.orderNumber);
+    if (!admin && !isOwner) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Build update data — restrict fields based on role
     const data: Record<string, any> = {};
-    const allowed = ['status', 'notes', 'destination', 'visaType', 'totalUSD', 'billingEmail', 'cardLast4', 'processingSpeed', 'travelers', 'applicationId', 'refundAmount', 'refundReason', 'refundedAt'];
+    const allowed = admin ? ADMIN_ALLOWED : CUSTOMER_ALLOWED;
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
     }
 
-    // Track who made the edit
-    const cookieStore = await cookies();
-    const adminName = getAdminName(cookieStore);
-    if (adminName) data.lastEditedBy = adminName;
+    // Track who made the edit (admin only)
+    if (admin) data.lastEditedBy = admin.name;
+
+    // Validate critical fields
+    if ('totalUSD' in data && (typeof data.totalUSD !== 'number' || data.totalUSD < 0)) {
+      return NextResponse.json({ error: 'Invalid total amount' }, { status: 400 });
+    }
+    if ('refundAmount' in data && data.refundAmount !== null && (typeof data.refundAmount !== 'number' || data.refundAmount < 0)) {
+      return NextResponse.json({ error: 'Invalid refund amount' }, { status: 400 });
+    }
+    if ('status' in data && !admin) {
+      // Customers can only set status to UNDER_REVIEW (re-submission)
+      if (data.status !== 'UNDER_REVIEW') {
+        delete data.status;
+      }
+    }
 
     const updated = await prisma.order.update({
       where: { id: order.id },

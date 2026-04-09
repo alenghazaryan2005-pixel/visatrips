@@ -17,7 +17,11 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(grep -r \"CORS\\\\|cors\\\\|NextResponse.json.*error\\\\|catch.*console\\\\|Stack\\\\|stack trace\" /Users/dotfiler11/Desktop/expressvisa/app/api/*.ts)",
+      "Bash(grep -n \"innerText\\\\|textContent\\\\|innerHTML\\\\|dangerously\\\\|<>\\\\|{.*error\" /Users/dotfiler11/Desktop/expressvisa/app/api/orders/route.ts /Users/dotfiler11/Desktop/expressvisa/app/api/orders/[id]/route.ts)",
+      "Bash(grep -n \"validator\\\\|sanitize\\\\|trim\\\\|escape\\\\|validate\" /Users/dotfiler11/Desktop/expressvisa/app/api/*.ts)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

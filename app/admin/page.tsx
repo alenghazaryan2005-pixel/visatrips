@@ -79,7 +79,6 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             {loading ? 'Signing in...' : 'Sign In →'}
           </button>
         </form>
-        <p className="admin-login-hint">Default: admin@visatrips.com / visatrips2026</p>
       </div>
     </div>
   );
@@ -201,6 +200,7 @@ function OrderModal({ order, onClose, onStatusChange, onNotesChange }: {
                     <option value="REJECTED">Rejected</option>
                     <option value="REFUNDED">Refunded</option>
                     <option value="ON_HOLD">On Hold</option>
+                    <option value="NEEDS_CORRECTION">Needs Correction</option>
                   </select>
                 </div>
               </div>
@@ -317,7 +317,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [filter,        setFilter]        = useState('ALL');
   const [search,        setSearch]        = useState('');
   const [activeOrder,   setActiveOrder]   = useState<Order | null>(null);
-  const [activeSection, setActiveSectionRaw] = useState<'orders' | 'customers' | 'abandoned' | 'refunds'>(() => {
+  const [orderSortBy, setOrderSortBy] = useState<string>('date');
+  const [orderSortDir, setOrderSortDir] = useState<'asc' | 'desc'>('desc');
+  const [activeSection, setActiveSectionRaw] = useState<'orders' | 'customers' | 'abandoned' | 'refunds' | 'crm'>(() => {
     if (typeof window !== 'undefined') {
       const saved = sessionStorage.getItem('admin_section');
       if (saved === 'orders' || saved === 'customers' || saved === 'abandoned' || saved === 'refunds') return saved;
@@ -351,6 +353,82 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => { if (activeSection === 'abandoned') fetchAbandoned(); }, [activeSection, fetchAbandoned]);
 
+  /* CRM state */
+  const [crmCustomers, setCrmCustomers] = useState<any[]>([]);
+  const [crmLoading, setCrmLoading] = useState(false);
+  const [crmSearch, setCrmSearch] = useState('');
+  const [crmSelected, setCrmSelected] = useState<any>(null);
+  const [crmNotes, setCrmNotes] = useState('');
+  const [crmTags, setCrmTags] = useState('');
+  const [crmSaving, setCrmSaving] = useState(false);
+  const [crmNewTag, setCrmNewTag] = useState('');
+
+  const fetchCrm = useCallback(async () => {
+    setCrmLoading(true);
+    try {
+      const res = await fetch('/api/crm/customers');
+      if (res.ok) setCrmCustomers(await res.json());
+    } catch {} finally { setCrmLoading(false); }
+  }, []);
+
+  useEffect(() => { if (activeSection === 'crm') fetchCrm(); }, [activeSection, fetchCrm]);
+
+  const syncOrdersToCrm = async () => {
+    // Auto-create CRM customers from existing orders
+    const emails = new Set<string>();
+    for (const o of orders) {
+      let email = o.billingEmail;
+      let name = '';
+      try {
+        const t = JSON.parse(o.travelers);
+        if (t[0]?.email) email = t[0].email;
+        if (t[0]?.firstName) name = `${t[0].firstName} ${t[0].lastName || ''}`.trim();
+      } catch {}
+      if (!emails.has(email.toLowerCase())) {
+        emails.add(email.toLowerCase());
+        await fetch('/api/crm/customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, name: name || email }),
+        });
+      }
+    }
+    fetchCrm();
+  };
+
+  const selectCrmCustomer = (c: any) => {
+    setCrmSelected(c);
+    setCrmNotes(c.notes || '');
+    setCrmTags(c.tags || '');
+  };
+
+  const saveCrmCustomer = async () => {
+    if (!crmSelected) return;
+    setCrmSaving(true);
+    await fetch(`/api/crm/customers/${crmSelected.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: crmNotes, tags: crmTags }),
+    });
+    setCrmSaving(false);
+    fetchCrm();
+  };
+
+  const addCrmTag = () => {
+    if (!crmNewTag.trim()) return;
+    const current = crmTags ? crmTags.split(',').map((t: string) => t.trim()) : [];
+    if (!current.includes(crmNewTag.trim())) {
+      const updated = [...current, crmNewTag.trim()].join(', ');
+      setCrmTags(updated);
+    }
+    setCrmNewTag('');
+  };
+
+  const removeCrmTag = (tag: string) => {
+    const updated = crmTags.split(',').map((t: string) => t.trim()).filter((t: string) => t !== tag).join(', ');
+    setCrmTags(updated);
+  };
+
   const handleStatusChange = async (id: string, status: string) => {
     const order = orders.find(o => o.id === id);
     await fetch(`/api/orders/${id}`, {
@@ -372,6 +450,14 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     onLogout();
   };
 
+  const toggleOrderSort = (col: string) => {
+    if (orderSortBy === col) setOrderSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setOrderSortBy(col); setSortDir('asc'); }
+  };
+  const setSortDir = setOrderSortDir;
+
+  const orderStatusOrder: Record<string, number> = { PENDING: 0, UNDER_REVIEW: 1, ON_HOLD: 2, NEEDS_CORRECTION: 3, APPROVED: 4, REJECTED: 5, REFUNDED: 6 };
+
   const filtered = orders.filter(o => {
     const matchStatus = filter === 'ALL' || o.status === filter;
     const travelers = (() => { try { const t = o.travelers; return Array.isArray(t) ? t : JSON.parse(t as any); } catch { return []; } })();
@@ -381,6 +467,21 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       ...travelers.map((t: Traveler) => `${t.firstName} ${t.lastName}`),
     ].some(v => v?.toLowerCase().includes(search.toLowerCase()));
     return matchStatus && matchSearch;
+  }).sort((a, b) => {
+    let cmp = 0;
+    switch (orderSortBy) {
+      case 'order': cmp = a.orderNumber - b.orderNumber; break;
+      case 'applicant': {
+        const nameA = (() => { try { const t = JSON.parse(a.travelers); return `${t[0]?.firstName || ''} ${t[0]?.lastName || ''}`; } catch { return ''; } })();
+        const nameB = (() => { try { const t = JSON.parse(b.travelers); return `${t[0]?.firstName || ''} ${t[0]?.lastName || ''}`; } catch { return ''; } })();
+        cmp = nameA.localeCompare(nameB); break;
+      }
+      case 'visa': cmp = a.destination.localeCompare(b.destination); break;
+      case 'status': cmp = (orderStatusOrder[a.status] ?? 9) - (orderStatusOrder[b.status] ?? 9); break;
+      case 'amount': cmp = a.totalUSD - b.totalUSD; break;
+      case 'date': default: cmp = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(); break;
+    }
+    return orderSortDir === 'desc' ? -cmp : cmp;
   });
 
   const stats = {
@@ -404,6 +505,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <div className={`admin-nav-item${activeSection === 'customers' ? ' active' : ''}`} onClick={() => setActiveSection('customers')}>👤 Customer Accounts</div>
           <div className={`admin-nav-item${activeSection === 'refunds' ? ' active' : ''}`} onClick={() => setActiveSection('refunds')}>💸 Refunds</div>
           <div className={`admin-nav-item${activeSection === 'abandoned' ? ' active' : ''}`} onClick={() => setActiveSection('abandoned')}>🚫 Abandoned</div>
+          <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>💬 CRM</Link>
         </nav>
         <button className="admin-logout-btn" onClick={handleLogout}>← Sign Out</button>
       </aside>
@@ -434,7 +536,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               <input className="admin-search" placeholder="Search by order number, name, email, destination..."
                 value={search} onChange={e => setSearch(e.target.value)} />
               <div className="admin-filter-tabs">
-                {['ALL','PENDING','UNDER_REVIEW','APPROVED','REJECTED','REFUNDED','ON_HOLD'].map(s => (
+                {['ALL','PENDING','UNDER_REVIEW','APPROVED','REJECTED','REFUNDED','ON_HOLD','NEEDS_CORRECTION'].map(s => (
                   <button key={s} className={`admin-filter-tab${filter === s ? ' active' : ''}`} onClick={() => setFilter(s)}>
                     {s === 'ALL' ? 'All' : s.replace('_',' ')}
                   </button>
@@ -454,13 +556,13 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th className="admin-th">Order</th>
-                      <th className="admin-th">Date</th>
-                      <th className="admin-th">Applicant</th>
-                      <th className="admin-th">Visa</th>
-                      <th className="admin-th">Status</th>
+                      <th className="admin-th crm-th-sort" onClick={() => toggleOrderSort('order')}>Order {orderSortBy === 'order' && (orderSortDir === 'asc' ? '↑' : '↓')}</th>
+                      <th className="admin-th crm-th-sort" onClick={() => toggleOrderSort('date')}>Date {orderSortBy === 'date' && (orderSortDir === 'asc' ? '↑' : '↓')}</th>
+                      <th className="admin-th crm-th-sort" onClick={() => toggleOrderSort('applicant')}>Applicant {orderSortBy === 'applicant' && (orderSortDir === 'asc' ? '↑' : '↓')}</th>
+                      <th className="admin-th crm-th-sort" onClick={() => toggleOrderSort('visa')}>Visa {orderSortBy === 'visa' && (orderSortDir === 'asc' ? '↑' : '↓')}</th>
+                      <th className="admin-th crm-th-sort" onClick={() => toggleOrderSort('status')}>Status {orderSortBy === 'status' && (orderSortDir === 'asc' ? '↑' : '↓')}</th>
                       <th className="admin-th">Notes</th>
-                      <th className="admin-th">Amount</th>
+                      <th className="admin-th crm-th-sort" onClick={() => toggleOrderSort('amount')}>Amount {orderSortBy === 'amount' && (orderSortDir === 'asc' ? '↑' : '↓')}</th>
                       <th className="admin-th">Actions</th>
                     </tr>
                   </thead>
@@ -723,6 +825,176 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                   </tbody>
                 </table>
               )}
+            </div>
+          </>
+        )}
+
+        {/* ── CRM ── */}
+        {activeSection === 'crm' && (
+          <>
+            <div className="admin-header">
+              <div>
+                <h1 className="admin-title">CRM</h1>
+                <p className="admin-sub">Manage customer relationships and track interactions</p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="admin-refresh-btn" onClick={syncOrdersToCrm}>⚡ Sync Orders</button>
+                <button className="admin-refresh-btn" onClick={fetchCrm}>↻ Refresh</button>
+              </div>
+            </div>
+
+            <div className="admin-filters">
+              <input className="admin-search" placeholder="Search by name, email, or tag..."
+                value={crmSearch} onChange={e => setCrmSearch(e.target.value)} />
+            </div>
+
+            <div className="crm-layout">
+              {/* Customer list */}
+              <div className="crm-list">
+                {crmLoading ? (
+                  <div className="admin-empty">Loading...</div>
+                ) : (() => {
+                  const filtered = crmCustomers.filter(c => {
+                    if (!crmSearch) return true;
+                    const s = crmSearch.toLowerCase();
+                    return c.name?.toLowerCase().includes(s) || c.email?.toLowerCase().includes(s) || c.tags?.toLowerCase().includes(s);
+                  });
+                  if (filtered.length === 0) return (
+                    <div className="admin-empty">
+                      {crmCustomers.length === 0 ? 'No CRM customers yet. Click "Sync Orders" to import from existing orders.' : 'No customers match your search.'}
+                    </div>
+                  );
+                  return filtered.map(c => {
+                    const customerOrders = orders.filter(o => {
+                      let email = o.billingEmail;
+                      try { const t = JSON.parse(o.travelers); if (t[0]?.email) email = t[0].email; } catch {}
+                      return email.toLowerCase() === c.email.toLowerCase();
+                    });
+                    const totalSpent = customerOrders.reduce((s: number, o: any) => s + o.totalUSD, 0);
+                    const tags = c.tags ? c.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
+                    return (
+                      <div key={c.id} className={`crm-card${crmSelected?.id === c.id ? ' active' : ''}`} onClick={() => selectCrmCustomer(c)}>
+                        <div className="crm-card-header">
+                          <span className="crm-card-name">{c.name}</span>
+                          <span className="crm-card-orders">{customerOrders.length} order{customerOrders.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div className="crm-card-email">{c.email}</div>
+                        {c.phone && <div className="crm-card-phone">{c.phone}</div>}
+                        <div className="crm-card-footer">
+                          <span className="crm-card-spent">${totalSpent.toFixed(2)}</span>
+                          {tags.length > 0 && (
+                            <div className="crm-card-tags">
+                              {tags.map((t: string) => <span key={t} className="crm-tag">{t}</span>)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Customer detail */}
+              <div className="crm-detail">
+                {!crmSelected ? (
+                  <div className="crm-detail-empty">Select a customer to view details</div>
+                ) : (() => {
+                  const customerOrders = orders.filter(o => {
+                    let email = o.billingEmail;
+                    try { const t = JSON.parse(o.travelers); if (t[0]?.email) email = t[0].email; } catch {}
+                    return email.toLowerCase() === crmSelected.email.toLowerCase();
+                  });
+                  const tags = crmTags ? crmTags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
+
+                  return (
+                    <>
+                      <div className="crm-detail-header">
+                        <h2 className="crm-detail-name">{crmSelected.name}</h2>
+                        <p className="crm-detail-email">{crmSelected.email}</p>
+                        {crmSelected.phone && <p className="crm-detail-phone">{crmSelected.phone}</p>}
+                        <p className="crm-detail-date">Customer since {new Date(crmSelected.createdAt).toLocaleDateString()}</p>
+                      </div>
+
+                      {/* Tags */}
+                      <div className="crm-detail-section">
+                        <h3 className="crm-detail-section-title">Tags</h3>
+                        <div className="crm-tags-wrap">
+                          {tags.map((t: string) => (
+                            <span key={t} className="crm-tag removable" onClick={() => removeCrmTag(t)}>{t} ✕</span>
+                          ))}
+                          <div className="crm-tag-add">
+                            <input className="crm-tag-input" placeholder="Add tag..." value={crmNewTag} onChange={e => setCrmNewTag(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCrmTag()} />
+                            <button className="crm-tag-btn" onClick={addCrmTag}>+</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Notes */}
+                      <div className="crm-detail-section">
+                        <h3 className="crm-detail-section-title">Notes</h3>
+                        <textarea
+                          className="ap-input contact-textarea"
+                          rows={4}
+                          placeholder="Add CRM notes..."
+                          value={crmNotes}
+                          onChange={e => setCrmNotes(e.target.value)}
+                        />
+                        <button
+                          className={`apply-submit${crmNotes !== (crmSelected.notes ?? '') || crmTags !== (crmSelected.tags ?? '') ? ' active' : ''}`}
+                          onClick={saveCrmCustomer}
+                          disabled={crmSaving || (crmNotes === (crmSelected.notes ?? '') && crmTags === (crmSelected.tags ?? ''))}
+                          style={{ marginTop: '0.5rem' }}
+                        >
+                          {crmSaving ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+
+                      {/* Orders */}
+                      <div className="crm-detail-section">
+                        <h3 className="crm-detail-section-title">Orders ({customerOrders.length})</h3>
+                        {customerOrders.length === 0 ? (
+                          <p style={{ color: 'var(--slate)', fontSize: '0.85rem' }}>No orders found.</p>
+                        ) : (
+                          <div className="crm-orders-list">
+                            {customerOrders.map(o => (
+                              <a key={o.id} href={`/admin/orders/${formatOrderNum(o.orderNumber)}`} className="crm-order-item">
+                                <span className="crm-order-num">#{formatOrderNum(o.orderNumber)}</span>
+                                <span className={`admin-status ${STATUS_COLORS[o.status] ?? ''}`}>{o.status.replace('_', ' ')}</span>
+                                <span className="crm-order-amount">${o.totalUSD}</span>
+                                <span className="crm-order-date">{new Date(o.createdAt).toLocaleDateString()}</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Activity Timeline */}
+                      <div className="crm-detail-section">
+                        <h3 className="crm-detail-section-title">Activity</h3>
+                        {crmSelected.activities?.length === 0 ? (
+                          <p style={{ color: 'var(--slate)', fontSize: '0.85rem' }}>No activity yet.</p>
+                        ) : (
+                          <div className="crm-activity-list">
+                            {crmSelected.activities?.map((a: any) => (
+                              <div key={a.id} className="crm-activity-item">
+                                <div className="crm-activity-dot" />
+                                <div>
+                                  <span className="crm-activity-type">{a.type === 'note' ? '📝' : a.type === 'tag_change' ? '🏷️' : a.type === 'order' ? '📋' : a.type === 'email' ? '✉️' : '🔄'}</span>
+                                  <span className="crm-activity-content">{a.content}</span>
+                                  <div className="crm-activity-meta">
+                                    {a.createdBy && <span>{a.createdBy} · </span>}
+                                    {new Date(a.createdAt).toLocaleString()}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
           </>
         )}

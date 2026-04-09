@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin, isErrorResponse } from '@/lib/auth';
 
 // POST — create or update an abandoned application
 export async function POST(req: NextRequest) {
@@ -42,8 +43,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET — list all abandoned applications (admin)
+// GET — list all abandoned applications (admin only)
 export async function GET() {
+  const auth = await requireAdmin();
+  if (isErrorResponse(auth)) return auth;
+
   try {
     const abandoned = await prisma.abandonedApplication.findMany({
       orderBy: { updatedAt: 'desc' },

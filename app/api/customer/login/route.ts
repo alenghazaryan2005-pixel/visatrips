@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { parseOrderNumber } from '@/lib/constants';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 const SESSION_TOKEN = 'ev_customer_session';
 
@@ -10,6 +11,12 @@ export async function POST(req: NextRequest) {
     const { email, orderNumber } = await req.json();
     if (!email || !orderNumber) {
       return NextResponse.json({ error: 'Email and order number are required' }, { status: 400 });
+    }
+
+    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    const rateCheck = checkRateLimit(`customer-login:${ip}`);
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: `Too many attempts. Try again in ${rateCheck.retryAfter} seconds.` }, { status: 429 });
     }
 
     const parsed = parseOrderNumber(orderNumber.trim());

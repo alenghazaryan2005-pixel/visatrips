@@ -31,6 +31,7 @@ export const STATUS_COLORS: Record<string, string> = {
   REJECTED:     'status-rejected',
   REFUNDED:     'status-refunded',
   ON_HOLD:      'status-onhold',
+  NEEDS_CORRECTION: 'status-correction',
 };
 
 export const VISA_COLORS: Record<string, string> = {

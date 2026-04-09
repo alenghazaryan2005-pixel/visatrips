@@ -14,6 +14,7 @@ enum OrderStatus {
   REJECTED
   REFUNDED
   ON_HOLD
+  NEEDS_CORRECTION
 }
 
 model Order {
@@ -32,7 +33,10 @@ model Order {
   processingSpeed String   @default("standard")
   lastEditedBy    String?
   applicationId   String?
-  refundAmount    Float?
+  evisaUrl         String?
+  flaggedFields    String?  // JSON array of field names
+  specialistNotes  String?  // Customer-visible correction notes
+  refundAmount     Float?
   refundReason    String?
   refundedAt      DateTime?
 
@@ -57,6 +61,105 @@ model AbandonedApplication {
   @@index([createdAt])
   @@index([email])
   @@map("abandoned_applications")
+}
+
+model CrmCustomer {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  phone     String?
+  tags      String?  // comma-separated tags
+  notes     String?  // internal CRM notes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  activities CrmActivity[]
+
+  @@index([email])
+  @@map("crm_customers")
+}
+
+model CrmActivity {
+  id         String      @id @default(cuid())
+  customerId String
+  customer   CrmCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type       String      // 'note', 'order', 'status_change', 'tag_change'
+  content    String
+  createdBy  String?     // admin name
+  createdAt  DateTime    @default(now())
+
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("crm_activities")
+}
+
+enum TicketStatus {
+  NEW
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Ticket {
+  id           String         @id @default(cuid())
+  ticketNumber Int            @default(autoincrement())
+  subject      String
+  status       TicketStatus   @default(NEW)
+  priority     TicketPriority @default(LOW)
+  group        String         @default("Miscellaneous")
+  contactEmail String
+  contactName  String
+  assignedTo       String?        // admin name or email
+  firstResponseDue DateTime?
+  resolutionDue    DateTime?
+  firstRespondedAt DateTime?
+  resolvedAt       DateTime?
+  mergedIntoId     String?        // if merged, points to parent ticket
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  messages         TicketMessage[]
+  activities       TicketActivity[]
+
+  @@index([status])
+  @@index([contactEmail])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender    String   // 'customer', 'agent', or 'system'
+  senderName String
+  content   String
+  isInternal Boolean @default(false)  // internal note, not visible to customer
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("ticket_messages")
+}
+
+model TicketActivity {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  action    String   // 'created', 'status_changed', 'priority_changed', 'assigned', 'merged', 'replied', 'note_added'
+  details   String   // human-readable description
+  performedBy String?
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("ticket_activities")
 }
 
 model AdminUser {

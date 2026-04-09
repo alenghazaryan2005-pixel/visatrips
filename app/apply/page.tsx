@@ -50,6 +50,10 @@ const VISA_OPTIONS = [
   { id: 'medical-60',  label: 'India Medical eVisa – 60 days, Triple entry',   validity: '60 days after arrival',  entries: 'Triple entry',   maxStay: '60 days in total',   price: 25, tag: '' },
 ];
 
+const PURPOSE_OPTIONS: Record<string, string[]> = {
+  'business-1y': ['Set Up Industrial/Business Venture','Sale/Purchase/Trade','Attend Technical/Business Meetings','Recruit Manpower','Participation in Exhibitions/Trade Fairs','Expert/Specialist for Ongoing Project','Conducting Tours','Deliver Lectures (GIAN)','Sports Related Activity','Join Vessel'],
+};
+
 const MONTHS    = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS      = Array.from({ length: 31 }, (_,i) => String(i+1));
 const YEARS     = Array.from({ length: 80 }, (_,i) => String(new Date().getFullYear()-18-i));
@@ -145,7 +149,7 @@ function PassportDropdown({ value, onChange, disabled }: { value:string; onChang
 }
 
 /* ── Step 1 ── */
-function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravelers, onNext }: any) {
+function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravelers, purposeOfVisit, setPurposeOfVisit, onNext }: any) {
   return (
     <div className="apply-layout">
       <div className="apply-form-col">
@@ -170,6 +174,21 @@ function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravele
             ))}
           </div>
         </div>
+        {PURPOSE_OPTIONS[visaId] && PURPOSE_OPTIONS[visaId].length > 1 && (
+          <div className="apply-field">
+            <label className="apply-label">Purpose of visit</label>
+            <div className="apply-visa-list">
+              {PURPOSE_OPTIONS[visaId].map(p => (
+                <label key={p} className={`apply-visa-option${purposeOfVisit === p ? ' selected' : ''}`}>
+                  <input type="radio" name="purpose" value={p} checked={purposeOfVisit === p} onChange={() => setPurposeOfVisit(p)} className="sr-only"/>
+                  <span className="apply-visa-radio"/>
+                  <span className="apply-visa-label" style={{ fontSize: '0.85rem' }}>{p}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="apply-field">
           <label className="apply-label">Number of travelers</label>
           <div className="apply-travelers">
@@ -179,7 +198,7 @@ function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravele
             <span className="apply-travelers-label">{travelers===1?'traveler':'travelers'}</span>
           </div>
         </div>
-        <button className={`apply-submit${passport?' active':''}`} disabled={!passport} onClick={onNext}>
+        <button className={`apply-submit${passport && (purposeOfVisit || !PURPOSE_OPTIONS[visaId] || PURPOSE_OPTIONS[visaId].length <= 1)?' active':''}`} disabled={!passport || (PURPOSE_OPTIONS[visaId] && PURPOSE_OPTIONS[visaId].length > 1 && !purposeOfVisit)} onClick={onNext}>
           {passport?'Continue to Your Info →':'Select your passport to continue'}
         </button>
       </div>
@@ -189,31 +208,6 @@ function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravele
 }
 
 /* ── Address Validation ── */
-function validateAddress(field: string, value: string): string {
-  const v = value.trim();
-  if (!v) return '';
-  const allSameChar = /^(.)\1+$/.test(v);
-  const allNumbers  = /^\d+$/.test(v);
-  const gibberish   = /^[^a-zA-Z0-9\s.,#\-/]+$/.test(v);
-  if (allSameChar) return 'Please enter a valid value';
-  if (field === 'address') {
-    if (v.length < 5) return 'Address is too short';
-    if (allNumbers) return 'Please include a street name';
-    if (!/[a-zA-Z]/.test(v)) return 'Please enter a valid address';
-  }
-  if (field === 'city' || field === 'state') {
-    if (allNumbers) return 'This field should contain letters';
-    if (!/[a-zA-Z]{2,}/.test(v)) return 'Please enter a valid name';
-    if (v.length < 2) return 'Too short';
-  }
-  if (field === 'zip') {
-    if (gibberish) return 'Please enter a valid postal code';
-    if (v.length < 3) return 'Too short';
-    if (!/[a-zA-Z0-9]/.test(v)) return 'Please enter a valid postal code';
-  }
-  return '';
-}
-
 /* ── Step 2 ── */
 function TravelerCard({ index, data, onChange, expanded, onToggle }: any) {
   return (
@@ -502,6 +496,7 @@ function Step3({ visaId, travelers, travelerData, passportData, onBack }: { visa
               firstName: t.firstName,
               lastName:  t.lastName,
               email:     t.email,
+              purposeOfVisit: purposeOfVisit || undefined,
               dob:       `${t.month} ${t.day}, ${t.year}`,
               address:   t.address,
               city:      t.city,
@@ -650,6 +645,7 @@ function ApplyForm() {
   const [step,          setStep]          = useState(0);
   const [passport,      setPassport]      = useState(searchParams.get('passport') ?? '');
   const [visaId,        setVisaId]        = useState('tourist-30');
+  const [purposeOfVisit, setPurposeOfVisit] = useState('');
   const [travelers,     setTravelers]     = useState(1);
   const [travelerNames, setTravelerNames] = useState<string[]>([]);
   const [travelerData,  setTravelerData]  = useState<any[]>([]);
@@ -665,7 +661,7 @@ function ApplyForm() {
           <span>India eVisa Application</span>
         </div>
         <ProgressBar current={step}/>
-        {step===0 && <Step1 passport={passport} setPassport={setPassport} visaId={visaId} setVisaId={setVisaId} travelers={travelers} setTravelers={setTravelers} onNext={()=>{
+        {step===0 && <Step1 passport={passport} setPassport={setPassport} visaId={visaId} setVisaId={setVisaId} travelers={travelers} setTravelers={setTravelers} purposeOfVisit={purposeOfVisit} setPurposeOfVisit={setPurposeOfVisit} onNext={()=>{
           saveAbandoned({ destination: 'India', visaType: visaId, lastStep: 'step1' });
           setStep(1);
         }}/>}

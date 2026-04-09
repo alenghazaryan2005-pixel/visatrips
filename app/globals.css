@@ -1996,6 +1996,123 @@ footer nav a:hover { color: var(--white); }
   border-color: var(--blue);
   color: var(--blue);
 }
+
+/* Correction banner on status page */
+.customer-correction-banner {
+  @apply rounded-2xl p-6 mb-5;
+  background: #FEF2F2;
+  border: 2px solid #fca5a5;
+}
+.customer-correction-header {
+  @apply flex items-start gap-3 mb-3;
+}
+.customer-correction-icon { @apply text-2xl; }
+.customer-correction-title {
+  @apply text-[1.1rem] font-bold;
+  color: #dc2626;
+}
+.customer-correction-note {
+  @apply text-[0.9rem] leading-relaxed p-4 rounded-xl mb-4;
+  background: white;
+  color: var(--ink);
+  border: 1px solid #fecaca;
+}
+.customer-correction-btn {
+  @apply inline-block px-6 py-3 rounded-xl font-semibold text-[0.95rem] text-center;
+  background: #dc2626;
+  color: white;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.customer-correction-btn:hover { background: #b91c1c; }
+
+/* Document re-upload on status page */
+.customer-reupload-section {
+  @apply rounded-2xl p-6 mb-5;
+  background: #FFFBEB;
+  border: 2px solid #FDE68A;
+}
+.customer-reupload-title {
+  @apply text-[1.05rem] font-bold mb-4;
+  color: #92400E;
+}
+.customer-reupload-item {
+  @apply rounded-xl p-4 mb-3;
+  background: white;
+  border: 1px solid #FDE68A;
+}
+.customer-reupload-label {
+  @apply text-[0.95rem] font-semibold mb-1;
+  color: var(--ink);
+}
+.customer-reupload-hint {
+  @apply text-[0.82rem] mb-3;
+  color: var(--slate);
+}
+.customer-reupload-btn {
+  @apply px-5 py-2.5 rounded-xl font-semibold text-[0.88rem] cursor-pointer;
+  background: var(--blue);
+  color: white;
+  border: none;
+  transition: background 0.2s;
+}
+.customer-reupload-btn:hover { background: var(--navy); }
+
+/* eVisa card on status page */
+.customer-evisa-card {
+  @apply rounded-2xl p-6 mb-5;
+  background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%);
+  border: 2px solid #86EFAC;
+}
+.customer-evisa-header {
+  @apply flex items-start gap-4 mb-5;
+}
+.customer-evisa-icon { @apply text-3xl; }
+.customer-evisa-title {
+  @apply text-[1.2rem] font-bold;
+  color: #065F46;
+}
+.customer-evisa-sub {
+  @apply text-[0.9rem] mt-1;
+  color: #047857;
+}
+.customer-evisa-content {
+  @apply flex items-start gap-5;
+}
+.customer-evisa-pdf {
+  @apply px-6 py-4 rounded-xl text-[1rem] font-semibold;
+  background: white;
+  color: var(--ink);
+  border: 1px solid #D1FAE5;
+}
+.customer-evisa-img {
+  @apply rounded-xl;
+  max-width: 300px;
+  max-height: 220px;
+  object-fit: cover;
+  border: 2px solid #D1FAE5;
+}
+.customer-evisa-actions {
+  @apply flex flex-col gap-2;
+}
+.customer-evisa-view {
+  @apply px-5 py-2.5 rounded-xl text-[0.9rem] font-semibold text-center;
+  background: #059669;
+  color: white;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.customer-evisa-view:hover { background: #047857; }
+.customer-evisa-download {
+  @apply px-5 py-2.5 rounded-xl text-[0.9rem] font-semibold text-center;
+  background: white;
+  color: #059669;
+  border: 1.5px solid #86EFAC;
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+.customer-evisa-download:hover { border-color: #059669; }
+
 .customer-status-cta {
   @apply flex items-center justify-between rounded-2xl mb-6;
   padding: 1.5rem 2rem;
@@ -2056,6 +2173,293 @@ footer nav a:hover { color: var(--white); }
   .customer-status-value { @apply text-left; }
 }
 
+/* ── INDIA LANDING PAGE ─────────────────────────────────────────────────── */
+
+.india-hero {
+  background: linear-gradient(135deg, #FFF7ED 0%, #FFF1E6 50%, #F8FAFF 100%);
+  padding: 7rem 2rem 4rem;
+}
+.india-hero-inner {
+  @apply max-w-[1200px] mx-auto flex items-center gap-16;
+  padding-left: 11rem;
+}
+.india-hero-content { @apply flex-1; }
+.india-hero-image {
+  @apply flex-shrink-0;
+  width: 500px;
+}
+.india-hero-image img {
+  @apply w-full rounded-2xl;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+  object-fit: cover;
+  max-height: 440px;
+}
+.india-flag-badge {
+  @apply inline-flex items-center gap-2 text-[0.85rem] font-semibold px-4 py-2 rounded-full mb-5;
+  background: white;
+  border: 1px solid #E2E8F0;
+  color: var(--ink);
+}
+.india-flag { @apply text-xl; }
+.india-hero-title {
+  font-family: 'DM Serif Display', serif;
+  @apply text-[3.5rem] leading-[1.12] mb-5;
+  color: var(--ink);
+}
+.india-hero-title em {
+  color: #D97706;
+  font-style: italic;
+}
+.india-hero-sub {
+  @apply text-[1.1rem] leading-relaxed mb-7 max-w-[520px];
+  color: var(--slate);
+  font-family: var(--font-jakarta), sans-serif;
+}
+.india-hero-actions {
+  @apply flex gap-3 mb-8;
+}
+.india-cta-btn {
+  @apply inline-block px-7 py-3.5 rounded-xl font-semibold text-white text-[0.95rem] text-center;
+  background: var(--blue);
+  text-decoration: none;
+  transition: background 0.2s, transform 0.15s;
+}
+.india-cta-btn:hover { background: var(--navy); transform: translateY(-1px); }
+.india-cta-ghost {
+  @apply inline-block px-7 py-3.5 rounded-xl font-semibold text-[0.95rem] text-center;
+  color: var(--ink);
+  border: 1.5px solid var(--cloud);
+  text-decoration: none;
+  transition: border-color 0.2s;
+}
+.india-cta-ghost:hover { border-color: var(--blue); color: var(--blue); }
+.india-hero-stats {
+  @apply flex gap-8;
+}
+.india-stat { @apply flex flex-col; }
+.india-stat-n {
+  @apply text-[1.5rem] font-bold;
+  color: var(--ink);
+}
+.india-stat-l {
+  @apply text-[0.75rem] uppercase tracking-wider font-medium;
+  color: var(--slate);
+}
+
+/* Sections */
+.india-section {
+  @apply py-16 px-6;
+}
+.india-section-alt {
+  background: #F0FDF4;
+}
+.india-section-inner {
+  @apply max-w-[1100px] mx-auto;
+}
+.india-section-title {
+  font-family: 'DM Serif Display', serif;
+  @apply text-[2rem] mb-8;
+  color: var(--ink);
+}
+
+/* Visa types info */
+.india-visatypes-layout {
+  @apply flex gap-8;
+}
+.india-visatypes-nav {
+  @apply flex flex-col shrink-0;
+  width: 300px;
+}
+.india-visatypes-btn {
+  @apply flex items-center justify-between w-full text-left px-4 py-3 text-[0.9rem] font-medium cursor-pointer rounded-lg;
+  color: var(--slate);
+  background: none;
+  border: none;
+  transition: color 0.15s, background 0.15s;
+}
+.india-visatypes-btn:hover {
+  color: var(--ink);
+  background: var(--sky);
+}
+.india-visatypes-btn.active {
+  color: var(--ink);
+  font-weight: 700;
+  background: var(--sky);
+  border-left: 3px solid var(--navy);
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.india-visatypes-chevron {
+  @apply text-sm;
+  color: var(--slate);
+}
+.india-visatypes-content {
+  @apply flex-1 pt-1;
+}
+.india-visatypes-title {
+  font-family: 'DM Serif Display', serif;
+  @apply text-[1.5rem] mb-5;
+  color: var(--ink);
+}
+.india-visatypes-detail {
+  @apply text-[0.92rem] leading-relaxed mb-4;
+  color: #475569;
+  text-align: justify;
+}
+.india-visatypes-detail strong {
+  color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .india-visatypes-layout { @apply flex-col; }
+  .india-visatypes-nav { width: 100%; border-left: none; border-top: 3px solid var(--cloud); }
+  .india-visatypes-btn { border-left: none; margin-left: 0; border-bottom: 1px solid var(--cloud); }
+  .india-visatypes-btn.active { border-left: none; border-bottom-color: var(--navy); }
+}
+
+/* Visa cards */
+.india-visa-grid {
+  @apply grid gap-5;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.india-visa-card {
+  @apply relative p-6 rounded-2xl flex flex-col;
+  background: white;
+  border: 1.5px solid var(--cloud);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.india-visa-card:hover { border-color: var(--blue); box-shadow: 0 8px 24px rgba(108,138,255,0.1); }
+.india-visa-tag {
+  @apply absolute top-3 right-3 text-[0.65rem] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full;
+  background: #FEF3C7;
+  color: #D97706;
+}
+.india-visa-name {
+  @apply text-[1rem] font-bold mb-2;
+  color: var(--ink);
+}
+.india-visa-meta {
+  @apply text-[0.82rem] mb-4;
+  color: var(--slate);
+}
+.india-visa-price {
+  @apply flex items-baseline gap-1.5 mb-4 mt-auto;
+}
+.india-visa-amount {
+  @apply text-[1.6rem] font-bold;
+  color: var(--blue);
+}
+.india-visa-per {
+  @apply text-[0.75rem];
+  color: var(--slate);
+}
+.india-visa-btn {
+  @apply block text-center py-2.5 rounded-xl text-[0.85rem] font-semibold;
+  background: var(--sky);
+  color: var(--blue);
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.india-visa-btn:hover { background: var(--blue); color: white; }
+
+/* Requirements */
+.india-req-grid {
+  @apply grid gap-5;
+  grid-template-columns: repeat(4, 1fr);
+}
+.india-req-card {
+  @apply p-5 rounded-2xl;
+  background: white;
+  border: 1px solid var(--cloud);
+}
+.india-req-icon { @apply text-2xl block mb-3; }
+.india-req-name {
+  @apply text-[0.95rem] font-bold mb-2;
+  color: var(--ink);
+}
+.india-req-desc {
+  @apply text-[0.82rem] leading-relaxed;
+  color: var(--slate);
+}
+
+/* Steps */
+.india-steps {
+  @apply flex flex-col gap-6 max-w-[600px];
+}
+.india-step {
+  @apply flex gap-5 items-start;
+}
+.india-step-n {
+  @apply text-[1.4rem] font-bold shrink-0 w-12 h-12 flex items-center justify-center rounded-xl;
+  background: var(--sky);
+  color: var(--blue);
+}
+.india-step-title {
+  @apply text-[1rem] font-bold mb-1;
+  color: var(--ink);
+}
+.india-step-desc {
+  @apply text-[0.88rem] leading-relaxed;
+  color: var(--slate);
+}
+
+/* FAQ */
+.india-faq-list {
+  @apply flex flex-col gap-3 max-w-[700px] mx-auto;
+}
+.india-faq {
+  @apply rounded-xl overflow-hidden;
+  border: 1px solid var(--cloud);
+  background: white;
+}
+.india-faq-q {
+  @apply px-5 py-4 text-[0.95rem] font-semibold cursor-pointer list-none flex items-center justify-between;
+  color: var(--ink);
+}
+.india-faq-q::after {
+  content: '+';
+  @apply text-xl font-light;
+  color: var(--slate);
+}
+.india-faq[open] .india-faq-q::after { content: '−'; }
+.india-faq-a {
+  @apply px-5 pb-4 text-[0.88rem] leading-relaxed;
+  color: var(--slate);
+}
+
+/* CTA Section */
+.india-cta-section {
+  @apply py-20 px-6 text-center;
+  background: linear-gradient(135deg, var(--ink) 0%, var(--navy) 100%);
+}
+.india-cta-inner {
+  @apply max-w-[600px] mx-auto;
+}
+.india-cta-flag { @apply text-4xl block mb-4; }
+.india-cta-title {
+  font-family: 'DM Serif Display', serif;
+  @apply text-[2.2rem] mb-3 text-white;
+}
+.india-cta-sub {
+  @apply text-[1rem] leading-relaxed mb-8;
+  color: rgba(255,255,255,0.7);
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .india-hero-inner { @apply flex-col text-center; }
+  .india-hero-content { @apply items-center; }
+  .india-hero-sub { @apply mx-auto; }
+  .india-hero-actions { @apply justify-center; }
+  .india-hero-stats { @apply justify-center; }
+  .india-hero-image { width: 100%; max-width: 360px; }
+  .india-hero-title { @apply text-[2.2rem]; }
+  .india-req-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .india-req-grid { grid-template-columns: 1fr; }
+  .india-visa-grid { grid-template-columns: 1fr; }
+}
+
 /* ── ADMIN ───────────────────────────────────────────────────────────────── */
 
 /* Login */
@@ -2112,7 +2516,44 @@ footer nav a:hover { color: var(--white); }
   @apply flex flex-col w-56 flex-shrink-0 px-4 py-6 gap-6;
   background: var(--ink);
   min-height: 100vh;
+  transition: width 0.2s, padding 0.2s;
 }
+.admin-sidebar.collapsed {
+  width: 56px;
+  padding-left: 8px;
+  padding-right: 8px;
+  overflow: hidden;
+}
+.admin-sidebar.collapsed .admin-sidebar-logo span,
+.admin-sidebar.collapsed .admin-sidebar-badge,
+.admin-sidebar.collapsed .admin-nav-item span,
+.admin-sidebar.collapsed .admin-logout-btn span {
+  display: none;
+}
+.admin-sidebar.collapsed .admin-nav-item {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+  font-size: 1.1rem;
+}
+.admin-sidebar.collapsed .admin-sidebar-logo {
+  justify-content: center;
+  padding-bottom: 12px;
+}
+.admin-sidebar.collapsed .admin-logout-btn {
+  justify-content: center;
+  font-size: 1rem;
+  padding: 0.5rem;
+}
+.sidebar-toggle {
+  @apply w-full flex items-center justify-center py-1.5 rounded-lg cursor-pointer mt-auto;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.5);
+  border: none;
+  font-size: 0.85rem;
+  transition: background 0.15s;
+}
+.sidebar-toggle:hover { background: rgba(255,255,255,0.12); }
 .admin-sidebar-logo {
   @apply flex items-center gap-2.5 px-2 pb-4;
   border-bottom: 1px solid rgba(255,255,255,0.08);
@@ -2142,7 +2583,9 @@ footer nav a:hover { color: var(--white); }
 
 /* Main */
 .admin-main {
-  @apply flex-1 p-8 flex flex-col gap-6 overflow-auto;
+  @apply flex-1 p-8 flex flex-col gap-6 overflow-auto mx-auto;
+  max-width: 1200px;
+  width: 100%;
 }
 .admin-header {
   @apply flex items-start justify-between;
@@ -2297,6 +2740,86 @@ footer nav a:hover { color: var(--white); }
 .status-rejected { background: rgba(220,38,38,0.1);   color: #dc2626; }
 .status-refunded { background: rgba(139,92,246,0.1);  color: #7c3aed; }
 .status-onhold   { background: rgba(245,158,11,0.1);  color: #b45309; }
+.status-correction { background: rgba(220,38,38,0.1); color: #dc2626; }
+
+/* Flag UI */
+.od-flag-mode-btn {
+  @apply px-4 py-2.5 rounded-xl font-semibold text-[0.85rem] cursor-pointer;
+  background: #f1f5f9;
+  color: var(--ink);
+  border: 1.5px solid var(--cloud);
+  transition: all 0.15s;
+}
+.od-flag-mode-btn:hover { border-color: #fca5a5; color: #dc2626; }
+.od-flag-mode-btn.active {
+  background: #FEF2F2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+.flag-btn {
+  @apply text-[1rem] cursor-pointer shrink-0 mr-1 rounded px-0.5;
+  background: none;
+  border: none;
+  opacity: 0.2;
+  transition: opacity 0.15s;
+}
+.flag-btn:hover { opacity: 0.6; }
+.flag-btn.active { opacity: 1; }
+.flagged-row {
+  background: rgba(220,38,38,0.06) !important;
+  border-left: 3px solid #dc2626 !important;
+}
+.od-flag-section {
+  @apply rounded-2xl p-5 mb-4;
+  border: 2px solid #fca5a5;
+  background: #FEF2F2;
+}
+.od-flag-header {
+  @apply flex items-center justify-between mb-2;
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.od-flag-clear {
+  @apply text-[0.78rem] font-medium cursor-pointer;
+  color: #dc2626;
+  background: none;
+  border: none;
+  text-decoration: underline;
+}
+.od-flag-tags {
+  @apply flex flex-wrap gap-1.5;
+}
+.od-flag-tag {
+  @apply text-[0.7rem] font-semibold px-2 py-0.5 rounded-full cursor-pointer;
+  background: rgba(220,38,38,0.1);
+  color: #dc2626;
+}
+.od-flag-tag:hover { background: rgba(220,38,38,0.2); }
+.od-notify-btn {
+  @apply w-full py-3 rounded-xl font-semibold text-[0.95rem] cursor-pointer mt-3;
+  background: #dc2626;
+  color: white;
+  border: none;
+  transition: background 0.2s;
+}
+.od-notify-btn:hover { background: #b91c1c; }
+.od-notify-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Flagged field on finish page */
+.finish-flagged-field {
+}
+.finish-flag-hint {
+  @apply text-[0.75rem] font-semibold mt-1 block;
+  color: #dc2626;
+}
+.finish-correction-banner {
+  @apply flex items-start gap-3 rounded-xl p-4 mb-5;
+  background: #FEF2F2;
+  border: 1.5px solid #fca5a5;
+  color: #dc2626;
+  font-size: 0.9rem;
+}
 
 /* Status select */
 .admin-status-select {
@@ -2500,15 +3023,16 @@ a.contact-detail-value:hover { color: var(--blue); }
   color: var(--ink);
 }
 .modal-rows { @apply flex flex-col gap-2.5; }
-.modal-row { @apply flex items-start justify-between gap-4; }
+.modal-row { @apply flex items-center gap-3; }
 .modal-row-label {
   font-family: var(--font-sora), sans-serif;
-  @apply text-[0.75rem] font-semibold flex-shrink-0;
+  @apply text-[0.85rem] font-semibold flex-shrink-0;
   color: var(--slate);
+  min-width: 140px;
 }
 .modal-row-value {
   font-family: var(--font-jakarta), sans-serif;
-  @apply text-[0.85rem] font-medium text-right;
+  @apply text-[0.92rem] font-medium text-left;
   color: var(--ink);
 }
 .modal-price { color: var(--blue); font-weight: 700; }
@@ -2540,6 +3064,502 @@ a.contact-detail-value:hover { color: var(--blue); }
 }
 
 /* ── ORDER DETAIL PAGE ──────────────────────────────────────────────────── */
+/* eVisa Upload */
+.od-evisa-section {
+  @apply rounded-2xl p-5 mb-4;
+  border: 1.5px solid var(--cloud);
+  background: white;
+}
+.od-evisa-header {
+  @apply flex items-center justify-between mb-3;
+}
+.od-evisa-title {
+  @apply text-[0.95rem] font-bold;
+  color: var(--ink);
+}
+.od-evisa-badge {
+  @apply text-[0.7rem] font-bold uppercase tracking-wider px-3 py-1 rounded-full;
+  background: rgba(16,185,129,0.1);
+  color: #059669;
+}
+.od-evisa-preview {
+  @apply flex items-start gap-4;
+}
+.od-evisa-link {
+  text-decoration: none;
+}
+.od-evisa-pdf {
+  @apply flex items-center gap-2 px-6 py-4 rounded-xl text-[1rem] font-semibold;
+  background: #f1f5f9;
+  color: var(--ink);
+  border: 1px solid var(--cloud);
+}
+.od-evisa-img {
+  @apply rounded-xl;
+  max-width: 240px;
+  max-height: 180px;
+  object-fit: cover;
+  border: 2px solid var(--cloud);
+}
+.od-evisa-actions {
+  @apply flex flex-col gap-2;
+}
+.od-evisa-download {
+  @apply text-[0.8rem] font-semibold px-3 py-1.5 rounded-lg text-center;
+  color: var(--blue);
+  border: 1px solid var(--cloud);
+  background: white;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.od-evisa-download:hover { border-color: var(--blue); }
+.od-evisa-remove {
+  @apply text-[0.8rem] font-semibold px-3 py-1.5 rounded-lg cursor-pointer;
+  color: #dc2626;
+  border: 1px solid rgba(220,38,38,0.2);
+  background: rgba(220,38,38,0.04);
+}
+.od-evisa-remove:hover { background: rgba(220,38,38,0.1); }
+.od-evisa-upload {
+  @apply text-center py-4;
+}
+.od-evisa-upload-btn {
+  @apply inline-block px-6 py-3 rounded-xl font-semibold text-[0.9rem] cursor-pointer;
+  color: white;
+  background: var(--blue);
+  transition: background 0.2s;
+}
+.od-evisa-upload-btn:hover { background: var(--navy); }
+.od-evisa-hint {
+  @apply text-[0.78rem] mt-2 max-w-[400px] mx-auto;
+  color: var(--slate);
+}
+
+/* CRM */
+.crm-layout {
+  @apply flex gap-6;
+  min-height: 500px;
+}
+.crm-list {
+  width: 340px;
+  @apply flex flex-col gap-2 shrink-0 overflow-auto;
+  max-height: 70vh;
+}
+.crm-card {
+  @apply p-4 rounded-xl cursor-pointer;
+  border: 1.5px solid var(--cloud);
+  transition: border-color 0.15s, background 0.15s;
+}
+.crm-card:hover { border-color: var(--blue); background: rgba(108,138,255,0.03); }
+.crm-card.active { border-color: var(--blue); background: rgba(108,138,255,0.06); }
+.crm-card-header { @apply flex justify-between items-center mb-1; }
+.crm-card-name { @apply text-[0.92rem] font-bold; color: var(--ink); }
+.crm-card-orders { @apply text-[0.75rem] font-medium; color: var(--slate); }
+.crm-card-email { @apply text-[0.82rem]; color: var(--slate); }
+.crm-card-phone { @apply text-[0.78rem]; color: var(--slate); }
+.crm-card-footer { @apply flex items-center justify-between mt-2; }
+.crm-card-spent { @apply text-[0.85rem] font-semibold; color: var(--blue); }
+.crm-card-tags { @apply flex gap-1 flex-wrap; }
+.crm-tag {
+  @apply text-[0.65rem] font-semibold px-2 py-0.5 rounded-full;
+  background: rgba(108,138,255,0.1);
+  color: var(--blue);
+}
+.crm-tag.removable { cursor: pointer; }
+.crm-tag.removable:hover { background: rgba(220,38,38,0.1); color: #dc2626; }
+
+.crm-detail {
+  @apply flex-1 overflow-auto;
+  max-height: 70vh;
+}
+.crm-detail-empty {
+  @apply flex items-center justify-center h-full text-[0.95rem];
+  color: var(--slate);
+}
+.crm-detail-header {
+  @apply mb-5 pb-4;
+  border-bottom: 1px solid var(--cloud);
+}
+.crm-detail-name { @apply text-[1.3rem] font-bold; color: var(--ink); }
+.crm-detail-email { @apply text-[0.9rem]; color: var(--slate); }
+.crm-detail-phone { @apply text-[0.85rem]; color: var(--slate); }
+.crm-detail-date { @apply text-[0.78rem] mt-1; color: var(--slate); }
+
+.crm-detail-section { @apply mb-5; }
+.crm-detail-section-title {
+  @apply text-[0.8rem] font-bold uppercase tracking-wider mb-2 pb-1;
+  color: var(--navy);
+  border-bottom: 1px solid var(--cloud);
+}
+.crm-tags-wrap { @apply flex gap-2 flex-wrap items-center; }
+.crm-tag-add { @apply flex gap-1 items-center; }
+.crm-tag-input {
+  @apply text-[0.78rem] px-2 py-1 rounded-lg;
+  border: 1px solid var(--cloud);
+  width: 100px;
+  outline: none;
+}
+.crm-tag-input:focus { border-color: var(--blue); }
+.crm-tag-btn {
+  @apply text-[0.85rem] font-bold w-6 h-6 flex items-center justify-center rounded-lg cursor-pointer;
+  color: var(--blue);
+  background: rgba(108,138,255,0.1);
+  border: none;
+}
+
+.crm-orders-list { @apply flex flex-col gap-2; }
+.crm-order-item {
+  @apply flex items-center gap-4 px-3 py-2 rounded-lg text-[0.85rem];
+  border: 1px solid var(--cloud);
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color 0.15s;
+}
+.crm-order-item:hover { border-color: var(--blue); }
+.crm-order-num { @apply font-semibold; color: var(--blue); }
+.crm-order-amount { @apply font-semibold; }
+.crm-order-date { @apply ml-auto text-[0.78rem]; color: var(--slate); }
+
+.crm-activity-list { @apply flex flex-col gap-3; }
+.crm-activity-item { @apply flex gap-3 items-start; }
+.crm-activity-dot {
+  @apply w-2 h-2 rounded-full shrink-0 mt-2;
+  background: var(--blue);
+}
+.crm-activity-type { @apply mr-1; }
+.crm-activity-content { @apply text-[0.85rem]; color: var(--ink); }
+.crm-activity-meta { @apply text-[0.72rem] mt-0.5; color: var(--slate); }
+
+@media (max-width: 900px) {
+  .crm-layout { @apply flex-col; }
+  .crm-list { width: 100%; max-height: 300px; }
+}
+
+/* CRM Ticket Pages */
+.crm-page-header { @apply flex items-start justify-between mb-4; }
+.crm-page-title { @apply text-[1.5rem] font-bold; color: var(--ink); }
+.crm-page-sub { @apply text-[0.85rem]; color: var(--slate); }
+.crm-new-btn {
+  @apply px-5 py-2.5 rounded-xl font-semibold text-[0.88rem] cursor-pointer;
+  background: var(--blue); color: white; border: none; transition: background 0.2s;
+}
+.crm-new-btn:hover { background: var(--navy); }
+.crm-new-btn:disabled { opacity: 0.6; }
+.crm-cancel-btn {
+  @apply px-5 py-2.5 rounded-xl font-semibold text-[0.88rem] cursor-pointer;
+  background: #f1f5f9; color: var(--ink); border: none;
+}
+.crm-filters { @apply flex flex-col gap-3 mb-4; }
+.crm-search {
+  @apply w-full rounded-xl px-4 py-3 text-[0.9rem] outline-none;
+  border: 1.5px solid var(--cloud); transition: border-color 0.2s;
+}
+.crm-search:focus { border-color: var(--blue); }
+.crm-filter-tabs { @apply flex gap-1 flex-wrap; }
+.crm-filter-tab {
+  @apply px-3 py-1.5 rounded-full text-[0.78rem] font-semibold cursor-pointer;
+  background: #f1f5f9; color: var(--slate); border: none; transition: all 0.15s;
+}
+.crm-filter-tab:hover { background: var(--sky); color: var(--ink); }
+.crm-filter-tab.active { background: var(--blue); color: white; }
+.crm-new-form {
+  @apply rounded-2xl p-5 mb-4;
+  border: 1.5px solid var(--cloud); background: white;
+}
+.crm-new-grid { @apply grid grid-cols-2 gap-3; }
+.crm-table-wrap { @apply overflow-auto rounded-2xl; border: 1px solid var(--cloud); }
+.crm-table { @apply w-full; border-collapse: collapse; }
+.crm-th {
+  @apply text-left text-[0.72rem] font-bold uppercase tracking-wider px-4 py-3;
+  color: var(--slate); background: #f8fafc; border-bottom: 1px solid var(--cloud);
+}
+.crm-th-sort { cursor: pointer; user-select: none; }
+.crm-th-sort:hover { color: var(--blue); }
+
+/* Filter toggle + panel */
+.crm-filter-toggle {
+  @apply px-4 py-3 rounded-xl text-[0.85rem] font-semibold cursor-pointer shrink-0;
+  background: #f1f5f9; color: var(--ink); border: 1.5px solid var(--cloud); transition: all 0.15s;
+}
+.crm-filter-toggle:hover { border-color: var(--blue); }
+.crm-filter-toggle.active { background: var(--sky); border-color: var(--blue); color: var(--blue); }
+
+.crm-filter-panel {
+  width: 240px; @apply shrink-0 rounded-2xl p-4;
+  border: 1px solid var(--cloud); background: white;
+}
+.crm-filter-panel-header { @apply flex items-center justify-between mb-4; }
+.crm-filter-panel-title { @apply text-[0.82rem] font-bold uppercase tracking-wider; color: var(--ink); }
+.crm-filter-clear {
+  @apply text-[0.72rem] font-medium cursor-pointer;
+  background: none; border: none; color: var(--blue); text-decoration: underline;
+}
+.crm-filter-section { @apply mb-3; }
+.crm-filter-label { @apply block text-[0.75rem] font-semibold mb-1; color: var(--slate); }
+.crm-filter-select {
+  @apply w-full rounded-lg px-3 py-2 text-[0.82rem] outline-none;
+  border: 1px solid var(--cloud); background: white;
+}
+.crm-filter-select:focus { border-color: var(--blue); }
+.crm-tr { @apply cursor-pointer; transition: background 0.1s; }
+.crm-tr:hover { background: rgba(108,138,255,0.03); }
+.crm-tr:not(:last-child) { border-bottom: 1px solid #f1f5f9; }
+.crm-td { @apply px-4 py-3 text-[0.88rem]; vertical-align: middle; }
+.crm-avatar {
+  @apply w-8 h-8 rounded-full flex items-center justify-center text-[0.75rem] font-bold;
+}
+.crm-contact-name { @apply text-[0.88rem] font-semibold; color: var(--ink); }
+.crm-contact-email { @apply text-[0.75rem]; color: var(--slate); }
+.crm-subject { @apply text-[0.88rem] font-medium; color: var(--ink); }
+.crm-ticket-num { @apply text-[0.75rem] font-normal; color: var(--slate); }
+.crm-last-msg { @apply text-[0.78rem] mt-0.5; color: var(--slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; }
+.crm-status-badge { @apply text-[0.7rem] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider; }
+.crm-group { @apply text-[0.82rem]; color: var(--slate); }
+.crm-agent { @apply text-[0.82rem] font-medium; color: var(--ink); }
+.crm-priority-dot { @apply w-2.5 h-2.5 rounded-full inline-block; }
+.crm-time { @apply text-[0.78rem]; color: var(--slate); }
+
+/* Ticket Detail */
+.tkt-main { @apply flex-1 flex flex-col; min-height: 0; }
+.tkt-header { @apply mb-4; }
+.tkt-back { @apply text-[0.85rem] font-medium mb-2 block; color: var(--blue); text-decoration: none; }
+.tkt-subject { @apply text-[1.3rem] font-bold; color: var(--ink); }
+.tkt-num { @apply text-[0.85rem] font-normal; color: var(--slate); }
+.tkt-meta { @apply flex justify-between text-[0.78rem]; color: var(--slate); }
+.tkt-messages { @apply flex-1 overflow-auto flex flex-col gap-3 py-4; max-height: 50vh; }
+.tkt-msg {
+  @apply rounded-xl p-4; max-width: 85%;
+}
+.tkt-msg.customer { background: #f1f5f9; align-self: flex-start; }
+.tkt-msg.agent { background: #EEF2FF; align-self: flex-end; }
+.tkt-msg.internal { background: #FEF9C3; align-self: flex-end; border: 1px dashed #FDE68A; }
+.tkt-msg-header { @apply flex justify-between items-center mb-2 text-[0.75rem]; }
+.tkt-msg-sender { @apply font-semibold; color: var(--ink); }
+.tkt-msg-internal-badge { @apply ml-2 text-[0.65rem] px-2 py-0.5 rounded-full; background: #FDE68A; color: #92400E; }
+.tkt-msg-time { color: var(--slate); }
+.tkt-msg-body { @apply text-[0.9rem] leading-relaxed whitespace-pre-wrap; color: var(--ink); }
+
+.tkt-reply { @apply rounded-2xl overflow-hidden; border: 1.5px solid var(--cloud); }
+.tkt-reply-tabs { @apply flex; border-bottom: 1px solid var(--cloud); }
+.tkt-reply-tab {
+  @apply px-5 py-2.5 text-[0.85rem] font-semibold cursor-pointer;
+  background: none; border: none; color: var(--slate); border-bottom: 2px solid transparent;
+}
+.tkt-reply-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tkt-reply-input {
+  @apply w-full p-4 text-[0.9rem] outline-none resize-none;
+  border: none; font-family: inherit;
+}
+.tkt-reply-footer { @apply flex items-center justify-between px-4 py-3; border-top: 1px solid var(--cloud); background: #fafbfc; }
+.tkt-reply-checkbox { @apply flex items-center gap-2 text-[0.8rem]; color: var(--slate); cursor: pointer; }
+.tkt-reply-send {
+  @apply px-5 py-2 rounded-xl font-semibold text-[0.85rem] cursor-pointer;
+  background: var(--blue); color: white; border: none; transition: background 0.2s;
+}
+.tkt-reply-send:hover { background: var(--navy); }
+.tkt-reply-send.internal { background: #CA8A04; }
+.tkt-reply-send.internal:hover { background: #A16207; }
+.tkt-reply-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.tkt-sidebar { width: 300px; @apply flex flex-col gap-4 shrink-0 overflow-auto; max-height: calc(100vh - 3rem); }
+.tkt-sidebar-section {
+  @apply rounded-xl p-4;
+  border: 1px solid var(--cloud); background: white;
+}
+.tkt-sidebar-title { @apply text-[0.72rem] font-bold uppercase tracking-wider mb-2; color: var(--slate); }
+.tkt-contact-info { @apply flex items-center gap-3; }
+.tkt-contact-avatar {
+  @apply w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0;
+  background: var(--blue);
+}
+.tkt-contact-name { @apply text-[0.9rem] font-semibold; color: var(--ink); }
+.tkt-contact-email { @apply text-[0.78rem]; color: var(--slate); }
+.tkt-orders { @apply flex flex-col gap-2; }
+.tkt-order-link {
+  @apply flex items-center justify-between px-3 py-2 rounded-lg text-[0.82rem];
+  border: 1px solid var(--cloud); text-decoration: none; color: var(--ink); transition: border-color 0.15s;
+}
+.tkt-order-link:hover { border-color: var(--blue); }
+.tkt-order-num { @apply font-semibold; color: var(--blue); }
+.tkt-order-dest { color: var(--slate); }
+.tkt-order-amt { @apply font-semibold; }
+
+/* Ticket Detail v2 */
+.tkt2-topbar {
+  @apply flex items-center justify-between px-5 py-3;
+  border-bottom: 1px solid var(--cloud);
+  background: white;
+}
+.tkt2-topbar-left { @apply flex items-center gap-3; }
+.tkt2-back {
+  @apply text-[1.1rem] font-bold w-8 h-8 flex items-center justify-center rounded-lg;
+  color: var(--slate); text-decoration: none; border: 1px solid var(--cloud);
+  transition: border-color 0.15s;
+}
+.tkt2-back:hover { border-color: var(--blue); color: var(--blue); }
+.tkt2-topbar-status { @apply text-[0.85rem] font-bold uppercase; }
+.tkt2-topbar-time { @apply text-[0.78rem]; color: var(--slate); }
+.tkt2-topbar-right { @apply flex items-center gap-2; }
+.tkt2-topbar-nav { @apply text-[0.85rem] font-medium; color: var(--slate); }
+
+.tkt2-main {
+  @apply flex-1 flex flex-col overflow-hidden;
+  background: #fafbfc;
+}
+.tkt2-subject-bar {
+  @apply px-8 py-5;
+  border-bottom: 1px solid var(--cloud);
+  background: white;
+}
+.tkt2-subject { @apply text-[1.2rem] font-bold; color: var(--ink); }
+.tkt2-created { @apply text-[0.82rem] mt-1; color: var(--slate); }
+
+.tkt2-thread {
+  @apply flex-1 overflow-auto px-8 py-5;
+  display: flex; flex-direction: column; gap: 1.5rem;
+}
+.tkt2-msg { @apply flex gap-4; }
+.tkt2-msg.internal { opacity: 0.85; }
+.tkt2-msg-avatar {
+  @apply w-9 h-9 rounded-full flex items-center justify-center text-white text-[0.8rem] font-bold shrink-0;
+}
+.tkt2-msg-content { @apply flex-1; }
+.tkt2-msg-header { @apply flex items-baseline gap-2 flex-wrap; }
+.tkt2-msg-sender { @apply text-[0.9rem] font-bold; color: var(--ink); }
+.tkt2-msg-badge {
+  @apply text-[0.65rem] font-semibold px-2 py-0.5 rounded-full ml-1;
+}
+.tkt2-msg-badge.agent { background: #DBEAFE; color: #1D4ED8; }
+.tkt2-msg-badge.customer { background: #E0E7FF; color: #4338CA; }
+.tkt2-msg-badge.internal { background: #FEF3C7; color: #92400E; }
+.tkt2-msg-time { @apply text-[0.75rem]; color: var(--slate); }
+.tkt2-msg-to { @apply text-[0.78rem] mt-1; color: var(--slate); }
+.tkt2-msg-body {
+  @apply text-[0.92rem] leading-relaxed mt-2 whitespace-pre-wrap;
+  color: var(--ink);
+}
+
+.tkt2-reply-box { @apply flex gap-4 px-8 py-4; border-top: 1px solid var(--cloud); background: white; }
+.tkt2-reply-avatar {
+  @apply w-9 h-9 rounded-full flex items-center justify-center text-white text-[0.85rem] shrink-0 mt-1;
+}
+.tkt2-reply-main { @apply flex-1 rounded-xl overflow-hidden; border: 1.5px solid var(--cloud); }
+.tkt2-reply-tabs { @apply flex; border-bottom: 1px solid var(--cloud); background: #fafbfc; }
+.tkt2-reply-tab {
+  @apply px-4 py-2 text-[0.82rem] font-semibold cursor-pointer;
+  background: none; border: none; color: var(--slate); border-bottom: 2px solid transparent;
+}
+.tkt2-reply-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tkt2-reply-input {
+  @apply w-full p-4 text-[0.9rem] outline-none resize-none;
+  border: none; font-family: inherit; min-height: 80px;
+}
+.tkt2-reply-footer {
+  @apply flex items-center justify-between px-4 py-2.5;
+  border-top: 1px solid var(--cloud); background: #fafbfc;
+}
+.tkt2-reply-check { @apply flex items-center gap-2 text-[0.78rem] cursor-pointer; color: var(--slate); }
+.tkt2-reply-send {
+  @apply px-5 py-2 rounded-lg font-semibold text-[0.82rem] cursor-pointer;
+  background: var(--blue); color: white; border: none; transition: background 0.15s;
+}
+.tkt2-reply-send:hover { background: var(--navy); }
+.tkt2-reply-send.note { background: #CA8A04; }
+.tkt2-reply-send.note:hover { background: #A16207; }
+.tkt2-reply-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Right properties panel */
+.tkt2-props {
+  width: 280px; @apply shrink-0 overflow-auto p-5;
+  border-left: 1px solid var(--cloud); background: white;
+}
+.tkt2-props-heading {
+  @apply text-[0.68rem] font-bold uppercase tracking-widest mb-3;
+  color: var(--slate);
+}
+.tkt2-prop { @apply mb-3; }
+.tkt2-prop-label { @apply block text-[0.75rem] font-medium mb-1; color: var(--ink); }
+.tkt2-prop-select {
+  @apply w-full rounded-lg px-3 py-2 text-[0.85rem] outline-none;
+  border: 1px solid var(--cloud); background: white;
+}
+.tkt2-prop-select:focus { border-color: var(--blue); }
+.tkt2-prop-input {
+  @apply w-full rounded-lg px-3 py-2 text-[0.85rem] outline-none;
+  border: 1px solid var(--cloud);
+}
+.tkt2-prop-input:focus { border-color: var(--blue); }
+.tkt2-prop-divider { @apply my-4; border-top: 1px solid var(--cloud); }
+.tkt2-contact { @apply flex items-center gap-3; }
+.tkt2-contact-avatar {
+  @apply w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0;
+  background: var(--blue);
+}
+.tkt2-contact-name { @apply text-[0.88rem] font-semibold; color: var(--ink); }
+.tkt2-contact-email { @apply text-[0.78rem]; color: var(--slate); }
+.tkt2-linked-orders { @apply flex flex-col gap-2; }
+.tkt2-order-link {
+  @apply flex flex-col px-3 py-2 rounded-lg text-[0.82rem];
+  border: 1px solid var(--cloud); text-decoration: none; transition: border-color 0.15s;
+}
+.tkt2-order-link:hover { border-color: var(--blue); }
+
+/* Bulk Actions */
+.crm-bulk-bar {
+  @apply flex items-center gap-3 px-4 py-3 rounded-xl mb-3;
+  background: #EEF2FF;
+  border: 1.5px solid var(--blue);
+}
+.crm-bulk-count { @apply text-[0.85rem] font-semibold; color: var(--blue); }
+.crm-bulk-select {
+  @apply rounded-lg px-3 py-1.5 text-[0.82rem] outline-none;
+  border: 1px solid var(--cloud);
+}
+.crm-bulk-input {
+  @apply rounded-lg px-3 py-1.5 text-[0.82rem] outline-none;
+  border: 1px solid var(--cloud); width: 140px;
+}
+.crm-bulk-btn {
+  @apply px-4 py-1.5 rounded-lg font-semibold text-[0.82rem] cursor-pointer;
+  background: var(--blue); color: white; border: none;
+}
+.crm-bulk-btn:disabled { opacity: 0.5; }
+.crm-bulk-cancel {
+  @apply px-3 py-1.5 rounded-lg text-[0.82rem] cursor-pointer;
+  background: none; border: none; color: var(--slate);
+}
+.crm-tr.selected { background: rgba(108,138,255,0.06); }
+
+/* SLA badges */
+.crm-sla-badge { @apply text-[0.72rem] font-semibold; white-space: nowrap; }
+.tkt2-sla {
+  @apply flex justify-between items-center rounded-lg px-3 py-2 text-[0.78rem] font-medium mb-2;
+}
+.tkt2-sla.ok { background: #F0FDF4; color: #065F46; }
+.tkt2-sla.warning { background: #FFFBEB; color: #92400E; }
+.tkt2-sla.breached { background: #FEF2F2; color: #991B1B; }
+.tkt2-sla.met { background: #F0FDF4; color: #065F46; }
+.tkt2-sla-label { @apply font-bold; }
+
+/* Activity log */
+.tkt2-activity-toggle {
+  @apply w-full text-left text-[0.78rem] font-semibold cursor-pointer py-1;
+  background: none; border: none; color: var(--slate);
+}
+.tkt2-activity-toggle:hover { color: var(--ink); }
+.tkt2-activity-list { @apply flex flex-col gap-2 mt-2; }
+.tkt2-activity-item { @apply flex items-start gap-2; }
+.tkt2-activity-icon { @apply text-[0.75rem] mt-0.5; }
+.tkt2-activity-details { @apply flex flex-col; }
+.tkt2-activity-text { @apply text-[0.75rem]; color: var(--ink); }
+.tkt2-activity-time { @apply text-[0.65rem]; color: var(--slate); }
+
+@media (max-width: 900px) {
+  .crm-new-grid { grid-template-columns: 1fr; }
+  .tkt2-props { width: 100%; border-left: none; border-top: 1px solid var(--cloud); }
+  .crm-bulk-bar { @apply flex-wrap; }
+}
+
 .order-detail-shell {
   @apply w-full px-8 py-8;
 }
@@ -2664,11 +3684,11 @@ a.contact-detail-value:hover { color: var(--blue); }
 
 /* Visa details grid */
 .od-visa-grid {
-  @apply grid gap-0;
-  grid-template-columns: 1fr 1fr;
+  @apply flex flex-col gap-0;
 }
 .od-visa-grid .modal-row {
-  @apply px-4;
+  @apply px-4 py-2;
+  border-bottom: 1px solid rgba(237,241,248,0.5);
 }
 
 /* Full-width traveler sections */
@@ -2679,11 +3699,11 @@ a.contact-detail-value:hover { color: var(--blue); }
   @apply w-full;
 }
 .od-traveler-sections .modal-rows {
-  @apply grid gap-0;
-  grid-template-columns: 1fr 1fr;
+  @apply flex flex-col gap-0;
 }
 .od-traveler-sections .modal-row {
-  @apply px-4;
+  @apply px-4 py-2;
+  border-bottom: 1px solid rgba(237,241,248,0.5);
 }
 .od-traveler-sections .modal-subsection-title {
   @apply text-[0.82rem] font-bold uppercase tracking-wider mt-5 mb-2 px-4 pb-2;

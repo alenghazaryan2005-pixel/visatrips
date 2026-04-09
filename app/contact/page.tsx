@@ -12,11 +12,30 @@ export default function ContactPage() {
   const update = (f: keyof typeof form, v: string) => setForm(p => ({ ...p, [f]: v }));
   const canSubmit = form.name && form.email && form.message;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     setLoading(true);
-    setTimeout(() => { setLoading(false); setSubmitted(true); }, 1200);
+    setError('');
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name, email: form.email, message: form.message, orderNumber: form.order || undefined }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        const data = await res.json();
+        setError(data.error || 'Something went wrong. Please try again.');
+      }
+    } catch {
+      setError('Connection error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -134,6 +153,12 @@ export default function ContactPage() {
                     rows={6}
                   />
                 </div>
+
+                {error && (
+                  <div style={{ background: 'rgba(220,38,38,0.08)', color: '#dc2626', borderRadius: '0.75rem', padding: '0.75rem 1rem', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                    {error}
+                  </div>
+                )}
 
                 <button
                   type="submit"

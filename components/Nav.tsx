@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-export default function Nav() {
+export default function Nav({ countryFlag }: { countryFlag?: string } = {}) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -20,7 +20,7 @@ export default function Nav() {
       <nav id="main-nav" className={scrolled ? 'scrolled' : ''}>
         <div className="nav-inner">
           <Link href="/" className="logo">
-            VisaTrips<sup>®</sup>
+            VisaTrips<sup>®</sup>{countryFlag && <span style={{ marginLeft: '0.5rem', fontSize: '1.2rem' }}>{countryFlag}</span>}
           </Link>
 
           <div className="nav-right">
