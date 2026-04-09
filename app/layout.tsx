@@ -20,6 +20,7 @@ export const metadata: Metadata = {
   title: 'VisaTrips — Travel Further. Wait Less.',
   description:
     'Official E-Visa Service by VisaTrips. Fast, secure electronic visa applications for tourist, business, student & work visas in 80+ countries. 72hr average processing, 98.7% approval rate.',
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
