@@ -82,8 +82,10 @@ export default function ContactPage({ params }: { params: Promise<{ email: strin
           <span className="admin-sidebar-badge">Admin</span>
         </div>
         <nav className="admin-nav">
+          <div className="admin-nav-section-label">Admin Panel</div>
           <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }}>📋 Orders</Link>
-          <Link href="/admin/crm" className="admin-nav-item active" style={{ textDecoration: 'none' }}>💬 CRM</Link>
+          <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>
+          <Link href="/admin/crm" className="admin-nav-item active" style={{ textDecoration: 'none' }}>💬 Emails</Link>
         </nav>
         <button className="admin-logout-btn" onClick={handleLogout}>← Sign Out</button>
       </aside>

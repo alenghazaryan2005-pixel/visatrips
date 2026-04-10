@@ -577,7 +577,7 @@ function FinishContent() {
 
   const visaLabel = order.visaType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
-  const isComplete = step === 'complete';
+  const isComplete = step === 'complete' || step === 'verify';
   const tripDone = isComplete || (step !== 'overview' && step !== 'trip');
   const tripActive = step === 'trip';
   const personalActive = step === 'personal';
@@ -928,7 +928,7 @@ function FinishContent() {
             <div className="finish-form-group">
               <label className="finish-form-label">Educational qualification</label>
               <CustomDropdown
-                options={['Below Matriculation', 'Matriculation', 'Graduate', 'Post Graduate', 'Doctorate', 'Professional', 'Others']}
+                options={['Below Matriculation', 'Matriculation', 'Higher Secondary', 'Graduate', 'Post Graduate', 'Doctorate', 'Professional', 'NA Being Minor', 'Illiterate', 'Others']}
                 value={educationalQualification}
                 onChange={setEducationalQualification}
                 placeholder="Select qualification"
@@ -968,7 +968,7 @@ function FinishContent() {
             {/* Phone number */}
             <div className="finish-form-group">
               <label className="finish-form-label">Phone number</label>
-              <input className={`finish-form-input${phoneErr ? ' error' : ''}${flagClass('phoneNumber')}`} type="tel" value={phoneNumber} onChange={e => { setPhoneNumber(e.target.value); clearFlag('phoneNumber'); }} placeholder="+1 234 567 8900" />
+              <input className={`finish-form-input${phoneErr ? ' error' : ''}${flagClass('phoneNumber')}`} type="tel" maxLength={15} value={phoneNumber} onChange={e => { setPhoneNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 15)); clearFlag('phoneNumber'); }} placeholder="12345678900" />
               {phoneErr && <span className="finish-form-error">{phoneErr}</span>}
               <FlagHint field="phoneNumber" />
             </div>
@@ -1853,7 +1853,7 @@ function FinishContent() {
             </div>
             <div className={`finish-form-group${flagClass('refPhoneIndia')}`}>
               <label className="finish-form-label">Phone number</label>
-              <input className={`finish-form-input${flagClass('refPhoneIndia')}`} type="tel" value={refPhoneIndia} onChange={e => { setRefPhoneIndia(e.target.value); clearFlag('refPhoneIndia'); }} placeholder="+91 XXXXX XXXXX" />
+              <input className={`finish-form-input${flagClass('refPhoneIndia')}`} type="tel" maxLength={15} value={refPhoneIndia} onChange={e => { setRefPhoneIndia(e.target.value.replace(/[^0-9]/g, '').slice(0, 15)); clearFlag('refPhoneIndia'); }} placeholder="91XXXXXXXXXX" />
               <FlagHint field="refPhoneIndia" />
             </div>
 
@@ -1871,13 +1871,13 @@ function FinishContent() {
               <FlagHint field="refStateHome" />
             </div>
             <div className={`finish-form-group${flagClass('refDistrictHome')}`}>
-              <label className="finish-form-label">District</label>
-              <input className={`finish-form-input${flagClass('refDistrictHome')}`} value={refDistrictHome} onChange={e => { setRefDistrictHome(e.target.value); clearFlag('refDistrictHome'); }} placeholder="Enter district" />
+              <label className="finish-form-label">ZIP or postcode</label>
+              <input className={`finish-form-input${flagClass('refDistrictHome')}`} value={refDistrictHome} onChange={e => { setRefDistrictHome(e.target.value); clearFlag('refDistrictHome'); }} placeholder="Enter ZIP or postcode" />
               <FlagHint field="refDistrictHome" />
             </div>
             <div className={`finish-form-group${flagClass('refPhoneHome')}`}>
               <label className="finish-form-label">Phone number</label>
-              <input className={`finish-form-input${flagClass('refPhoneHome')}`} type="tel" value={refPhoneHome} onChange={e => { setRefPhoneHome(e.target.value); clearFlag('refPhoneHome'); }} placeholder="+1 234 567 8900" />
+              <input className={`finish-form-input${flagClass('refPhoneHome')}`} type="tel" maxLength={15} value={refPhoneHome} onChange={e => { setRefPhoneHome(e.target.value.replace(/[^0-9]/g, '').slice(0, 15)); clearFlag('refPhoneHome'); }} placeholder="12345678900" />
               <FlagHint field="refPhoneHome" />
             </div>
 

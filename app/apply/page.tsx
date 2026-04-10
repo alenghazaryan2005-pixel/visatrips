@@ -571,8 +571,8 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
             </div>
             <div className="ap-field">
               <label className="ap-field-label">CVV</label>
-              <input className="ap-input" placeholder="123" value={cvv} maxLength={4} type="password"
-                onChange={e=>setCvv(e.target.value.replace(/\D/g,'').slice(0,4))}/>
+              <input className="ap-input" placeholder="123" value={cvv} maxLength={3} type="password"
+                onChange={e=>setCvv(e.target.value.replace(/\D/g,'').slice(0,3))}/>
             </div>
           </div>
         </div>

@@ -10,9 +10,9 @@ export interface AdminSession {
 }
 
 export interface CustomerSession {
-  orderId: string;
   email: string;
-  orderNumber: number;
+  orderId?: string;
+  orderNumber?: number;
 }
 
 /** Get admin session or null if not authenticated */
@@ -35,7 +35,7 @@ export async function getCustomerSession(): Promise<CustomerSession | null> {
   if (!session?.value) return null;
   try {
     const data = JSON.parse(session.value);
-    if (data.orderId) return data;
+    if (data.email) return data;
     return null;
   } catch { return null; }
 }

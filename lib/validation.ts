@@ -1,23 +1,42 @@
 /* ── Field validation helpers ──
    Returns an error message string, or '' if valid.
-   "Reasonable" level: blocks gibberish, enforces basic formats,
-   allows through anything that looks plausible. */
+   Strict level: blocks gibberish, random typing, enforces real-looking data. */
 
-// Detects repeated characters like "aaaa", "1111", "xxxx"
-const isRepeatedChars = (s: string) => /^(.)\1{3,}$/.test(s.replace(/\s/g, ''));
+// Detects repeated characters like "aaaa", "111", "xxx"
+const isRepeatedChars = (s: string) => /^(.)\1{2,}$/.test(s.replace(/\s/g, ''));
 
-// Detects keyboard-mash patterns (4+ consonants in a row with no vowels)
-const isKeyboardMash = (s: string) => /[^aeiou\s]{5,}/i.test(s);
+// Detects keyboard-mash patterns (3+ consonants in a row with no vowels)
+const isKeyboardMash = (s: string) => /[^aeiou\syAEIOU]{4,}/i.test(s.replace(/[^a-zA-Z]/g, ''));
 
-// Detects all-same character with minor variation like "aabaa"
+// Detects random character sequences — low vowel ratio
+const hasLowVowelRatio = (s: string): boolean => {
+  const letters = s.replace(/[^a-zA-Z]/g, '');
+  if (letters.length < 3) return false;
+  const vowels = (letters.match(/[aeiouAEIOU]/g) || []).length;
+  return vowels / letters.length < 0.15;
+};
+
+// Detects gibberish patterns
 const isGibberish = (s: string): boolean => {
   const clean = s.replace(/\s/g, '').toLowerCase();
-  if (clean.length < 3) return false;
+  if (clean.length < 2) return false;
   if (isRepeatedChars(clean)) return true;
-  // Count unique characters — if very low ratio, likely gibberish
   const unique = new Set(clean).size;
-  if (clean.length >= 5 && unique <= 2) return true;
+  if (clean.length >= 4 && unique <= 2) return true;
+  if (clean.length >= 3 && hasLowVowelRatio(clean) && isKeyboardMash(clean)) return true;
+  // Check for alternating pattern like "ababab"
+  if (clean.length >= 6 && /^(.{1,2})\1{2,}$/.test(clean)) return true;
   return false;
+};
+
+// Check if string looks like a real word (has vowels, reasonable length)
+const looksLikeRealText = (s: string): boolean => {
+  const letters = s.replace(/[^a-zA-Z]/g, '');
+  if (letters.length < 2) return false;
+  // Must have at least one vowel per 5 consonants (relaxed for short words)
+  const vowels = (letters.match(/[aeiouAEIOU]/g) || []).length;
+  if (letters.length >= 4 && vowels === 0) return false;
+  return true;
 };
 
 /* ── Name validation ── */
@@ -26,10 +45,12 @@ export function validateName(value: string, label = 'Name'): string {
   if (!trimmed) return `${label} is required`;
   if (trimmed.length < 2) return `${label} must be at least 2 characters`;
   if (/^\d+$/.test(trimmed)) return `${label} cannot be all numbers`;
-  if (!/[a-zA-Z]/.test(trimmed)) return `${label} must contain letters`;
+  if (!/[a-zA-Z]{2,}/.test(trimmed)) return `${label} must contain at least 2 letters`;
+  if (/\d/.test(trimmed)) return `${label} should not contain numbers`;
   if (isGibberish(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
   if (isKeyboardMash(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
   if (/[!@#$%^&*()_+=\[\]{};:"\\|<>?/~`]/.test(trimmed)) return `${label} should not contain special characters`;
+  if (!looksLikeRealText(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
   return '';
 }
 
@@ -38,6 +59,10 @@ export function validateEmail(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return 'Email is required';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed)) return 'Please enter a valid email address';
+  // Check domain has valid TLD
+  const domain = trimmed.split('@')[1];
+  if (!domain || domain.length < 4) return 'Please enter a valid email domain';
+  if (!/\.[a-zA-Z]{2,}$/.test(domain)) return 'Please enter a valid email domain';
   return '';
 }
 
@@ -45,9 +70,11 @@ export function validateEmail(value: string): string {
 export function validatePhone(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return 'Phone number is required';
-  // Strip spaces, dashes, parens for checking
   const digits = trimmed.replace(/[\s\-().+]/g, '');
   if (!/^\d{7,15}$/.test(digits)) return 'Please enter a valid phone number (7-15 digits)';
+  if (isRepeatedChars(digits)) return 'Please enter a valid phone number';
+  // Check for sequential numbers like 1234567890
+  if (/^(0123456789|1234567890|9876543210|0000000|1111111)/.test(digits)) return 'Please enter a real phone number';
   return '';
 }
 
@@ -55,11 +82,13 @@ export function validatePhone(value: string): string {
 export function validatePassportNumber(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return 'Passport number is required';
-  if (trimmed.length < 5) return 'Passport number must be at least 5 characters';
+  if (trimmed.length < 6) return 'Passport number must be at least 6 characters';
   if (trimmed.length > 20) return 'Passport number is too long';
   if (!/^[A-Za-z0-9]+$/.test(trimmed)) return 'Passport number should only contain letters and numbers';
   if (isRepeatedChars(trimmed)) return 'Please enter a valid passport number';
   if (/^(.)\1+$/.test(trimmed)) return 'Please enter a valid passport number';
+  // Must have at least one letter and one number
+  if (!/[A-Za-z]/.test(trimmed) || !/\d/.test(trimmed)) return 'Passport number should contain both letters and numbers';
   return '';
 }
 
@@ -67,9 +96,14 @@ export function validatePassportNumber(value: string): string {
 export function validateAddress(value: string, label = 'Address'): string {
   const trimmed = value.trim();
   if (!trimmed) return `${label} is required`;
-  if (trimmed.length < 3) return `${label} must be at least 3 characters`;
+  if (trimmed.length < 5) return `${label} must be at least 5 characters`;
   if (/^\d+$/.test(trimmed)) return `${label} cannot be only numbers`;
+  if (!/[a-zA-Z]{2,}/.test(trimmed)) return `${label} must contain words`;
   if (isGibberish(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
+  // Address should contain at least a number and letters (like "123 Main St")
+  if (!/\d/.test(trimmed) && !/\b(street|st|road|rd|avenue|ave|blvd|drive|dr|lane|ln|way|court|ct|place|pl|circle|cir|box|apt|suite|ste|unit|floor|bldg)\b/i.test(trimmed)) {
+    // Relaxed — just needs to look real
+  }
   return '';
 }
 
@@ -79,9 +113,11 @@ export function validateCityState(value: string, label = 'City'): string {
   if (!trimmed) return `${label} is required`;
   if (trimmed.length < 2) return `${label} must be at least 2 characters`;
   if (/^\d+$/.test(trimmed)) return `${label} cannot be all numbers`;
-  if (!/[a-zA-Z]/.test(trimmed)) return `${label} must contain letters`;
+  if (/\d/.test(trimmed)) return `${label} should not contain numbers`;
+  if (!/[a-zA-Z]{2,}/.test(trimmed)) return `${label} must contain letters`;
   if (isGibberish(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
   if (isKeyboardMash(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
+  if (!looksLikeRealText(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
   return '';
 }
 
@@ -101,7 +137,7 @@ export function validateRequired(value: string, label = 'This field'): string {
   const trimmed = value.trim();
   if (!trimmed) return `${label} is required`;
   if (trimmed.length < 2) return `${label} must be at least 2 characters`;
-  if (isGibberish(trimmed)) return `Please enter a valid value`;
+  if (isGibberish(trimmed)) return 'Please enter a valid value';
   return '';
 }
 

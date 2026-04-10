@@ -1,8 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
+
+function useInView(threshold = 0.15) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) setInView(true); }, { threshold });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [threshold]);
+  return { ref, inView };
+}
+
+function AnimatedSection({ children, className, delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  const { ref, inView } = useInView();
+  return (
+    <div ref={ref} className={className} style={{ opacity: inView ? 1 : 0, transform: inView ? 'translateY(0)' : 'translateY(30px)', transition: `opacity 0.6s ease ${delay}s, transform 0.6s ease ${delay}s` }}>
+      {children}
+    </div>
+  );
+}
 import Footer from '@/components/Footer';
 
 const VISA_OPTIONS = [
@@ -14,10 +36,10 @@ const VISA_OPTIONS = [
 ];
 
 const REQUIREMENTS = [
-  { icon: '📘', title: 'Valid Passport', desc: 'Must be valid for at least 6 months from date of arrival with 2 blank pages.' },
-  { icon: '📷', title: 'Digital Photo', desc: 'Recent passport-size photo with white background, front-facing.' },
-  { icon: '📄', title: 'Passport Bio Page', desc: 'Clear scan of your passport data page showing your photo and details.' },
-  { icon: '✈️', title: 'Travel Details', desc: 'Confirmed travel dates and port of arrival in India.' },
+  { icon: '📘', title: 'Valid Passport', desc: 'Your passport must be valid for at least 6 months from the date of arrival in India, with at least 2 blank pages available for visa stamps. Damaged or expired passports will not be accepted.' },
+  { icon: '📷', title: 'Digital Photo', desc: 'A recent front-facing photograph in JPEG format with a plain white or light background. Must be square dimensions (minimum 350x350px), with no glasses, hats, or shadows. Do not crop a passport photo.' },
+  { icon: '📄', title: 'Passport Bio Page', desc: 'A clear, high-quality scan of your passport data page (the page with your photo, name, and passport number). Must be in JPEG or PDF format with all four corners visible and all text clearly readable.' },
+  { icon: '✈️', title: 'Travel Details', desc: 'Your confirmed travel dates, port of arrival in India (airport or seaport), and expected departure port. You should also have your accommodation details and a reference contact in India ready.' },
 ];
 
 const STEPS = [
@@ -117,6 +139,41 @@ export default function IndiaPage() {
           </div>
         </section>
 
+        {/* ── PROCESS ── */}
+        <div className="process-bg">
+          <section className="process" id="process">
+            <div className="section-eyebrow">How It Works</div>
+            <h2 className="section-title">Four steps of approval.</h2>
+            <div className="process-grid">
+              {STEPS.map(s => (
+                <div className="p-step" key={s.n}>
+                  <div className="p-step-bar" />
+                  <div className="p-step-n">{s.n}</div>
+                  <div className="p-step-title">{s.title}</div>
+                  <p className="p-step-desc">{s.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* ── REQUIREMENTS ── */}
+        <section className="india-section india-section-alt">
+          <div className="india-section-inner">
+            <div className="section-eyebrow">Requirements</div>
+            <h2 className="india-section-title">What You&apos;ll Need!</h2>
+            <div className="india-req-grid">
+              {REQUIREMENTS.map(r => (
+                <div key={r.title} className="india-req-card">
+                  <span className="india-req-icon">{r.icon}</span>
+                  <h3 className="india-req-name">{r.title}</h3>
+                  <p className="india-req-desc">{r.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── VISA TYPES ── */}
         <section className="india-section" id="visa-types">
           <div className="india-section-inner">
@@ -144,78 +201,52 @@ export default function IndiaPage() {
         {/* ── VISA TYPES INFO ── */}
         <section className="india-section">
           <div className="india-section-inner">
-            <h2 className="india-section-title" style={{ textAlign: 'center', marginBottom: '2.5rem' }}>Visa types needed for India</h2>
-            <div className="india-visatypes-layout">
-              <div className="india-visatypes-nav">
-                {VISA_TYPES_INFO.map((v, i) => (
-                  <button
-                    key={v.name}
-                    className={`india-visatypes-btn${activeVisaType === i ? ' active' : ''}`}
-                    onClick={() => setActiveVisaType(i)}
-                  >
-                    <span>{v.name}</span>
-                    <span className="india-visatypes-chevron">›</span>
-                  </button>
-                ))}
+            <AnimatedSection>
+              <h2 className="india-section-title" style={{ textAlign: 'center', marginBottom: '2.5rem' }}>Visa types needed for India</h2>
+            </AnimatedSection>
+            <AnimatedSection delay={0.15}>
+              <div className="india-visatypes-layout">
+                <div className="india-visatypes-nav">
+                  {VISA_TYPES_INFO.map((v, i) => (
+                    <button
+                      key={v.name}
+                      className={`india-visatypes-btn${activeVisaType === i ? ' active' : ''}`}
+                      onClick={() => setActiveVisaType(i)}
+                    >
+                      <span>{v.name}</span>
+                      <span className="india-visatypes-chevron">›</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="india-visatypes-content" key={activeVisaType}>
+                  <h3 className="india-visatypes-title">{VISA_TYPES_INFO[activeVisaType].name}</h3>
+                  {VISA_TYPES_INFO[activeVisaType].details.map((d, i) => (
+                    <p key={i} className="india-visatypes-detail">
+                      <strong>{d.label}:</strong> {d.text}
+                    </p>
+                  ))}
+                  <a href="/apply" className="india-cta-btn" style={{ marginTop: '1.5rem', display: 'inline-block' }}>Apply now →</a>
+                </div>
               </div>
-              <div className="india-visatypes-content">
-                <h3 className="india-visatypes-title">{VISA_TYPES_INFO[activeVisaType].name}</h3>
-                {VISA_TYPES_INFO[activeVisaType].details.map((d, i) => (
-                  <p key={i} className="india-visatypes-detail">
-                    <strong>{d.label}:</strong> {d.text}
-                  </p>
-                ))}
-                <a href="/apply" className="india-cta-btn" style={{ marginTop: '1.5rem', display: 'inline-block' }}>Apply now →</a>
-              </div>
-            </div>
+            </AnimatedSection>
           </div>
         </section>
 
-        {/* ── REQUIREMENTS ── */}
-        <section className="india-section india-section-alt">
-          <div className="india-section-inner">
-            <div className="section-eyebrow">Requirements</div>
-            <h2 className="india-section-title">What you&apos;ll need</h2>
-            <div className="india-req-grid">
-              {REQUIREMENTS.map(r => (
-                <div key={r.title} className="india-req-card">
-                  <span className="india-req-icon">{r.icon}</span>
-                  <h3 className="india-req-name">{r.title}</h3>
-                  <p className="india-req-desc">{r.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── PROCESS ── */}
-        <div className="process-bg">
-          <section className="process" id="process">
-            <div className="section-eyebrow">How It Works</div>
-            <h2 className="section-title">Four steps of approval.</h2>
-            <div className="process-grid">
-              {STEPS.map(s => (
-                <div className="p-step" key={s.n}>
-                  <div className="p-step-bar" />
-                  <div className="p-step-n">{s.n}</div>
-                  <div className="p-step-title">{s.title}</div>
-                  <p className="p-step-desc">{s.desc}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
 
         {/* ── FAQ ── */}
         <section className="india-section" style={{ textAlign: 'center' }}>
           <div className="india-section-inner">
-            <h2 className="india-section-title">Common questions</h2>
+            <AnimatedSection>
+              <h2 className="india-section-title">Common questions</h2>
+            </AnimatedSection>
             <div className="india-faq-list" style={{ textAlign: 'left' }}>
               {FAQS.map((f, i) => (
-                <details key={i} className="india-faq">
-                  <summary className="india-faq-q">{f.q}</summary>
-                  <p className="india-faq-a">{f.a}</p>
-                </details>
+                <AnimatedSection key={i} delay={i * 0.08}>
+                  <details className="india-faq">
+                    <summary className="india-faq-q">{f.q}</summary>
+                    <p className="india-faq-a">{f.a}</p>
+                  </details>
+                </AnimatedSection>
               ))}
             </div>
           </div>

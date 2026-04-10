@@ -501,11 +501,13 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <span className="admin-sidebar-badge">Admin</span>
         </div>
         <nav className="admin-nav">
+          <div className="admin-nav-section-label">Admin Panel</div>
           <div className={`admin-nav-item${activeSection === 'orders' ? ' active' : ''}`} onClick={() => setActiveSection('orders')}>📋 Orders</div>
           <div className={`admin-nav-item${activeSection === 'customers' ? ' active' : ''}`} onClick={() => setActiveSection('customers')}>👤 Customer Accounts</div>
           <div className={`admin-nav-item${activeSection === 'refunds' ? ' active' : ''}`} onClick={() => setActiveSection('refunds')}>💸 Refunds</div>
           <div className={`admin-nav-item${activeSection === 'abandoned' ? ' active' : ''}`} onClick={() => setActiveSection('abandoned')}>🚫 Abandoned</div>
-          <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>💬 CRM</Link>
+          <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>
+          <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>💬 Emails</Link>
         </nav>
         <button className="admin-logout-btn" onClick={handleLogout}>← Sign Out</button>
       </aside>

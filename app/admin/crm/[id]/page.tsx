@@ -45,6 +45,9 @@ interface Ticket {
   firstRespondedAt: string | null;
   resolvedAt: string | null;
   mergedIntoId: string | null;
+  tags: string | null;
+  lastViewedBy: string | null;
+  lastViewedAt: string | null;
   assignedTo: string | null;
   createdAt: string;
   updatedAt: string;
@@ -68,16 +71,68 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [merging, setMerging] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [showLinkedOrders, setShowLinkedOrders] = useState(false);
+  const [cannedResponses, setCannedResponses] = useState<{ id: string; title: string; content: string; folder: string }[]>([]);
+  const [showCanned, setShowCanned] = useState(false);
+  const [cannedSearch, setCannedSearch] = useState('');
+  const [ticketTags, setTicketTags] = useState('');
+  const [newTag, setNewTag] = useState('');
+  const [collisionUser, setCollisionUser] = useState<string | null>(null);
+  const [forwardEmail, setForwardEmail] = useState('');
+  const [forwarding, setForwarding] = useState(false);
+  const [showForward, setShowForward] = useState(false);
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const fetchTicket = async () => {
     try {
       const res = await fetch(`/api/tickets/${id}`);
-      if (res.ok) setTicket(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setTicket(data);
+        setTicketTags(data.tags || '');
+
+        // Collision detection — check if someone else is viewing
+        if (data.lastViewedBy && data.lastViewedAt) {
+          const viewedAgo = Date.now() - new Date(data.lastViewedAt).getTime();
+          if (viewedAgo < 60000 && data.lastViewedBy !== 'me') {
+            setCollisionUser(data.lastViewedBy);
+          } else {
+            setCollisionUser(null);
+          }
+        }
+      }
     } catch {} finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchTicket(); }, [id]);
+  // Mark as being viewed (collision detection)
+  const markViewing = async () => {
+    try {
+      const session = await fetch('/api/admin/session').then(r => r.json());
+      if (session.authenticated) {
+        await fetch(`/api/tickets/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lastViewedBy: session.name, lastViewedAt: new Date().toISOString() }),
+        });
+      }
+    } catch {}
+  };
+
+  useEffect(() => { fetchTicket(); markViewing(); }, [id]);
+  useEffect(() => {
+    // Poll for collision detection every 30 seconds
+    const interval = setInterval(() => { fetchTicket(); markViewing(); }, 30000);
+    return () => clearInterval(interval);
+  }, [id]);
+  useEffect(() => { fetch('/api/canned').then(r => r.ok ? r.json() : []).then(setCannedResponses).catch(() => {}); }, []);
+  useEffect(() => {
+    fetch('/api/tickets').then(r => r.ok ? r.json() : []).then((tickets: any[]) => {
+      const tags = new Set<string>();
+      tickets.forEach(t => { if (t.tags) t.tags.split(',').forEach((tag: string) => { const trimmed = tag.trim(); if (trimmed) tags.add(trimmed); }); });
+      setAllTags([...tags].sort());
+    }).catch(() => {});
+  }, []);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [ticket?.messages]);
 
   const sendReply = async () => {
@@ -93,6 +148,78 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
       setIsInternal(false);
       fetchTicket();
     } catch {} finally { setSending(false); }
+  };
+
+  const addTag = async (tagToAdd?: string | any) => {
+    const tag = (typeof tagToAdd === 'string' ? tagToAdd : newTag).trim();
+    if (!tag || !ticket) return;
+    const tags = ticketTags ? ticketTags.split(',').map(t => t.trim()).filter(Boolean) : [];
+    if (!tags.includes(tag)) tags.push(tag);
+    const updated = tags.join(', ');
+    setTicketTags(updated);
+    setNewTag('');
+    setShowTagSuggestions(false);
+    if (!allTags.includes(tag)) setAllTags(prev => [...prev, tag].sort());
+    await fetch(`/api/tickets/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: updated }),
+    });
+  };
+
+  const removeTag = async (tag: string) => {
+    const updated = ticketTags.split(',').map(t => t.trim()).filter(t => t !== tag).join(', ');
+    setTicketTags(updated);
+    await fetch(`/api/tickets/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: updated }),
+    });
+  };
+
+  const forwardTicket = async () => {
+    if (!forwardEmail.trim() || !ticket) return;
+    setForwarding(true);
+    try {
+      await fetch(`/api/tickets/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `[Forwarded to ${forwardEmail}]\n\nOriginal ticket #${ticket.ticketNumber}: ${ticket.subject}\n\n${ticket.messages.map(m => `${m.senderName}: ${m.content}`).join('\n\n')}`,
+          isInternal: true,
+          sendToCustomer: false,
+        }),
+      });
+      // Send email to forward recipient
+      await fetch('/api/orders/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: 'forward', type: 'status' }),
+      }).catch(() => {});
+      // Use direct email send via a simple fetch
+      await fetch(`/api/tickets/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `Ticket forwarded to ${forwardEmail}`,
+          isInternal: true,
+        }),
+      });
+      setShowForward(false);
+      setForwardEmail('');
+      fetchTicket();
+    } catch {} finally { setForwarding(false); }
+  };
+
+  const insertCanned = (content: string) => {
+    if (!ticket) return;
+    const replaced = content
+      .replace(/\{\{name\}\}/g, ticket.contactName)
+      .replace(/\{\{ticket\}\}/g, String(ticket.ticketNumber))
+      .replace(/\{\{email\}\}/g, ticket.contactEmail);
+    setReply(prev => prev ? prev + '\n\n' + replaced : replaced);
+    setShowCanned(false);
+    setCannedSearch('');
   };
 
   const mergeTicket = async () => {
@@ -158,8 +285,10 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
         {!sidebarCollapsed && <span className="admin-sidebar-badge">Admin</span>}
       </div>
       <nav className="admin-nav">
+        {!sidebarCollapsed && <div className="admin-nav-section-label">Admin Panel</div>}
         <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '📋' : '📋 Orders'}</Link>
-        <Link href="/admin/crm" className="admin-nav-item active" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '💬' : '💬 CRM'}</Link>
+        {!sidebarCollapsed && <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>}
+        <Link href="/admin/crm" className="admin-nav-item active" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '💬' : '💬 Emails'}</Link>
       </nav>
       <button className="sidebar-toggle" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
         {sidebarCollapsed ? '→' : '← Collapse'}
@@ -191,6 +320,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
             <span className="tkt2-topbar-time">{timeStr(ticket.updatedAt)}</span>
           </div>
           <div className="tkt2-topbar-right">
+            <button className="tkt2-forward-btn" onClick={() => setShowForward(!showForward)}>↗ Forward</button>
             <span className="tkt2-topbar-nav">Ticket #{ticket.ticketNumber}</span>
           </div>
         </div>
@@ -201,10 +331,31 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           <div className="tkt2-main">
 
             {/* Subject */}
+            {/* Collision Warning */}
+            {collisionUser && (
+              <div className="tkt2-collision-banner">
+                ⚠️ <strong>{collisionUser}</strong> is also viewing this ticket right now.
+              </div>
+            )}
+
             <div className="tkt2-subject-bar">
               <h1 className="tkt2-subject">{ticket.subject}</h1>
               <p className="tkt2-created">Created by <strong>{ticket.contactName}</strong> · {ticket.contactEmail}</p>
             </div>
+
+            {/* Forward popup */}
+            {showForward && (
+              <div className="tkt2-forward-panel">
+                <label className="tkt2-prop-label">Forward to email</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input className="tkt2-prop-input" style={{ flex: 1 }} type="email" placeholder="recipient@email.com" value={forwardEmail} onChange={e => setForwardEmail(e.target.value)} />
+                  <button className="crm-new-btn" onClick={forwardTicket} disabled={forwarding || !forwardEmail.trim()} style={{ padding: '0.4rem 1rem', fontSize: '0.82rem' }}>
+                    {forwarding ? '...' : 'Send'}
+                  </button>
+                  <button className="crm-cancel-btn" onClick={() => setShowForward(false)} style={{ padding: '0.4rem 0.75rem', fontSize: '0.82rem' }}>✕</button>
+                </div>
+              </div>
+            )}
 
             {/* Thread */}
             <div className="tkt2-thread">
@@ -246,6 +397,33 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                   <button className={`tkt2-reply-tab${isInternal ? ' active' : ''}`} onClick={() => setIsInternal(true)}>
                     📝 Note
                   </button>
+                  <div style={{ marginLeft: 'auto', position: 'relative' }}>
+                    <button className="tkt2-reply-tab" onClick={() => setShowCanned(!showCanned)} style={{ fontSize: '0.78rem' }}>
+                      📋 Canned
+                    </button>
+                    {showCanned && (
+                      <div className="canned-picker">
+                        <input className="canned-picker-search" placeholder="Search responses..." value={cannedSearch} onChange={e => setCannedSearch(e.target.value)} autoFocus />
+                        <div className="canned-picker-list">
+                          {cannedResponses
+                            .filter(c => !cannedSearch || c.title.toLowerCase().includes(cannedSearch.toLowerCase()) || c.content.toLowerCase().includes(cannedSearch.toLowerCase()))
+                            .map(c => (
+                              <button key={c.id} className="canned-picker-item" onClick={() => insertCanned(c.content)}>
+                                <span className="canned-picker-title">{c.title}</span>
+                                <span className="canned-picker-folder">{c.folder}</span>
+                                <span className="canned-picker-preview">{c.content.slice(0, 60)}...</span>
+                              </button>
+                            ))
+                          }
+                          {cannedResponses.length === 0 && (
+                            <div className="canned-picker-empty">
+                              No canned responses yet. <Link href="/admin/crm/canned" style={{ color: 'var(--blue)' }}>Create one</Link>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <textarea
                   className="tkt2-reply-input"
@@ -302,6 +480,51 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                 // Local update for typing
                 setTicket(prev => prev ? { ...prev, assignedTo: e.target.value } : null);
               }} placeholder="Assign agent..." />
+            </div>
+
+            {/* Tags */}
+            <div className="tkt2-prop-divider" />
+            <h3 className="tkt2-props-heading">TAGS</h3>
+            <div className="crm-tags-wrap" style={{ marginBottom: '0.5rem' }}>
+              {ticketTags ? ticketTags.split(',').map(t => t.trim()).filter(Boolean).map(t => (
+                <span key={t} className="crm-tag removable" onClick={() => removeTag(t)}>{t} ✕</span>
+              )) : <span style={{ fontSize: '0.78rem', color: 'var(--slate)' }}>No tags</span>}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', gap: '0.35rem' }}>
+                <input
+                  className="tkt2-prop-input"
+                  style={{ flex: 1 }}
+                  placeholder="Add tag..."
+                  value={newTag}
+                  onChange={e => { setNewTag(e.target.value); setShowTagSuggestions(true); }}
+                  onFocus={() => setShowTagSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
+                  onKeyDown={e => e.key === 'Enter' && addTag()}
+                />
+                <button className="crm-tag-btn" onClick={addTag}>+</button>
+              </div>
+              {showTagSuggestions && newTag.length === 0 && allTags.length > 0 && (
+                <div className="tag-suggestions">
+                  {allTags.filter(t => !ticketTags.split(',').map(x => x.trim()).includes(t)).map(t => (
+                    <button key={t} className="tag-suggestion-item" onMouseDown={() => addTag(t)}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showTagSuggestions && newTag.length > 0 && (() => {
+                const filtered = allTags.filter(t => t.toLowerCase().includes(newTag.toLowerCase()) && !ticketTags.split(',').map(x => x.trim()).includes(t));
+                return filtered.length > 0 ? (
+                  <div className="tag-suggestions">
+                    {filtered.map(t => (
+                      <button key={t} className="tag-suggestion-item" onMouseDown={() => addTag(t)}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             {/* Contact */}

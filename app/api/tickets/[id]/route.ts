@@ -82,7 +82,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!current) return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
 
     const data: Record<string, any> = {};
-    const allowed = ['status', 'priority', 'group', 'assignedTo', 'subject'];
+    const allowed = ['status', 'priority', 'group', 'assignedTo', 'subject', 'tags', 'lastViewedBy', 'lastViewedAt'];
     for (const key of allowed) {
       if (key in body) data[key] = body[key];
     }

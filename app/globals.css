@@ -316,9 +316,9 @@ a:focus-visible, button:focus-visible {
 }
 .p-step-n {
   font-family: var(--font-sora), sans-serif;
-  @apply text-[3.5rem] font-extrabold leading-none mb-5;
-  color: transparent;
-  -webkit-text-stroke: 1px rgba(79,110,247,0.2);
+  @apply text-[4rem] font-extrabold leading-none mb-5;
+  color: rgba(123,150,255,0.25);
+  -webkit-text-stroke: 2px rgba(123,150,255,0.4);
   letter-spacing: -0.05em;
 }
 .p-step-title {
@@ -1959,12 +1959,49 @@ footer nav a:hover { color: var(--white); }
   color: var(--blue);
 }
 
+/* Lost PIN Modal */
+.lost-pin-overlay {
+  @apply fixed inset-0 flex items-center justify-center z-[200];
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
+}
+.lost-pin-modal {
+  @apply relative rounded-2xl p-8;
+  background: white;
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+.lost-pin-close {
+  @apply absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full cursor-pointer;
+  background: #f1f5f9;
+  border: none;
+  color: #94A3B8;
+  font-size: 0.85rem;
+  transition: background 0.15s;
+}
+.lost-pin-close:hover { background: #e2e8f0; color: #1E293B; }
+
 @media (max-width: 768px) {
   .customer-login-shell { @apply flex-col; }
   .customer-login-right { display: none; }
 }
 
 /* ── CUSTOMER STATUS ─────────────────────────────────────────────────────── */
+
+/* Customer order list cards */
+.customer-order-card {
+  @apply flex items-center justify-between rounded-xl p-4 cursor-pointer;
+  border: 1.5px solid var(--cloud);
+  transition: border-color 0.15s, background 0.15s;
+}
+.customer-order-card:hover { border-color: var(--blue); background: rgba(108,138,255,0.03); }
+.customer-order-card-left { @apply flex items-center gap-3; }
+.customer-order-card-num { @apply text-[1rem] font-bold; color: var(--blue); }
+.customer-order-card-dest { @apply text-[0.88rem]; color: var(--ink); }
+.customer-order-card-right { @apply flex items-center gap-4; }
+.customer-order-card-price { @apply text-[0.9rem] font-semibold; color: var(--ink); }
+.customer-order-card-date { @apply text-[0.78rem]; color: var(--slate); }
 
 .customer-status-page {
   max-width: 800px;
@@ -2180,8 +2217,8 @@ footer nav a:hover { color: var(--white); }
   padding: 7rem 2rem 4rem;
 }
 .india-hero-inner {
-  @apply max-w-[1200px] mx-auto flex items-center gap-16;
-  padding-left: 11rem;
+  @apply max-w-[1200px] mx-auto flex items-center justify-center gap-16;
+  padding-left: 3rem;
 }
 .india-hero-content { @apply flex-1; }
 .india-hero-image {
@@ -2275,11 +2312,15 @@ footer nav a:hover { color: var(--white); }
   color: var(--slate);
   background: none;
   border: none;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.2s, background 0.2s, transform 0.15s, box-shadow 0.2s;
 }
 .india-visatypes-btn:hover {
   color: var(--ink);
   background: var(--sky);
+  transform: translateX(4px);
+}
+.india-visatypes-btn:active {
+  transform: scale(0.97);
 }
 .india-visatypes-btn.active {
   color: var(--ink);
@@ -2287,6 +2328,7 @@ footer nav a:hover { color: var(--white); }
   background: var(--sky);
   border-left: 3px solid var(--navy);
   border-radius: 0 0.5rem 0.5rem 0;
+  transform: translateX(4px);
 }
 .india-visatypes-chevron {
   @apply text-sm;
@@ -2294,6 +2336,11 @@ footer nav a:hover { color: var(--white); }
 }
 .india-visatypes-content {
   @apply flex-1 pt-1;
+  animation: visaFadeIn 0.35s ease;
+}
+@keyframes visaFadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
 }
 .india-visatypes-title {
   font-family: 'DM Serif Display', serif;
@@ -2370,12 +2417,26 @@ footer nav a:hover { color: var(--white); }
   @apply p-5 rounded-2xl;
   background: white;
   border: 1px solid var(--cloud);
+  transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
 }
-.india-req-icon { @apply text-2xl block mb-3; }
+.india-req-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 24px rgba(108,138,255,0.12);
+  border-color: var(--blue);
+}
+.india-req-icon {
+  @apply text-2xl block mb-3;
+  transition: transform 0.3s;
+}
+.india-req-card:hover .india-req-icon {
+  transform: translateX(6px);
+}
 .india-req-name {
   @apply text-[0.95rem] font-bold mb-2;
   color: var(--ink);
+  transition: color 0.2s;
 }
+.india-req-card:hover .india-req-name { color: var(--blue); }
 .india-req-desc {
   @apply text-[0.82rem] leading-relaxed;
   color: var(--slate);
@@ -2410,20 +2471,39 @@ footer nav a:hover { color: var(--white); }
   @apply rounded-xl overflow-hidden;
   border: 1px solid var(--cloud);
   background: white;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.india-faq:hover {
+  border-color: var(--blue);
+  box-shadow: 0 4px 12px rgba(108,138,255,0.08);
+  transform: translateY(-2px);
+}
+.india-faq[open] {
+  border-color: var(--blue);
+  box-shadow: 0 4px 16px rgba(108,138,255,0.12);
 }
 .india-faq-q {
   @apply px-5 py-4 text-[0.95rem] font-semibold cursor-pointer list-none flex items-center justify-between;
   color: var(--ink);
+  transition: color 0.15s;
 }
+.india-faq:hover .india-faq-q { color: var(--blue); }
 .india-faq-q::after {
   content: '+';
   @apply text-xl font-light;
   color: var(--slate);
+  transition: transform 0.3s, color 0.2s;
 }
+.india-faq[open] .india-faq-q::after { content: '−'; transform: rotate(180deg); color: var(--blue); }
 .india-faq[open] .india-faq-q::after { content: '−'; }
 .india-faq-a {
   @apply px-5 pb-4 text-[0.88rem] leading-relaxed;
   color: var(--slate);
+  animation: faqSlideDown 0.3s ease;
+}
+@keyframes faqSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
 }
 
 /* CTA Section */
@@ -2565,6 +2645,10 @@ footer nav a:hover { color: var(--white); }
   color: var(--blue2);
 }
 .admin-nav { @apply flex flex-col gap-1 flex-1; }
+.admin-nav-section-label {
+  @apply text-[0.6rem] font-bold uppercase tracking-[0.15em] px-2 pt-2 pb-1;
+  color: rgba(255,255,255,0.35);
+}
 .admin-nav-item {
   font-family: var(--font-jakarta), sans-serif;
   @apply text-[0.85rem] font-medium px-3 py-2.5 rounded-xl cursor-pointer transition-colors;
@@ -3301,6 +3385,58 @@ a.contact-detail-value:hover { color: var(--blue); }
   border: 1px solid var(--cloud); background: white;
 }
 .crm-filter-select:focus { border-color: var(--blue); }
+
+/* Canned Responses */
+.canned-card {
+  @apply rounded-xl p-4 cursor-pointer;
+  border: 1.5px solid var(--cloud);
+  transition: border-color 0.15s, background 0.15s;
+}
+.canned-card:hover { border-color: var(--blue); background: rgba(108,138,255,0.03); }
+.canned-card.active { border-color: var(--blue); background: rgba(108,138,255,0.06); }
+.canned-card-header { @apply flex items-center justify-between mb-1; }
+.canned-card-title { @apply text-[0.9rem] font-semibold; color: var(--ink); }
+.canned-card-folder { @apply text-[0.7rem] font-semibold px-2 py-0.5 rounded-full; background: var(--sky); color: var(--blue); }
+.canned-card-preview { @apply text-[0.82rem]; color: var(--slate); }
+
+.canned-edit-panel {
+  width: 380px;
+  @apply shrink-0 rounded-2xl p-5;
+  border: 1.5px solid var(--cloud);
+  background: white;
+  align-self: flex-start;
+  position: sticky;
+  top: 1rem;
+}
+.canned-edit-title { @apply text-[1rem] font-bold mb-4; color: var(--ink); }
+
+/* Canned Picker in reply box */
+.canned-picker {
+  @apply absolute right-0 top-full mt-1 rounded-xl overflow-hidden;
+  width: 320px;
+  border: 1.5px solid var(--cloud);
+  background: white;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  z-index: 50;
+}
+.canned-picker-search {
+  @apply w-full px-3 py-2.5 text-[0.82rem] outline-none;
+  border-bottom: 1px solid var(--cloud);
+}
+.canned-picker-list {
+  @apply overflow-auto;
+  max-height: 250px;
+}
+.canned-picker-item {
+  @apply w-full text-left px-3 py-2.5 flex flex-col cursor-pointer;
+  border: none; background: none; border-bottom: 1px solid #f8fafc;
+  transition: background 0.1s;
+}
+.canned-picker-item:hover { background: var(--sky); }
+.canned-picker-title { @apply text-[0.85rem] font-semibold; color: var(--ink); }
+.canned-picker-folder { @apply text-[0.65rem] font-medium; color: var(--blue); }
+.canned-picker-preview { @apply text-[0.75rem] mt-0.5; color: var(--slate); }
+.canned-picker-empty { @apply px-3 py-4 text-center text-[0.82rem]; color: var(--slate); }
 .crm-tr { @apply cursor-pointer; transition: background 0.1s; }
 .crm-tr:hover { background: rgba(108,138,255,0.03); }
 .crm-tr:not(:last-child) { border-bottom: 1px solid #f1f5f9; }
@@ -3554,6 +3690,68 @@ a.contact-detail-value:hover { color: var(--blue); }
 .tkt2-activity-text { @apply text-[0.75rem]; color: var(--ink); }
 .tkt2-activity-time { @apply text-[0.65rem]; color: var(--slate); }
 
+/* Collision banner */
+.tkt2-collision-banner {
+  @apply px-4 py-2.5 text-[0.85rem] font-medium;
+  background: #FEF3C7;
+  color: #92400E;
+  border-bottom: 1px solid #FDE68A;
+}
+
+/* Forward */
+.tkt2-forward-btn {
+  @apply px-3 py-1.5 rounded-lg text-[0.78rem] font-semibold cursor-pointer;
+  background: #f1f5f9; color: var(--ink); border: 1px solid var(--cloud);
+  transition: border-color 0.15s;
+}
+.tkt2-forward-btn:hover { border-color: var(--blue); color: var(--blue); }
+.tkt2-forward-panel {
+  @apply px-8 py-3;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--cloud);
+}
+
+/* SLA Breach Banner */
+.sla-breach-banner {
+  @apply rounded-xl overflow-hidden mb-4;
+  border: 1.5px solid var(--cloud);
+}
+.sla-breach-section {
+  @apply flex items-start gap-3 px-4 py-3;
+}
+.sla-breach-section.breached { background: #FEF2F2; border-bottom: 1px solid #FECACA; }
+.sla-breach-section.warning { background: #FFFBEB; }
+.sla-breach-icon { @apply text-lg mt-0.5; }
+.sla-breach-section strong { @apply text-[0.85rem] block mb-1; }
+.sla-breach-section.breached strong { color: #991B1B; }
+.sla-breach-section.warning strong { color: #92400E; }
+.sla-breach-list { @apply flex flex-col gap-0.5; }
+.sla-breach-item {
+  @apply text-[0.78rem];
+  color: var(--ink);
+  text-decoration: none;
+}
+.sla-breach-item:hover { color: var(--blue); text-decoration: underline; }
+
+/* Tag suggestions dropdown */
+.tag-suggestions {
+  @apply absolute left-0 right-0 top-full mt-1 rounded-lg overflow-hidden;
+  background: white;
+  border: 1px solid var(--cloud);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  z-index: 20;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.tag-suggestion-item {
+  @apply w-full text-left px-3 py-2 text-[0.8rem] cursor-pointer;
+  background: none; border: none; color: var(--ink);
+  border-bottom: 1px solid #f8fafc;
+  transition: background 0.1s;
+}
+.tag-suggestion-item:hover { background: var(--sky); color: var(--blue); }
+.tag-suggestion-item:last-child { border-bottom: none; }
+
 @media (max-width: 900px) {
   .crm-new-grid { grid-template-columns: 1fr; }
   .tkt2-props { width: 100%; border-left: none; border-top: 1px solid var(--cloud); }
@@ -3716,6 +3914,14 @@ a.contact-detail-value:hover { color: var(--blue); }
 .od-top-actions {
   @apply flex items-center justify-between mb-5;
 }
+.od-process-btn {
+  font-family: var(--font-sora), sans-serif;
+  @apply text-[0.8rem] font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all;
+  background: #059669;
+  color: white;
+  border: 1px solid #059669;
+}
+.od-process-btn:hover { background: #047857; }
 .od-edit-btn {
   font-family: var(--font-sora), sans-serif;
   @apply text-[0.8rem] font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all no-underline;

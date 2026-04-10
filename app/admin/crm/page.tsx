@@ -65,6 +65,7 @@ export default function CrmPage() {
   const [newPriority, setNewPriority] = useState('LOW');
   const [newGroup, setNewGroup] = useState('Miscellaneous');
   const [creating, setCreating] = useState(false);
+  const [newSendEmail, setNewSendEmail] = useState(true);
 
   const fetchTickets = useCallback(async () => {
     try {
@@ -73,7 +74,17 @@ export default function CrmPage() {
     } catch {} finally { setLoading(false); }
   }, []);
 
+  const [slaBreaches, setSlaBreaches] = useState<{ breached: any[]; warning: any[] }>({ breached: [], warning: [] });
+
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
+
+  // Check SLA breaches every 60 seconds
+  useEffect(() => {
+    const checkSla = () => fetch('/api/tickets/sla-check').then(r => r.ok ? r.json() : { breached: [], warning: [] }).then(setSlaBreaches).catch(() => {});
+    checkSla();
+    const interval = setInterval(checkSla, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const createTicket = async () => {
     if (!newSubject || !newEmail || !newName) return;
@@ -89,6 +100,7 @@ export default function CrmPage() {
           message: newMessage,
           priority: newPriority,
           group: newGroup,
+          sendNotification: newSendEmail,
         }),
       });
       if (res.ok) {
@@ -218,8 +230,11 @@ export default function CrmPage() {
           {!sidebarCollapsed && <span className="admin-sidebar-badge">Admin</span>}
         </div>
         <nav className="admin-nav">
+          {!sidebarCollapsed && <div className="admin-nav-section-label">Admin Panel</div>}
           <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '📋' : '📋 Orders'}</Link>
-          <Link href="/admin/crm" className="admin-nav-item active" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '💬' : '💬 CRM'}</Link>
+          {!sidebarCollapsed && <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>}
+          <Link href="/admin/crm" className="admin-nav-item active" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '💬' : '💬 Emails'}</Link>
+          <Link href="/admin/crm/canned" className="admin-nav-item" style={{ textDecoration: 'none', paddingLeft: sidebarCollapsed ? undefined : '2rem', fontSize: '0.82rem' }}>{sidebarCollapsed ? '📝' : '📝 Canned Responses'}</Link>
         </nav>
         <button className="sidebar-toggle" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
           {sidebarCollapsed ? '→' : '← Collapse'}
@@ -243,6 +258,42 @@ export default function CrmPage() {
         </div>
 
         {/* Filters */}
+        {/* SLA Breach Notifications */}
+        {(slaBreaches.breached.length > 0 || slaBreaches.warning.length > 0) && (
+          <div className="sla-breach-banner">
+            {slaBreaches.breached.length > 0 && (
+              <div className="sla-breach-section breached">
+                <span className="sla-breach-icon">🔴</span>
+                <div>
+                  <strong>{slaBreaches.breached.length} SLA Breached</strong>
+                  <div className="sla-breach-list">
+                    {slaBreaches.breached.map((b: any) => (
+                      <a key={`${b.id}-${b.type}`} href={`/admin/crm/${b.id}`} className="sla-breach-item">
+                        #{b.ticketNumber} — {b.type} ({b.overdueBy} overdue)
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {slaBreaches.warning.length > 0 && (
+              <div className="sla-breach-section warning">
+                <span className="sla-breach-icon">🟡</span>
+                <div>
+                  <strong>{slaBreaches.warning.length} SLA At Risk</strong>
+                  <div className="sla-breach-list">
+                    {slaBreaches.warning.map((w: any) => (
+                      <a key={`${w.id}-${w.type}`} href={`/admin/crm/${w.id}`} className="sla-breach-item">
+                        #{w.ticketNumber} — {w.type} ({w.timeLeft} left)
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="crm-filters">
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <input className="crm-search" style={{ flex: 1 }} placeholder="Search by subject, name, email, or ticket #..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -288,7 +339,11 @@ export default function CrmPage() {
               <div className="ap-field" style={{ gridColumn: '1/-1' }}><label className="ap-field-label">Initial Message (optional)</label>
                 <textarea className="ap-input contact-textarea" rows={3} value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Customer's message..." /></div>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+            <label className="tkt2-reply-check" style={{ marginTop: '0.5rem' }}>
+              <input type="checkbox" checked={newSendEmail} onChange={e => setNewSendEmail(e.target.checked)} />
+              Send email notification to customer
+            </label>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
               <button className="crm-new-btn" onClick={createTicket} disabled={creating || !newSubject || !newEmail || !newName}>
                 {creating ? 'Creating...' : 'Create Ticket'}
               </button>

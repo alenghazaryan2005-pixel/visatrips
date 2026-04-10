@@ -43,11 +43,13 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
         <span className="admin-sidebar-badge">Admin</span>
       </div>
       <nav className="admin-nav">
+        <div className="admin-nav-section-label">Admin Panel</div>
         <Link href="/admin" className="admin-nav-item active" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'orders'); }}>📋 Orders</Link>
         <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'customers'); }}>👤 Customer Accounts</Link>
         <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'refunds'); }}>💸 Refunds</Link>
         <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'abandoned'); }}>🚫 Abandoned</Link>
-        <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>💬 CRM</Link>
+        <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>
+        <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>💬 Emails</Link>
       </nav>
       <button className="admin-logout-btn" onClick={onLogout}>← Sign Out</button>
     </aside>

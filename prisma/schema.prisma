@@ -122,6 +122,9 @@ model Ticket {
   firstRespondedAt DateTime?
   resolvedAt       DateTime?
   mergedIntoId     String?        // if merged, points to parent ticket
+  tags             String?        // comma-separated tags
+  lastViewedBy     String?        // for collision detection
+  lastViewedAt     DateTime?      // for collision detection
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   messages         TicketMessage[]
@@ -160,6 +163,30 @@ model TicketActivity {
   @@index([ticketId])
   @@index([createdAt])
   @@map("ticket_activities")
+}
+
+model CannedResponse {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  folder    String   @default("General")
+  tags      String?  // comma-separated tags
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([folder])
+  @@map("canned_responses")
+}
+
+model CustomerPin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  pin       String   // 6-digit PIN
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@map("customer_pins")
 }
 
 model AdminUser {

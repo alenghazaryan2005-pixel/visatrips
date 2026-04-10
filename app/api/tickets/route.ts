@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin, isErrorResponse } from '@/lib/auth';
+import { sendEmail } from '@/lib/email/send';
 
 // SLA defaults by priority (in hours)
 const SLA_FIRST_RESPONSE: Record<string, number> = { LOW: 24, MEDIUM: 8, HIGH: 4, URGENT: 1 };
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (isErrorResponse(auth)) return auth;
 
   try {
-    const { subject, contactEmail, contactName, priority, group, message, assignedTo } = await req.json();
+    const { subject, contactEmail, contactName, priority, group, message, assignedTo, sendNotification } = await req.json();
 
     if (!subject || !contactEmail || !contactName) {
       return NextResponse.json({ error: 'Subject, contact email, and name are required' }, { status: 400 });
@@ -70,6 +71,26 @@ export async function POST(req: NextRequest) {
       },
       include: { messages: true },
     });
+
+    // Send notification email if requested
+    if (sendNotification && message) {
+      await sendEmail(contactEmail.toLowerCase(), {
+        subject: `${subject} [#${ticket.ticketNumber}]`,
+        html: `
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;padding:40px 24px;color:#1E293B;">
+            <div style="text-align:center;margin-bottom:32px;">
+              <span style="font-size:24px;font-weight:800;">VisaTrips<sup style="font-size:10px;color:#6C8AFF;">®</sup></span>
+            </div>
+            <p>Hi ${contactName},</p>
+            <div style="background:#F8FAFF;border-radius:12px;padding:20px;margin:20px 0;white-space:pre-wrap;">${message}</div>
+            <p style="color:#94A3B8;font-size:13px;">Ticket #${ticket.ticketNumber} · ${auth.name}</p>
+            <div style="text-align:center;margin-top:32px;padding-top:20px;border-top:1px solid #EDF1F8;color:#94A3B8;font-size:13px;">
+              <p>© ${new Date().getFullYear()} VisaTrips. All rights reserved.</p>
+            </div>
+          </div>
+        `,
+      });
+    }
 
     return NextResponse.json(ticket);
   } catch {

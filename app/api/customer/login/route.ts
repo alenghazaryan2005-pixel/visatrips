@@ -8,9 +8,12 @@ const SESSION_TOKEN = 'ev_customer_session';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, orderNumber } = await req.json();
-    if (!email || !orderNumber) {
-      return NextResponse.json({ error: 'Email and order number are required' }, { status: 400 });
+    const { email, pin, orderNumber } = await req.json();
+    if (!email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+    }
+    if (!pin && !orderNumber) {
+      return NextResponse.json({ error: 'PIN or order number is required' }, { status: 400 });
     }
 
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
@@ -19,44 +22,68 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Too many attempts. Try again in ${rateCheck.retryAfter} seconds.` }, { status: 429 });
     }
 
-    const parsed = parseOrderNumber(orderNumber.trim());
-    if (isNaN(parsed) || parsed <= 0) {
-      return NextResponse.json({ error: 'Invalid order number' }, { status: 400 });
+    const emailLower = email.trim().toLowerCase();
+
+    // PIN-based login
+    if (pin) {
+      const customerPin = await prisma.customerPin.findUnique({
+        where: { email: emailLower },
+      });
+
+      if (!customerPin || customerPin.pin !== pin.trim()) {
+        return NextResponse.json({ error: 'Invalid email or PIN' }, { status: 401 });
+      }
+
+      const cookieStore = await cookies();
+      cookieStore.set(SESSION_TOKEN, JSON.stringify({ email: emailLower }), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 60 * 60 * 24,
+        path: '/',
+      });
+
+      return NextResponse.json({ success: true });
     }
 
-    // Find order by order number, then check if any traveler's email matches
-    const order = await prisma.order.findFirst({
-      where: { orderNumber: parsed },
-    });
+    // Order number-based login (fallback)
+    if (orderNumber) {
+      const parsed = parseOrderNumber(orderNumber.trim());
+      if (isNaN(parsed) || parsed <= 0) {
+        return NextResponse.json({ error: 'Invalid order number' }, { status: 400 });
+      }
 
-    if (!order) {
-      return NextResponse.json({ error: 'No order found with that order number' }, { status: 401 });
+      const order = await prisma.order.findFirst({ where: { orderNumber: parsed } });
+      if (!order) {
+        return NextResponse.json({ error: 'No order found with that order number' }, { status: 401 });
+      }
+
+      // Check if email matches billing or traveler email
+      let emailMatch = order.billingEmail.toLowerCase() === emailLower;
+      if (!emailMatch) {
+        try {
+          const travelers = JSON.parse(order.travelers);
+          emailMatch = travelers.some((t: any) => t.email?.trim().toLowerCase() === emailLower);
+        } catch {}
+      }
+
+      if (!emailMatch) {
+        return NextResponse.json({ error: 'No order found with that email and order number' }, { status: 401 });
+      }
+
+      const cookieStore = await cookies();
+      cookieStore.set(SESSION_TOKEN, JSON.stringify({ email: emailLower }), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 60 * 60 * 24,
+        path: '/',
+      });
+
+      return NextResponse.json({ success: true });
     }
 
-    // Check traveler emails inside the JSON
-    let travelerEmailMatch = false;
-    let matchedEmail = email.trim();
-    try {
-      const travelers = JSON.parse(order.travelers);
-      travelerEmailMatch = travelers.some((t: any) =>
-        t.email && t.email.trim().toLowerCase() === email.trim().toLowerCase()
-      );
-    } catch {}
-
-    if (!travelerEmailMatch) {
-      return NextResponse.json({ error: 'No order found with that email and order number' }, { status: 401 });
-    }
-
-    const cookieStore = await cookies();
-    cookieStore.set(SESSION_TOKEN, JSON.stringify({ orderId: order.id, email: matchedEmail, orderNumber: order.orderNumber }), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24,
-      path: '/',
-    });
-
-    return NextResponse.json({ success: true, orderId: order.id });
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   } catch (err) {
     console.error('Customer login error:', err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });

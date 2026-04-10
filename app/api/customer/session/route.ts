@@ -12,21 +12,44 @@ export async function GET() {
 
   try {
     const data = JSON.parse(session.value);
-    if (!data.orderId || !data.email) {
+    if (!data.email) {
       return NextResponse.json({ authenticated: false }, { status: 401 });
     }
 
-    // Verify the order still exists
-    const order = await prisma.order.findUnique({ where: { id: data.orderId } });
-    if (!order) {
-      return NextResponse.json({ authenticated: false }, { status: 401 });
-    }
+    // Find all orders for this email (check both billingEmail and traveler emails)
+    const allOrders = await prisma.order.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const email = data.email.toLowerCase();
+    const orders = allOrders.filter(o => {
+      if (o.billingEmail.toLowerCase() === email) return true;
+      try {
+        const travelers = JSON.parse(o.travelers);
+        return travelers.some((t: any) => t.email?.toLowerCase() === email);
+      } catch { return false; }
+    });
 
     return NextResponse.json({
       authenticated: true,
-      orderId: data.orderId,
       email: data.email,
-      orderNumber: data.orderNumber,
+      orders: orders.map(o => {
+        let travelerName = '';
+        try {
+          const t = JSON.parse(o.travelers);
+          if (t[0]?.firstName) travelerName = `${t[0].firstName} ${t[0].lastName || ''}`.trim();
+        } catch {}
+        return {
+          id: o.id,
+          orderNumber: o.orderNumber,
+          status: o.status,
+          destination: o.destination,
+          visaType: o.visaType,
+          totalUSD: o.totalUSD,
+          createdAt: o.createdAt,
+          travelerName,
+        };
+      }),
     });
   } catch {
     return NextResponse.json({ authenticated: false }, { status: 401 });

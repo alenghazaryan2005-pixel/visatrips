@@ -23,10 +23,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (admin) return NextResponse.json(order);
 
     const customer = await getCustomerSession();
-    if (customer && customer.orderId === order.id) return NextResponse.json(order);
-
-    // Also allow if customer's order number matches
-    if (customer && customer.orderNumber === order.orderNumber) return NextResponse.json(order);
+    if (customer) {
+      // Check if customer's email matches billing email or any traveler email
+      const customerEmail = customer.email.toLowerCase();
+      if (order.billingEmail.toLowerCase() === customerEmail) return NextResponse.json(order);
+      try {
+        const travelers = JSON.parse(order.travelers);
+        if (travelers.some((t: any) => t.email?.toLowerCase() === customerEmail)) return NextResponse.json(order);
+      } catch {}
+    }
 
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   } catch {
@@ -50,7 +55,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const customer = await getCustomerSession();
 
     // Must be either admin or the order's customer
-    const isOwner = customer && (customer.orderId === order.id || customer.orderNumber === order.orderNumber);
+    let isOwner = false;
+    if (customer) {
+      const ce = customer.email.toLowerCase();
+      if (order.billingEmail.toLowerCase() === ce) isOwner = true;
+      else try { const t = JSON.parse(order.travelers); isOwner = t.some((tr: any) => tr.email?.toLowerCase() === ce); } catch {}
+    }
     if (!admin && !isOwner) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

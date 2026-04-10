@@ -88,26 +88,57 @@ const SPEED_LABELS: Record<string, string> = {
   super: 'Super Rush',
 };
 
+interface OrderSummary {
+  id: string;
+  orderNumber: number;
+  status: string;
+  destination: string;
+  visaType: string;
+  totalUSD: number;
+  createdAt: string;
+}
+
 export default function StatusPage() {
   const router = useRouter();
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [order, setOrder] = useState<Order | null>(null);
   const [travelers, setTravelers] = useState<Traveler[]>([]);
   const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState('');
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/customer/session')
       .then(r => r.json())
       .then(async (session) => {
         if (!session.authenticated) { router.replace('/login'); return; }
-        const res = await fetch(`/api/orders/${session.orderId}`);
-        const data = await res.json();
-        if (data.error) { router.replace('/login'); return; }
-        setOrder(data);
-        try { setTravelers(JSON.parse(data.travelers)); } catch { setTravelers([]); }
+        setEmail(session.email);
+        setOrders(session.orders || []);
+
+        // If only one order, auto-select it
+        if (session.orders?.length === 1) {
+          await loadOrder(session.orders[0].id);
+        }
         setLoading(false);
       })
       .catch(() => router.replace('/login'));
   }, [router]);
+
+  const loadOrder = async (orderId: string) => {
+    const res = await fetch(`/api/orders/${orderId}`);
+    const data = await res.json();
+    if (!data.error) {
+      setOrder(data);
+      setSelectedOrderId(orderId);
+      try { setTravelers(JSON.parse(data.travelers)); } catch { setTravelers([]); }
+    }
+  };
+
+  const backToList = () => {
+    setOrder(null);
+    setSelectedOrderId(null);
+    setTravelers([]);
+  };
 
   const [reuploadingDoc, setReuploadingDoc] = useState('');
 
@@ -158,6 +189,72 @@ export default function StatusPage() {
   };
 
   if (loading) return <div style={{ paddingTop: '120px', textAlign: 'center' }}>Loading...</div>;
+
+  // No orders found
+  if (orders.length === 0) {
+    return (
+      <>
+        <Nav />
+        <div className="customer-status-page">
+          <div className="customer-status-header">
+            <div>
+              <h1 className="customer-status-title">Welcome to VisaTrips!</h1>
+            </div>
+            <button className="customer-status-logout" onClick={handleLogout}>Log Out</button>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🌍</div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1E293B', marginBottom: '0.5rem' }}>No Orders Found</h2>
+            <p style={{ color: '#94A3B8', fontSize: '1rem', maxWidth: '420px', margin: '0 auto 2rem' }}>
+              But that&apos;s okay! You can begin your journey with VisaTrips, today!
+            </p>
+            <Link href="/apply" style={{ display: 'inline-block', padding: '14px 32px', background: '#6C8AFF', color: 'white', textDecoration: 'none', borderRadius: '12px', fontWeight: 600, fontSize: '1rem' }}>
+              Start Your Application →
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Order list view (when multiple orders and none selected)
+  if (!order && orders.length > 1) {
+    return (
+      <>
+        <Nav />
+        <div className="customer-status-page">
+          <div className="customer-status-header">
+            <div>
+              <h1 className="customer-status-title">Your Applications</h1>
+              <p style={{ color: 'var(--slate)', fontSize: '0.9rem' }}>{email}</p>
+            </div>
+            <button className="customer-status-logout" onClick={handleLogout}>Log Out</button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {orders.map(o => {
+              const ss = STATUS_COLORS[o.status] || '';
+              return (
+                <div key={o.id} className="customer-order-card" onClick={() => loadOrder(o.id)}>
+                  <div className="customer-order-card-left">
+                    <span className="customer-order-card-num">#{formatOrderNum(o.orderNumber)}</span>
+                    <span className="customer-order-card-dest">{(o as any).travelerName ? `${(o as any).travelerName} · ` : ''}{o.destination} — {VISA_LABELS[o.visaType] ?? o.visaType}</span>
+                  </div>
+                  <div className="customer-order-card-right">
+                    <span className={`admin-status ${ss}`}>{o.status.replace('_', ' ')}</span>
+                    <span className="customer-order-card-price">${o.totalUSD}</span>
+                    <span className="customer-order-card-date">{new Date(o.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </>
+    );
+  }
+
   if (!order) return null;
 
   const createdDate = new Date(order.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -168,6 +265,11 @@ export default function StatusPage() {
       <div className="customer-status-page">
         <div className="customer-status-header">
           <div>
+            {orders.length > 1 && (
+              <button onClick={backToList} style={{ background: 'none', border: 'none', color: 'var(--blue)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500, padding: 0, marginBottom: '0.5rem', display: 'block' }}>
+                ← Back to All Orders
+              </button>
+            )}
             <h1 className="customer-status-title">Your Visa Application</h1>
             <p className="customer-status-order-num">Order #{formatOrderNum(order.orderNumber)}</p>
           </div>
