@@ -759,6 +759,21 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         {!editing ? (
           <>
             <button className="od-edit-btn" onClick={startEditing}>✏️ Full Edit</button>
+            <button className="od-process-btn" onClick={async () => {
+              const orderNum = formatOrderNum(order.orderNumber);
+              try {
+                const res = await fetch('http://localhost:3001/process', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ orderNumber: orderNum }),
+                });
+                const data = await res.json();
+                if (data.success) alert(`Bot launched for order #${orderNum}!\nCheck the bot server terminal for progress.`);
+                else alert(`Error: ${data.error}`);
+              } catch {
+                alert('Bot server not running.\n\nStart it in a terminal:\nnpx tsx scripts/bot-server.ts');
+              }
+            }}>🤖 Process Application</button>
             <button className={`od-flag-mode-btn${flagMode ? ' active' : ''}`} onClick={() => setFlagMode(!flagMode)}>
               🚩 {flagMode ? 'Done Flagging' : 'Flag Errors'}
             </button>

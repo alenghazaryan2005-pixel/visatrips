@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Combination Generator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: #f1f5f9; }
+    .subtitle { color: #94a3b8; margin-bottom: 2rem; font-size: 0.95rem; }
+
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid #334155;
+    }
+    .card h2 { font-size: 1.1rem; margin-bottom: 1rem; color: #cbd5e1; }
+
+    .pattern-input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 1.1rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      letter-spacing: 1px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .pattern-input:focus { border-color: #3b82f6; }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+    .legend-item code {
+      background: #0f172a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #60a5fa;
+      font-weight: 600;
+    }
+
+    .custom-section { margin-top: 1rem; }
+    .custom-section label { font-size: 0.9rem; color: #94a3b8; display: block; margin-bottom: 0.4rem; }
+    .custom-section input {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #f1f5f9;
+      font-family: monospace;
+      outline: none;
+    }
+    .custom-section input:focus { border-color: #3b82f6; }
+
+    .stats {
+      display: flex;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    .stat {
+      background: #0f172a;
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+    .stat-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+    .stat-value { font-size: 1.3rem; font-weight: 700; color: #f1f5f9; margin-top: 2px; }
+
+    .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    button {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-primary:disabled { background: #1e3a5f; color: #64748b; cursor: not-allowed; }
+    .btn-secondary { background: #334155; color: #e2e8f0; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+
+    .warning {
+      background: #451a03;
+      border: 1px solid #92400e;
+      color: #fbbf24;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      display: none;
+    }
+
+    .output-area {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 1rem;
+      max-height: 500px;
+      overflow-y: auto;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      color: #cbd5e1;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #334155;
+      border-radius: 2px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+      display: none;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: #3b82f6;
+      border-radius: 2px;
+      transition: width 0.1s;
+      width: 0%;
+    }
+
+    .separator-option {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+    .separator-option label { font-size: 0.9rem; color: #94a3b8; }
+    .separator-option select {
+      padding: 0.4rem 0.6rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #f1f5f9;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Combination Generator</h1>
+    <p class="subtitle">Generate all possible combinations for a custom pattern</p>
+
+    <div class="card">
+      <h2>Define Pattern</h2>
+      <input type="text" class="pattern-input" id="patternInput" placeholder="e.g. A#-##a or LL-DDDD" spellcheck="false">
+      <div class="legend">
+        <div class="legend-item"><code>A</code> Uppercase letter (A-Z)</div>
+        <div class="legend-item"><code>a</code> Lowercase letter (a-z)</div>
+        <div class="legend-item"><code>L</code> Any letter (A-Z, a-z)</div>
+        <div class="legend-item"><code>#</code> Digit (0-9)</div>
+        <div class="legend-item"><code>*</code> Alphanumeric (A-Z, 0-9)</div>
+        <div class="legend-item"><code>?</code> Custom set (define below)</div>
+        <div class="legend-item"><code>\x</code> Literal character x</div>
+        <div class="legend-item">Other chars = literal</div>
+      </div>
+      <div class="custom-section" id="customSection" style="display:none;">
+        <label>Custom character set for <code>?</code> (enter characters, e.g. <code>XYZ123</code>):</label>
+        <input type="text" id="customChars" placeholder="e.g. ABCXYZ123">
+      </div>
+      <div class="separator-option">
+        <label>Separator:</label>
+        <select id="separator">
+          <option value="\n">New line</option>
+          <option value=", ">Comma</option>
+          <option value=" ">Space</option>
+          <option value="\t">Tab</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Results</h2>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Total Combinations</div>
+          <div class="stat-value" id="totalCount">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Pattern Length</div>
+          <div class="stat-value" id="patternLength">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Generated</div>
+          <div class="stat-value" id="generatedCount">0</div>
+        </div>
+      </div>
+
+      <div class="warning" id="warning"></div>
+      <div class="progress-bar" id="progressBar"><div class="progress-bar-fill" id="progressFill"></div></div>
+
+      <div class="actions">
+        <button class="btn-primary" id="generateBtn" onclick="generate()">Generate All</button>
+        <button class="btn-secondary" id="copyBtn" onclick="copyOutput()" style="display:none;">Copy to Clipboard</button>
+        <button class="btn-secondary" id="downloadBtn" onclick="downloadOutput()" style="display:none;">Download as TXT</button>
+        <button class="btn-danger" id="stopBtn" onclick="stopGeneration()" style="display:none;">Stop</button>
+      </div>
+
+      <div class="output-area" id="output">Enter a pattern above and click Generate.</div>
+    </div>
+  </div>
+
+  <script>
+    const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const LOWER = 'abcdefghijklmnopqrstuvwxyz';
+    const DIGITS = '0123456789';
+    const ALPHA_NUM = UPPER + DIGITS;
+    const MAX_DISPLAY = 100000;
+    const MAX_GENERATE = 5000000;
+
+    let results = [];
+    let stopFlag = false;
+
+    const patternInput = document.getElementById('patternInput');
+    const customSection = document.getElementById('customSection');
+
+    patternInput.addEventListener('input', () => {
+      const parsed = parsePattern(patternInput.value);
+      updateStats(parsed);
+      customSection.style.display = patternInput.value.includes('?') ? 'block' : 'none';
+    });
+
+    document.getElementById('customChars').addEventListener('input', () => {
+      const parsed = parsePattern(patternInput.value);
+      updateStats(parsed);
+    });
+
+    function parsePattern(raw) {
+      const slots = [];
+      let i = 0;
+      while (i < raw.length) {
+        if (raw[i] === '\\' && i + 1 < raw.length) {
+          slots.push([raw[i + 1]]);
+          i += 2;
+        } else {
+          const ch = raw[i];
+          if (ch === 'A') slots.push(UPPER.split(''));
+          else if (ch === 'a') slots.push(LOWER.split(''));
+          else if (ch === 'L') slots.push((UPPER + LOWER).split(''));
+          else if (ch === '#') slots.push(DIGITS.split(''));
+          else if (ch === '*') slots.push(ALPHA_NUM.split(''));
+          else if (ch === '?') {
+            const custom = document.getElementById('customChars').value;
+            slots.push(custom ? [...new Set(custom.split(''))] : ['?']);
+          }
+          else slots.push([ch]);
+          i++;
+        }
+      }
+      return slots;
+    }
+
+    function updateStats(slots) {
+      let total = 1;
+      let outputLen = 0;
+      for (const s of slots) {
+        total *= s.length;
+        if (s.length > 1) outputLen++;
+        else outputLen++;
+      }
+      document.getElementById('totalCount') .textContent = total.toLocaleString();
+      document.getElementById('patternLength').textContent = slots.length;
+
+      const warning = document.getElementById('warning');
+      const genBtn = document.getElementById('generateBtn');
+      if (total > MAX_GENERATE) {
+        warning.style.display = 'block';
+        warning.textContent = `Too many combinations (${total.toLocaleString()}). Max allowed is ${MAX_GENERATE.toLocaleString()}. Simplify your pattern.`;
+        genBtn.disabled = true;
+      } else if (total > MAX_DISPLAY) {
+        warning.style.display = 'block';
+        warning.textContent = `Large output (${total.toLocaleString()} combinations). Only the first ${MAX_DISPLAY.toLocaleString()} will display; full results available via download.`;
+        genBtn.disabled = false;
+      } else {
+        warning.style.display = total === 0 ? 'block' : 'none';
+        if (total === 0) warning.textContent = 'Enter a pattern to generate combinations.';
+        genBtn.disabled = slots.length === 0;
+      }
+    }
+
+    async function generate() {
+      const slots = parsePattern(patternInput.value);
+      if (slots.length === 0) return;
+
+      let total = 1;
+      for (const s of slots) total *= s.length;
+      if (total > MAX_GENERATE) return;
+
+      stopFlag = false;
+      results = [];
+      const output = document.getElementById('output');
+      const progressBar = document.getElementById('progressBar');
+      const progressFill = document.getElementById('progressFill');
+      const genCount = document.getElementById('generatedCount');
+      output.textContent = 'Generating...';
+      progressBar.style.display = 'block';
+      progressFill.style.width = '0%';
+      document.getElementById('generateBtn').disabled = true;
+      document.getElementById('stopBtn').style.display = 'inline-block';
+      document.getElementById('copyBtn').style.display = 'none';
+      document.getElementById('downloadBtn').style.display = 'none';
+
+      const indices = new Array(slots.length).fill(0);
+      let count = 0;
+      const batchSize = 10000;
+
+      function nextBatch() {
+        if (stopFlag) {
+          finish();
+          return;
+        }
+        const batchEnd = Math.min(count + batchSize, total);
+        while (count < batchEnd) {
+          let combo = '';
+          for (let j = 0; j < slots.length; j++) {
+            combo += slots[j][indices[j]];
+          }
+          results.push(combo);
+          count++;
+
+          // increment indices (odometer style)
+          let k = slots.length - 1;
+          while (k >= 0) {
+            indices[k]++;
+            if (indices[k] < slots[k].length) break;
+            indices[k] = 0;
+            k--;
+          }
+        }
+        genCount.textContent = count.toLocaleString();
+        progressFill.style.width = ((count / total) * 100) + '%';
+
+        if (count < total) {
+          requestAnimationFrame(nextBatch);
+        } else {
+          finish();
+        }
+      }
+
+      function finish() {
+        const sep = document.getElementById('separator').value
+          .replace('\\n', '\n').replace('\\t', '\t');
+        const displayResults = results.slice(0, MAX_DISPLAY);
+        output.textContent = displayResults.join(sep);
+        if (results.length > MAX_DISPLAY) {
+          output.textContent += sep + `\n... and ${(results.length - MAX_DISPLAY).toLocaleString()} more (download for full list)`;
+        }
+        progressBar.style.display = 'none';
+        document.getElementById('generateBtn').disabled = false;
+        document.getElementById('stopBtn').style.display = 'none';
+        document.getElementById('copyBtn').style.display = 'inline-block';
+        document.getElementById('downloadBtn').style.display = 'inline-block';
+        genCount.textContent = results.length.toLocaleString();
+      }
+
+      requestAnimationFrame(nextBatch);
+    }
+
+    function stopGeneration() {
+      stopFlag = true;
+    }
+
+    function copyOutput() {
+      const sep = document.getElementById('separator').value
+        .replace('\\n', '\n').replace('\\t', '\t');
+      navigator.clipboard.writeText(results.join(sep)).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy to Clipboard', 1500);
+      });
+    }
+
+    function downloadOutput() {
+      const sep = document.getElementById('separator').value
+        .replace('\\n', '\n').replace('\\t', '\t');
+      const blob = new Blob([results.join(sep)], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'combinations.txt';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+  </script>
+</body>
+</html>

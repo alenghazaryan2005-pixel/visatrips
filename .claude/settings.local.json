@@ -22,7 +22,8 @@
       "Bash(grep -n \"innerText\\\\|textContent\\\\|innerHTML\\\\|dangerously\\\\|<>\\\\|{.*error\" /Users/dotfiler11/Desktop/expressvisa/app/api/orders/route.ts /Users/dotfiler11/Desktop/expressvisa/app/api/orders/[id]/route.ts)",
       "Bash(grep -n \"validator\\\\|sanitize\\\\|trim\\\\|escape\\\\|validate\" /Users/dotfiler11/Desktop/expressvisa/app/api/*.ts)",
       "Bash(npx tsc:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(npx tsx -e ':*)"
     ]
   }
 }

@@ -246,6 +246,9 @@ function FinishContent() {
   /* Additional details state */
   // Passport extras
   const [passportPlaceOfIssue, setPassportPlaceOfIssue] = useState('');
+  const [finishPassportNumber, setFinishPassportNumber] = useState('');
+  const [finishPassportIssued, setFinishPassportIssued] = useState('');
+  const [finishPassportExpiry, setFinishPassportExpiry] = useState('');
   const [passportCountryOfIssue, setPassportCountryOfIssue] = useState('');
   const [hasOtherPassport, setHasOtherPassport] = useState('');
   const [otherPassportNumber, setOtherPassportNumber] = useState('');
@@ -376,6 +379,9 @@ function FinishContent() {
 
           // Restore passport extras & additional
           if (t.passportPlaceOfIssue) setPassportPlaceOfIssue(t.passportPlaceOfIssue);
+          if (t.passportNumber) setFinishPassportNumber(t.passportNumber);
+          if (t.passportIssued) setFinishPassportIssued(t.passportIssued);
+          if (t.passportExpiry) setFinishPassportExpiry(t.passportExpiry);
           if (t.passportCountryOfIssue) setPassportCountryOfIssue(t.passportCountryOfIssue);
           if (t.hasOtherPassport) setHasOtherPassport(t.hasOtherPassport);
           if (t.otherPassportNumber) setOtherPassportNumber(t.otherPassportNumber);
@@ -494,6 +500,9 @@ function FinishContent() {
         spousePlaceOfBirth: spousePlaceOfBirth || t.spousePlaceOfBirth,
         spouseCountryOfBirth: spouseCountryOfBirth || t.spouseCountryOfBirth,
         // Passport extras
+        passportNumber: finishPassportNumber || t.passportNumber,
+        passportIssued: finishPassportIssued || t.passportIssued,
+        passportExpiry: finishPassportExpiry || t.passportExpiry,
         passportPlaceOfIssue: passportPlaceOfIssue || t.passportPlaceOfIssue,
         passportCountryOfIssue: passportCountryOfIssue || t.passportCountryOfIssue,
         hasOtherPassport: hasOtherPassport || t.hasOtherPassport,
@@ -826,7 +835,31 @@ function FinishContent() {
               <button className="finish-back-btn" onClick={() => setStep('overview')}>
                 ← Back
               </button>
-              <button className={`finish-next-btn${arrMonth && arrDay && arrYear && arrivalPoint ? ' ready' : ''}`} disabled={!arrMonth || !arrDay || !arrYear || !arrivalPoint} onClick={() => saveProgress('personal')}>
+              {arrMonth && arrDay && arrYear && (() => {
+                const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                const arrDate = new Date(parseInt(arrYear), months.indexOf(arrMonth), parseInt(arrDay));
+                const today = new Date(); today.setHours(0,0,0,0);
+                const minDate = new Date(today.getTime() + 4 * 24*60*60*1000);
+                const maxDate = new Date(today.getTime() + 120 * 24*60*60*1000);
+                if (arrDate < minDate) return <p className="finish-form-error">Arrival date must be at least 4 days from today</p>;
+                if (arrDate > maxDate) return <p className="finish-form-error">Arrival date cannot be more than 120 days from today</p>;
+                return null;
+              })()}
+              <button className={`finish-next-btn${arrMonth && arrDay && arrYear && arrivalPoint && (() => {
+                const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                const arrDate = new Date(parseInt(arrYear), months.indexOf(arrMonth), parseInt(arrDay));
+                const today = new Date(); today.setHours(0,0,0,0);
+                const minDate = new Date(today.getTime() + 4 * 24*60*60*1000);
+                const maxDate = new Date(today.getTime() + 120 * 24*60*60*1000);
+                return arrDate >= minDate && arrDate <= maxDate;
+              })() ? ' ready' : ''}`} disabled={!arrMonth || !arrDay || !arrYear || !arrivalPoint || (() => {
+                const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                const arrDate = new Date(parseInt(arrYear), months.indexOf(arrMonth), parseInt(arrDay));
+                const today = new Date(); today.setHours(0,0,0,0);
+                const minDate = new Date(today.getTime() + 4 * 24*60*60*1000);
+                const maxDate = new Date(today.getTime() + 120 * 24*60*60*1000);
+                return arrDate < minDate || arrDate > maxDate;
+              })()} onClick={() => saveProgress('personal')}>
                 Next
               </button>
             </div>
@@ -1679,8 +1712,23 @@ function FinishContent() {
             <CorrectionBanner />
             <h1 className="finish-heading">Additional Details</h1>
 
-            {/* Passport Extras */}
+            {/* Passport Details — including fields for "provide later" */}
             <h2 className="finish-section-title">Passport Details</h2>
+
+            <div className="finish-form-group">
+              <label className="finish-form-label">Passport number</label>
+              <input className="finish-form-input" value={finishPassportNumber} onChange={e => setFinishPassportNumber(e.target.value)} placeholder="Enter passport number" />
+            </div>
+
+            <div className="finish-form-group">
+              <label className="finish-form-label">Passport date of issue</label>
+              <input className="finish-form-input" value={finishPassportIssued} onChange={e => setFinishPassportIssued(e.target.value)} placeholder="e.g. January 15, 2020" />
+            </div>
+
+            <div className="finish-form-group">
+              <label className="finish-form-label">Passport date of expiry</label>
+              <input className="finish-form-input" value={finishPassportExpiry} onChange={e => setFinishPassportExpiry(e.target.value)} placeholder="e.g. January 15, 2030" />
+            </div>
 
             <div className="finish-form-group">
               <label className="finish-form-label">Place of issue</label>

@@ -308,6 +308,16 @@ function TravelerCard({ index, data, onChange, expanded, onToggle }: any) {
                   <option value="">Year</option>{EXP_YEARS.map(y=><option key={y} value={y}>{y}</option>)}
                 </select>
               </div>
+              {data.arrivalMonth && data.arrivalDay && data.arrivalYear && (() => {
+                const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                const arrDate = new Date(parseInt(data.arrivalYear), months.indexOf(data.arrivalMonth), parseInt(data.arrivalDay));
+                const today = new Date(); today.setHours(0,0,0,0);
+                const minDate = new Date(today.getTime() + 4 * 24*60*60*1000);
+                const maxDate = new Date(today.getTime() + 120 * 24*60*60*1000);
+                if (arrDate < minDate) return <p className="ap-field-error">Arrival date must be at least 4 days from today</p>;
+                if (arrDate > maxDate) return <p className="ap-field-error">Arrival date cannot be more than 120 days from today</p>;
+                return null;
+              })()}
             </div>
           )}
         </div>
@@ -325,6 +335,14 @@ function Step2({ travelers, visaId, onBack, onNext }: any) {
     if (!t.firstName||!t.lastName||!t.month||!t.day||!t.year||!t.email||!t.address||!t.city||!t.state||!t.zip) return false;
     if (!t.isEmployed||!t.hasCriminalRecord||!t.hasConfirmedTravel) return false;
     if (t.hasConfirmedTravel==='yes'&&(!t.arrivalMonth||!t.arrivalDay||!t.arrivalYear)) return false;
+    if (t.hasConfirmedTravel==='yes'&&t.arrivalMonth&&t.arrivalDay&&t.arrivalYear) {
+      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const arrDate = new Date(parseInt(t.arrivalYear), months.indexOf(t.arrivalMonth), parseInt(t.arrivalDay));
+      const today = new Date(); today.setHours(0,0,0,0);
+      const minDate = new Date(today.getTime() + 4 * 24*60*60*1000);
+      const maxDate = new Date(today.getTime() + 120 * 24*60*60*1000);
+      if (arrDate < minDate || arrDate > maxDate) return false;
+    }
     // Validation checks
     if (validateName(t.firstName,'First name')) return false;
     if (validateName(t.lastName,'Last name')) return false;
