@@ -42,7 +42,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 // Fields customers are allowed to update
 const CUSTOMER_ALLOWED = ['travelers', 'flaggedFields'];
 // Fields only admins can update
-const ADMIN_ALLOWED = ['status', 'notes', 'destination', 'visaType', 'totalUSD', 'billingEmail', 'cardLast4', 'processingSpeed', 'travelers', 'applicationId', 'evisaUrl', 'flaggedFields', 'specialistNotes', 'refundAmount', 'refundReason', 'refundedAt'];
+const ADMIN_ALLOWED = ['status', 'notes', 'destination', 'visaType', 'totalUSD', 'billingEmail', 'cardLast4', 'processingSpeed', 'travelers', 'applicationId', 'evisaUrl', 'flaggedFields', 'specialistNotes', 'refundAmount', 'refundReason', 'refundedAt', 'botFlags'];
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -83,10 +83,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Invalid refund amount' }, { status: 400 });
     }
     if ('status' in data && !admin) {
-      // Customers can only set status to UNDER_REVIEW (re-submission)
-      if (data.status !== 'UNDER_REVIEW') {
+      // Customers can only set status to PROCESSING (re-submission after completing finish page)
+      if (data.status !== 'PROCESSING') {
         delete data.status;
       }
+    }
+    // Auto-stamp timestamps when status changes
+    if ('status' in data && admin) {
+      if (data.status === 'SUBMITTED' && !order.submittedAt) data.submittedAt = new Date();
+      if (data.status === 'COMPLETED' && !order.completedAt) data.completedAt = new Date();
     }
 
     const updated = await prisma.order.update({

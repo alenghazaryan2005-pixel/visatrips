@@ -26,6 +26,7 @@ function AnimatedSection({ children, className, delay = 0 }: { children: React.R
   );
 }
 import Footer from '@/components/Footer';
+import ChatWidget from '@/components/ChatWidget';
 
 const VISA_OPTIONS = [
   { id: 'tourist-30',  label: 'Tourist eVisa – 30 days',  entries: 'Double entry',   price: 25, tag: 'Most Popular' },
@@ -107,6 +108,13 @@ const VISA_TYPES_INFO = [
 
 export default function IndiaPage() {
   const [activeVisaType, setActiveVisaType] = useState(0);
+  const [carouselIdx, setCarouselIdx] = useState(0);
+
+  // Auto-rotate carousel every 5 seconds
+  useEffect(() => {
+    const timer = setInterval(() => setCarouselIdx(prev => (prev + 1) % 3), 5000);
+    return () => clearInterval(timer);
+  }, []);
   return (
     <>
       <Nav countryFlag="🇮🇳" />
@@ -115,8 +123,28 @@ export default function IndiaPage() {
         {/* ── HERO ── */}
         <section className="india-hero">
           <div className="india-hero-inner">
-            <div className="india-hero-image">
-              <img src="/india-temple.jpg" alt="Rishikesh, India — temples along the Ganges" />
+            <div className="india-hero-carousel">
+              {[
+                { src: '/india-temple.jpg', alt: 'Rishikesh — temples along the Ganges' },
+                { src: '/india-taj-mahal.jpg', alt: 'Taj Mahal — Agra' },
+                { src: '/india-ellora.jpg', alt: 'Ellora Caves — Maharashtra' },
+              ].map((img, i) => (
+                <img
+                  key={i}
+                  src={img.src}
+                  alt={img.alt}
+                  className={`india-carousel-img${carouselIdx === i ? ' active' : ''}`}
+                />
+              ))}
+              <div className="india-carousel-dots">
+                {[0, 1, 2].map(i => (
+                  <button
+                    key={i}
+                    className={`india-carousel-dot${carouselIdx === i ? ' active' : ''}`}
+                    onClick={() => setCarouselIdx(i)}
+                  />
+                ))}
+              </div>
             </div>
             <div className="india-hero-content">
               <h1 className="india-hero-title">
@@ -265,6 +293,7 @@ export default function IndiaPage() {
       </main>
 
       <Footer />
+      <ChatWidget />
     </>
   );
 }

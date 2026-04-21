@@ -2221,15 +2221,154 @@ footer nav a:hover { color: var(--white); }
   padding-left: 3rem;
 }
 .india-hero-content { @apply flex-1; }
-.india-hero-image {
-  @apply flex-shrink-0;
+.india-hero-carousel {
+  @apply flex-shrink-0 relative;
   width: 500px;
-}
-.india-hero-image img {
-  @apply w-full rounded-2xl;
+  height: 380px;
+  border-radius: 1rem;
+  overflow: hidden;
   box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+}
+.india-carousel-img {
+  @apply absolute inset-0 w-full h-full;
   object-fit: cover;
-  max-height: 440px;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+.india-carousel-img.active {
+  opacity: 1;
+}
+.india-carousel-dots {
+  @apply absolute bottom-3 left-1/2 flex gap-2;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+.india-carousel-dot {
+  @apply w-2.5 h-2.5 rounded-full cursor-pointer;
+  background: rgba(255,255,255,0.5);
+  border: none;
+  transition: background 0.3s, transform 0.2s;
+}
+.india-carousel-dot.active {
+  background: white;
+  transform: scale(1.3);
+}
+.india-carousel-dot:hover {
+  background: rgba(255,255,255,0.8);
+}
+
+/* ── Chat Widget ── */
+.chat-widget-btn {
+  @apply fixed z-[90] w-14 h-14 rounded-full flex items-center justify-center cursor-pointer;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--blue);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 20px rgba(79,110,247,0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.chat-widget-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 28px rgba(79,110,247,0.5);
+}
+
+.chat-widget-panel {
+  @apply fixed z-[89] rounded-2xl overflow-hidden flex flex-col;
+  bottom: 5.5rem;
+  right: 1.5rem;
+  width: 360px;
+  max-height: 500px;
+  background: white;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+  animation: chatSlideUp 0.25s ease;
+}
+@keyframes chatSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: none; }
+}
+
+.chat-widget-header {
+  @apply px-5 py-4;
+  background: var(--blue);
+  color: white;
+}
+.chat-widget-header-info { @apply flex items-center gap-3; }
+.chat-widget-avatar {
+  @apply w-10 h-10 rounded-full flex items-center justify-center font-bold text-[1rem] shrink-0;
+  background: rgba(255,255,255,0.2);
+}
+.chat-widget-title { @apply text-[0.95rem] font-semibold; }
+.chat-widget-status { @apply flex items-center gap-1.5 text-[0.72rem]; color: rgba(255,255,255,0.8); }
+.chat-widget-dot { @apply w-2 h-2 rounded-full; background: #4ade80; }
+
+/* Messages */
+.chat-widget-messages {
+  @apply flex-1 overflow-auto px-4 py-3;
+  display: flex; flex-direction: column; gap: 0.75rem;
+  max-height: 320px;
+}
+.chat-msg { @apply flex gap-2; }
+.chat-msg.user { justify-content: flex-end; }
+.chat-msg-avatar {
+  @apply w-7 h-7 rounded-full flex items-center justify-center text-white text-[0.65rem] font-bold shrink-0;
+  background: var(--blue);
+}
+.chat-msg-bubble {
+  @apply rounded-xl px-3.5 py-2.5 text-[0.85rem] leading-relaxed;
+  max-width: 85%;
+}
+.chat-msg-bubble.bot { background: #f1f5f9; color: var(--ink); border-radius: 0.75rem 0.75rem 0.75rem 0.25rem; }
+.chat-msg-bubble.user { background: var(--blue); color: white; border-radius: 0.75rem 0.75rem 0.25rem 0.75rem; }
+
+/* Quick options */
+.chat-quick-options { @apply flex flex-wrap gap-1.5 mt-1; }
+.chat-quick-btn {
+  @apply text-[0.75rem] font-medium px-3 py-1.5 rounded-full cursor-pointer;
+  background: white; color: var(--blue); border: 1.5px solid var(--cloud);
+  transition: all 0.15s;
+}
+.chat-quick-btn:hover { background: var(--sky); border-color: var(--blue); }
+
+/* Escalate */
+.chat-escalate-prompt { @apply mt-2; }
+.chat-escalate-btn {
+  @apply w-full py-2.5 rounded-xl text-[0.85rem] font-semibold cursor-pointer;
+  background: var(--sky); color: var(--blue); border: 1.5px solid var(--cloud);
+  transition: all 0.15s;
+}
+.chat-escalate-btn:hover { border-color: var(--blue); }
+.chat-escalate-form { @apply flex flex-col gap-2 mt-2; }
+.chat-escalate-label { @apply text-[0.78rem]; color: var(--slate); margin: 0; }
+.chat-escalate-input {
+  @apply rounded-lg px-3 py-2 text-[0.82rem] outline-none;
+  border: 1.5px solid var(--cloud);
+}
+.chat-escalate-input:focus { border-color: var(--blue); }
+.chat-escalate-submit {
+  @apply py-2 rounded-xl text-[0.82rem] font-semibold cursor-pointer;
+  background: var(--blue); color: white; border: none;
+}
+.chat-escalate-submit:disabled { opacity: 0.5; }
+
+/* Input bar */
+.chat-widget-input-wrap {
+  @apply flex items-center gap-2 px-3 py-2.5;
+  border-top: 1px solid var(--cloud);
+}
+.chat-widget-input {
+  @apply flex-1 text-[0.88rem] outline-none;
+  border: none; background: none;
+}
+.chat-widget-send {
+  @apply w-8 h-8 rounded-full flex items-center justify-center cursor-pointer shrink-0;
+  background: var(--blue); color: white; border: none;
+  transition: opacity 0.15s;
+}
+.chat-widget-send:disabled { opacity: 0.3; }
+
+@media (max-width: 600px) {
+  .chat-widget-panel { width: calc(100vw - 2rem); right: 1rem; left: 1rem; }
 }
 .india-flag-badge {
   @apply inline-flex items-center gap-2 text-[0.85rem] font-semibold px-4 py-2 rounded-full mb-5;
@@ -2596,6 +2735,11 @@ footer nav a:hover { color: var(--white); }
   @apply flex flex-col w-56 flex-shrink-0 px-4 py-6 gap-6;
   background: var(--ink);
   min-height: 100vh;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  overflow-y: auto;
   transition: width 0.2s, padding 0.2s;
 }
 .admin-sidebar.collapsed {
@@ -2668,7 +2812,7 @@ footer nav a:hover { color: var(--white); }
 /* Main */
 .admin-main {
   @apply flex-1 p-8 flex flex-col gap-6 overflow-auto mx-auto;
-  max-width: 1200px;
+  max-width: 1920px;
   width: 100%;
 }
 .admin-header {
@@ -2820,6 +2964,7 @@ footer nav a:hover { color: var(--white); }
 }
 .status-pending  { background: rgba(217,119,6,0.1);  color: #d97706; }
 .status-review   { background: rgba(79,110,247,0.1);  color: var(--blue); }
+.status-submitted { background: rgba(14,165,233,0.1); color: #0284c7; }
 .status-approved { background: rgba(22,163,74,0.1);   color: #16a34a; }
 .status-rejected { background: rgba(220,38,38,0.1);   color: #dc2626; }
 .status-refunded { background: rgba(139,92,246,0.1);  color: #7c3aed; }
@@ -2828,11 +2973,13 @@ footer nav a:hover { color: var(--white); }
 
 /* Flag UI */
 .od-flag-mode-btn {
-  @apply px-4 py-2.5 rounded-xl font-semibold text-[0.85rem] cursor-pointer;
+  @apply px-7 py-3 rounded-xl font-semibold text-[0.85rem] cursor-pointer;
   background: #f1f5f9;
   color: var(--ink);
   border: 1.5px solid var(--cloud);
   transition: all 0.15s;
+  min-width: 180px;
+  text-align: center;
 }
 .od-flag-mode-btn:hover { border-color: #fca5a5; color: #dc2626; }
 .od-flag-mode-btn.active {
@@ -2853,6 +3000,26 @@ footer nav a:hover { color: var(--white); }
   background: rgba(220,38,38,0.06) !important;
   border-left: 3px solid #dc2626 !important;
 }
+/* Bot flags */
+.od-bot-flags {
+  background: #fef3c7; border: 1px solid #f59e0b; border-radius: 0.75rem;
+  padding: 1rem 1.25rem; margin-bottom: 1.25rem;
+}
+.od-bot-flags-header {
+  font-weight: 600; color: #92400e; margin-bottom: 0.5rem; font-size: 0.95rem;
+}
+.od-bot-flags-list {
+  list-style: none; padding: 0; margin: 0 0 0.75rem;
+}
+.od-bot-flags-list li {
+  padding: 0.4rem 0; color: #78350f; font-size: 0.88rem; border-bottom: 1px solid rgba(245,158,11,0.2);
+}
+.od-bot-flags-list li:last-child { border-bottom: none; }
+.od-bot-flags-dismiss {
+  background: #f59e0b; color: #fff; border: none; padding: 0.4rem 1rem;
+  border-radius: 0.5rem; font-size: 0.85rem; cursor: pointer; font-weight: 500;
+}
+.od-bot-flags-dismiss:hover { background: #d97706; }
 .od-flag-section {
   @apply rounded-2xl p-5 mb-4;
   border: 2px solid #fca5a5;
@@ -3208,10 +3375,11 @@ a.contact-detail-value:hover { color: var(--blue); }
   @apply text-center py-4;
 }
 .od-evisa-upload-btn {
-  @apply inline-block px-6 py-3 rounded-xl font-semibold text-[0.9rem] cursor-pointer;
+  @apply inline-block px-8 py-3.5 rounded-xl font-semibold text-[0.9rem] cursor-pointer;
   color: white;
   background: var(--blue);
   transition: background 0.2s;
+  min-width: 220px;
 }
 .od-evisa-upload-btn:hover { background: var(--navy); }
 .od-evisa-hint {
@@ -3855,8 +4023,277 @@ a.contact-detail-value:hover { color: var(--blue); }
   color: var(--slate);
 }
 .od-notes-chevron.open { transform: rotate(180deg); }
+
+/* Preview of Application ID + Notes when dropdown is collapsed */
+.od-notes-preview {
+  border-top: 1px solid var(--cloud);
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: #fafbff;
+  animation: od-fade-in 0.25s ease-out;
+}
+.od-notes-preview-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 1rem;
+  align-items: start;
+  font-size: 1rem;
+}
+.od-notes-preview-label {
+  color: var(--slate);
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding-top: 4px;
+}
+.od-notes-preview-value {
+  color: var(--ink);
+  font-size: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.od-notes-preview-mono {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  background: white;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--cloud);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--blue);
+  display: inline-block;
+  align-self: start;
+}
+
 .od-notes-body {
   @apply px-4 pb-4;
+  animation: od-notes-expand 0.3s ease-out;
+  transform-origin: top;
+}
+
+@keyframes od-notes-expand {
+  from { opacity: 0; transform: translateY(-8px) scaleY(0.98); }
+  to   { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+
+/* ── Admin page entrance animations ── */
+@keyframes od-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes od-fade-in-slow {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.od-topbar,
+.od-status-bar,
+.od-flag-section,
+.od-refund-banner,
+.od-bot-flags,
+.od-notes-dropdown,
+.modal-section,
+.od-traveler-sections > .modal-section {
+  animation: od-fade-in 0.4s ease-out both;
+}
+
+/* Stagger the sections */
+.od-status-bar      { animation-delay: 0.04s; }
+.od-notes-dropdown  { animation-delay: 0.08s; }
+.od-bot-flags       { animation-delay: 0.10s; }
+.modal-section      { animation-delay: 0.14s; }
+.od-traveler-sections > .modal-section { animation-delay: 0.16s; }
+
+/* ── Email Panel animations ── */
+@keyframes email-row-appear {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.od-notes-body label[for] {
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
+}
+
+/* Buttons — subtle hover lift */
+.od-edit-btn,
+.od-process-btn,
+.od-flag-mode-btn,
+.od-refresh-btn,
+.od-notify-btn,
+.od-save-btn,
+.od-cancel-btn,
+.od-refund-btn,
+.od-bot-flags-dismiss,
+.od-evisa-upload-btn,
+.od-evisa-download,
+.od-evisa-remove {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.od-edit-btn:hover,
+.od-process-btn:hover,
+.od-flag-mode-btn:hover,
+.od-refresh-btn:hover,
+.od-notify-btn:hover,
+.od-save-btn:hover,
+.od-cancel-btn:hover,
+.od-refund-btn:hover,
+.od-bot-flags-dismiss:hover,
+.od-evisa-upload-btn:hover,
+.od-evisa-download:hover,
+.od-evisa-remove:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.od-edit-btn:active,
+.od-process-btn:active,
+.od-flag-mode-btn:active,
+.od-save-btn:active,
+.od-notify-btn:active {
+  transform: translateY(0);
+}
+
+/* Status chips — subtle pulse when unresolved flags/bot flags exist */
+@keyframes status-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35); }
+  50%      { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
+.od-bot-flags-header::before {
+  display: inline-block;
+  content: '';
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #dc2626;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  animation: status-pulse 2s infinite;
+}
+
+/* Checkbox check animation */
+input[type="checkbox"] {
+  transition: transform 0.15s ease;
+}
+input[type="checkbox"]:checked {
+  transform: scale(1.05);
+}
+
+/* Chevron rotation smoother */
+.od-notes-chevron {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Traveler Section — split into color-coded cards
+   ───────────────────────────────────────────────────────────── */
+.ts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+.ts-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.85rem;
+  padding: 1.1rem 1.35rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+  animation: od-fade-in 0.4s ease-out both;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.ts-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+  border-color: #d1d5db;
+}
+.ts-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--font-sora), sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink);
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px dashed #e5e7eb;
+}
+.ts-card-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+/* Subtle left accent strip per section type */
+.ts-card-personal   { border-left: 3px solid #6366f1; }
+.ts-card-birth      { border-left: 3px solid #ec4899; }
+.ts-card-address    { border-left: 3px solid #10b981; }
+.ts-card-employment { border-left: 3px solid #f59e0b; }
+.ts-card-family     { border-left: 3px solid #06b6d4; }
+.ts-card-passport   { border-left: 3px solid #8b5cf6; }
+.ts-card-trip       { border-left: 3px solid #0284c7; }
+.ts-card-accom      { border-left: 3px solid #14b8a6; }
+.ts-card-reference  { border-left: 3px solid #84cc16; }
+.ts-card-security   { border-left: 3px solid #dc2626; }
+.ts-card-docs       { border-left: 3px solid #64748b; grid-column: 1 / -1; }
+.ts-card-progress   { border-left: 3px solid #7c3aed; grid-column: 1 / -1; }
+
+/* Row spacing inside cards */
+.ts-card .modal-rows { gap: 0.2rem; }
+.ts-card .modal-row {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 0.95rem;
+}
+.ts-card .modal-row:last-child { border-bottom: none; }
+.ts-card .modal-row-label {
+  color: var(--slate);
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+.ts-card .modal-row-value {
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+/* Edit-mode fields stack inside each card */
+.ts-edit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.ts-edit-fields .ap-field { margin-bottom: 0; }
+.ts-edit-fields .ap-field-label {
+  font-size: 0.82rem;
+  color: var(--slate);
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+.ts-edit-fields .od-edit-input {
+  font-size: 0.95rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.4rem;
+  width: 100%;
+  background: #f9fafb;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ts-edit-fields .od-edit-input:focus {
+  outline: none;
+  border-color: var(--blue);
+  background: white;
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.12);
+}
+
+/* Responsive: single column on narrow screens */
+@media (max-width: 900px) {
+  .ts-grid { grid-template-columns: 1fr; }
 }
 
 /* ── Subsection titles ── */
@@ -3916,18 +4353,21 @@ a.contact-detail-value:hover { color: var(--blue); }
 }
 .od-process-btn {
   font-family: var(--font-sora), sans-serif;
-  @apply text-[0.8rem] font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all;
+  @apply text-[0.8rem] font-semibold px-7 py-3 rounded-xl cursor-pointer transition-all;
   background: #059669;
   color: white;
   border: 1px solid #059669;
+  min-width: 200px;
 }
 .od-process-btn:hover { background: #047857; }
 .od-edit-btn {
   font-family: var(--font-sora), sans-serif;
-  @apply text-[0.8rem] font-semibold px-4 py-2 rounded-xl cursor-pointer transition-all no-underline;
+  @apply text-[0.8rem] font-semibold px-7 py-3 rounded-xl cursor-pointer transition-all no-underline;
   background: var(--mist);
   color: var(--blue);
   border: 1px solid var(--cloud);
+  min-width: 160px;
+  text-align: center;
 }
 .od-edit-btn:hover {
   background: var(--blue);

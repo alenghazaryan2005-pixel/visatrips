@@ -377,7 +377,7 @@ function Step2({ travelers, visaId, onBack, onNext }: any) {
 }
 
 /* ── Step 2b ── */
-function PassportCard({ index, travelerName, data, onChange, expanded, onToggle }: any) {
+function PassportCard({ index, travelerName, data, onChange, expanded, onToggle, expiryError }: any) {
   return (
     <div className="traveler-card">
       <div className="traveler-card-header" onClick={onToggle}>
@@ -422,19 +422,41 @@ function PassportCard({ index, travelerName, data, onChange, expanded, onToggle 
               <select className="ap-select" value={data.expMonth} disabled={data.skipForNow} onChange={e=>onChange('expMonth',e.target.value)}><option value="">Month</option>{MONTHS.map(m=><option key={m} value={m}>{m}</option>)}</select>
               <select className="ap-select" value={data.expDay}   disabled={data.skipForNow} onChange={e=>onChange('expDay',e.target.value)}><option value="">Day</option>{DAYS.map(d=><option key={d} value={d}>{d}</option>)}</select>
               <select className="ap-select" value={data.expYear}  disabled={data.skipForNow} onChange={e=>onChange('expYear',e.target.value)}><option value="">Year</option>{EXP_YEARS.map(y=><option key={y} value={y}>{y}</option>)}</select>
-            </div></div>
+            </div>
+            {expiryError && <p className="ap-field-error">{expiryError}</p>}</div>
         </div>
       )}
     </div>
   );
 }
 
-function Step2b({ travelers, travelerNames, visaId, onBack, onNext }: any) {
+function Step2b({ travelers, travelerNames, travelerData, visaId, onBack, onNext }: any) {
   const [data,     setData]     = useState<PassportInfo[]>(Array.from({length:travelers},emptyPassportInfo));
   const [expanded, setExpanded] = useState<number[]>([0]);
   const update = (i:number,f:keyof PassportInfo,v:string|boolean) => setData(prev=>prev.map((p,idx)=>idx===i?{...p,[f]:v}:p));
   const toggle = (i:number) => setExpanded(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i]);
-  const allDone = data.every(p=>p.skipForNow||(p.country&&p.number&&!validatePassportNumber(p.number)&&p.placeOfIssue&&p.countryOfIssue&&p.issMonth&&p.issDay&&p.issYear&&p.expMonth&&p.expDay&&p.expYear));
+
+  // Check passport expiry is at least 6 months from arrival (or today if no arrival date)
+  const checkPassportExpiry = (p: PassportInfo, travelerIdx: number): string | null => {
+    if (p.skipForNow || !p.expMonth || !p.expDay || !p.expYear) return null;
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const expDate = new Date(parseInt(p.expYear), months.indexOf(p.expMonth), parseInt(p.expDay));
+    // Use arrival date if available, otherwise use today
+    let refDate = new Date(); refDate.setHours(0,0,0,0);
+    const t = travelerData?.[travelerIdx];
+    if (t?.hasConfirmedTravel === 'yes' && t.arrivalMonth && t.arrivalDay && t.arrivalYear) {
+      refDate = new Date(parseInt(t.arrivalYear), months.indexOf(t.arrivalMonth), parseInt(t.arrivalDay));
+    }
+    const sixMonthsLater = new Date(refDate);
+    sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+    if (expDate < sixMonthsLater) {
+      return 'Passport must be valid for at least 6 months from your travel date. India will reject applications with insufficient passport validity.';
+    }
+    return null;
+  };
+
+  const hasExpiryError = data.some((p, i) => !!checkPassportExpiry(p, i));
+  const allDone = !hasExpiryError && data.every(p=>p.skipForNow||(p.country&&p.number&&!validatePassportNumber(p.number)&&p.placeOfIssue&&p.countryOfIssue&&p.issMonth&&p.issDay&&p.issYear&&p.expMonth&&p.expDay&&p.expYear));
   return (
     <div className="apply-layout">
       <div className="apply-form-col">
@@ -444,7 +466,7 @@ function Step2b({ travelers, travelerNames, visaId, onBack, onNext }: any) {
         </div>
         <div className="traveler-list">
           {data.map((p,i)=><PassportCard key={i} index={i} travelerName={travelerNames[i]??''} data={p}
-            onChange={(f:keyof PassportInfo,v:string|boolean)=>update(i,f,v)} expanded={expanded.includes(i)} onToggle={()=>toggle(i)}/>)}
+            onChange={(f:keyof PassportInfo,v:string|boolean)=>update(i,f,v)} expanded={expanded.includes(i)} onToggle={()=>toggle(i)} expiryError={checkPassportExpiry(p, i)}/>)}
         </div>
         <div className="apply-step2-actions">
           <button className="apply-back-btn" onClick={onBack}>← Previous</button>
@@ -689,7 +711,7 @@ function ApplyForm() {
           saveAbandoned({ destination: 'India', visaType: visaId, travelers: data, email: firstEmail, lastStep: 'step2' });
           setStep(2);
         }}/>}
-        {step===2 && <Step2b travelers={travelers} travelerNames={travelerNames} visaId={visaId} onBack={()=>setStep(1)} onNext={(pData:PassportInfo[])=>{
+        {step===2 && <Step2b travelers={travelers} travelerNames={travelerNames} travelerData={travelerData} visaId={visaId} onBack={()=>setStep(1)} onNext={(pData:PassportInfo[])=>{
           setPassportData(pData);
           saveAbandoned({ destination: 'India', visaType: visaId, passportData: pData, lastStep: 'step2b' });
           setStep(3);

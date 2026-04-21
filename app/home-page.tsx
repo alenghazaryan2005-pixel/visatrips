@@ -5,6 +5,7 @@ import Nav          from '@/components/Nav';
 import Footer       from '@/components/Footer';
 import LegalModal   from '@/components/LegalModal';
 import VisaSelector from '@/components/VisaSelector';
+import ChatWidget from '@/components/ChatWidget';
 
 /* ── Country data ─────────────────────────────────────────────────────────── */
 
@@ -247,6 +248,7 @@ export default function Home() {
       </main>
 
       <Footer />
+      <ChatWidget />
 
       {/* ── PRIVACY MODAL ── */}
       <LegalModal

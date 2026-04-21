@@ -5,8 +5,10 @@
 // Detects repeated characters like "aaaa", "111", "xxx"
 const isRepeatedChars = (s: string) => /^(.)\1{2,}$/.test(s.replace(/\s/g, ''));
 
-// Detects keyboard-mash patterns (3+ consonants in a row with no vowels)
-const isKeyboardMash = (s: string) => /[^aeiou\syAEIOU]{4,}/i.test(s.replace(/[^a-zA-Z]/g, ''));
+// Detects keyboard-mash patterns (5+ consonants in a row within a single word).
+// Preserve word boundaries (don't strip spaces/punctuation) so multi-word
+// place names like "North Miami" or "St. Charles" don't falsely join consonants.
+const isKeyboardMash = (s: string) => /[bcdfghjklmnpqrstvwxz]{5,}/i.test(s);
 
 // Detects random character sequences — low vowel ratio
 const hasLowVowelRatio = (s: string): boolean => {

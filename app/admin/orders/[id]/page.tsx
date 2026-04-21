@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
-interface Traveler { firstName: string; lastName: string; email: string; dob?: string; address?: string; city?: string; state?: string; zip?: string; isEmployed?: string; hasCriminalRecord?: string; hasConfirmedTravel?: string; arrivalDate?: string; passportCountry?: string; passportNumber?: string; passportPlaceOfIssue?: string; passportCountryOfIssue?: string; passportIssued?: string; passportExpiry?: string; arrivalPoint?: string; visitedCountries?: string[]; parentsFromPakistan?: string; gender?: string; countryOfBirth?: string; cityOfBirth?: string; holdAnotherNationality?: string; otherNationality?: string; maritalStatus?: string; citizenshipId?: string; religion?: string; visibleMarks?: string; educationalQualification?: string; nationalityByBirth?: string; livedTwoYears?: string; phoneNumber?: string; residenceCountry?: string; employmentStatus?: string; employerName?: string; employerAddress?: string; employerCity?: string; employerState?: string; employerCountry?: string; employerZip?: string; studentProvider?: string; servedMilitary?: string; knowParents?: string; fatherName?: string; fatherNationality?: string; fatherPlaceOfBirth?: string; fatherCountryOfBirth?: string; motherName?: string; motherNationality?: string; motherPlaceOfBirth?: string; motherCountryOfBirth?: string; spouseName?: string; spouseNationality?: string; spousePlaceOfBirth?: string; spouseCountryOfBirth?: string; photoUrl?: string; passportBioUrl?: string; passportPlaceOfIssue2?: string; passportCountryOfIssue2?: string; hasOtherPassport?: string; otherPassportNumber?: string; otherPassportDateOfIssue?: string; otherPassportPlaceOfIssue?: string; placesToVisit?: string; bookedHotel?: string; hotelName?: string; hotelPlace?: string; tourOperatorName?: string; tourOperatorAddress?: string; exitPort?: string; visitedIndiaBefore?: string; visaRefusedBefore?: string; refNameIndia?: string; refAddressIndia?: string; refStateIndia?: string; refDistrictIndia?: string; refPhoneIndia?: string; refAddressHome?: string; refStateHome?: string; refDistrictHome?: string; refPhoneHome?: string; everArrested?: string; everRefusedEntry?: string; soughtAsylum?: string; finishStep?: string; }
+interface Traveler { firstName: string; lastName: string; email: string; dob?: string; address?: string; city?: string; state?: string; zip?: string; isEmployed?: string; hasCriminalRecord?: string; hasConfirmedTravel?: string; arrivalDate?: string; passportCountry?: string; passportNumber?: string; passportPlaceOfIssue?: string; passportCountryOfIssue?: string; passportIssued?: string; passportExpiry?: string; arrivalPoint?: string; visitedCountries?: string[]; parentsFromPakistan?: string; gender?: string; countryOfBirth?: string; cityOfBirth?: string; holdAnotherNationality?: string; otherNationality?: string; maritalStatus?: string; citizenshipId?: string; religion?: string; visibleMarks?: string; educationalQualification?: string; nationalityByBirth?: string; livedTwoYears?: string; phoneNumber?: string; residenceCountry?: string; employmentStatus?: string; employerName?: string; employerAddress?: string; employerCity?: string; employerState?: string; employerCountry?: string; employerZip?: string; studentProvider?: string; servedMilitary?: string; knowParents?: string; fatherName?: string; fatherNationality?: string; fatherPlaceOfBirth?: string; fatherCountryOfBirth?: string; motherName?: string; motherNationality?: string; motherPlaceOfBirth?: string; motherCountryOfBirth?: string; spouseName?: string; spouseNationality?: string; spousePlaceOfBirth?: string; spouseCountryOfBirth?: string; photoUrl?: string; passportBioUrl?: string; passportPlaceOfIssue2?: string; passportCountryOfIssue2?: string; hasOtherPassport?: string; otherPassportNumber?: string; otherPassportDateOfIssue?: string; otherPassportPlaceOfIssue?: string; placesToVisit?: string; bookedHotel?: string; hotelName?: string; hotelPlace?: string; tourOperatorName?: string; tourOperatorAddress?: string; exitPort?: string; visitedIndiaBefore?: string; visaRefusedBefore?: string; refNameIndia?: string; refAddressIndia?: string; refStateIndia?: string; refDistrictIndia?: string; refPhoneIndia?: string; refNameHome?: string; refAddressHome?: string; refStateHome?: string; refDistrictHome?: string; refPhoneHome?: string; everArrested?: string; everRefusedEntry?: string; soughtAsylum?: string; finishStep?: string; }
 
 interface Order {
   id:           string;
@@ -29,9 +29,11 @@ interface Order {
   refundAmount:    number | null;
   refundReason:    string | null;
   refundedAt:      string | null;
+  botFlags:        string | null;
+  emailHistory:    string | null;
 }
 
-import { formatOrderNum, VISA_LABELS, STATUS_COLORS, VISA_COLORS, COUNTRY_FLAGS } from '@/lib/constants';
+import { formatOrderNum, VISA_LABELS, STATUS_COLORS, STATUS_LABELS, VISA_COLORS, COUNTRY_FLAGS } from '@/lib/constants';
 
 /* ── Sidebar ───────────────────────────────────────────────────────────────── */
 
@@ -58,7 +60,7 @@ function AdminSidebar({ onLogout }: { onLogout: () => void }) {
 
 /* ── Notes Dropdown ────────────────────────────────────────────────────────── */
 
-function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, saving, saved, saveNotes, orderNotes, applicationId, setApplicationId, orderApplicationId, orderId, order, setOrder }: any) {
+function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, saving, saved, saveNotes, orderNotes, applicationId, setApplicationId, orderApplicationId, orderId, order, setOrder, liveFlaggedFields, saveFlags, flagSaving, toggleFlag, setFlaggedFields, specialistNotes, setSpecialistNotes }: any) {
   const [open, setOpen] = useState(false);
   const [appIdSaving, setAppIdSaving] = useState(false);
   const [appIdSaved, setAppIdSaved] = useState(false);
@@ -67,6 +69,7 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
   const evisaInputRef = useRef<HTMLInputElement>(null);
   const hasNotes = editing ? !!editData?.notes : !!notes;
   const hasAppId = editing ? !!editData?.applicationId : !!applicationId;
+  const hasFlags = !editing && Array.isArray(liveFlaggedFields) && liveFlaggedFields.length > 0;
 
   const handleEvisaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,17 +86,12 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
         const patchRes = await fetch(`/api/orders/${order.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ evisaUrl: uploadData.url, status: 'APPROVED' }),
+          body: JSON.stringify({ evisaUrl: uploadData.url, status: 'COMPLETED' }),
         });
         if (patchRes.ok) {
           const updated = await patchRes.json();
           setOrder(updated);
-          // Send eVisa ready email
-          await fetch('/api/orders/notify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orderId: order.id, type: 'evisa' }),
-          });
+          // NOTE: eVisa email is NOT auto-sent. Admin must send manually from the Email panel.
         }
       }
     } catch (err) { console.error('eVisa upload error:', err); }
@@ -125,12 +123,35 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
     } catch {} finally { setAppIdSaving(false); }
   };
 
+  const currentAppId = editing ? (editData?.applicationId ?? '') : applicationId;
+  const currentNotes = editing ? (editData?.notes ?? '') : notes;
+  const notesPreview = currentNotes ? (currentNotes.length > 140 ? currentNotes.slice(0, 140) + '…' : currentNotes) : '';
+
   return (
     <div className="od-notes-dropdown">
       <button className="od-notes-toggle" onClick={() => setOpen(!open)}>
-        <span className="od-notes-toggle-label">📝 Internal Notes {(hasNotes || hasAppId) && <span className="od-notes-indicator" />}</span>
+        <span className="od-notes-toggle-label">📝 Internal Notes {(hasNotes || hasAppId || hasFlags) && <span className="od-notes-indicator" style={hasFlags ? { background: '#dc2626' } : undefined} />}</span>
         <span className={`od-notes-chevron${open ? ' open' : ''}`}>▾</span>
       </button>
+
+      {/* Compact preview when collapsed — shows Application ID + notes snippet */}
+      {!open && (currentAppId || currentNotes) && (
+        <div className="od-notes-preview">
+          {currentAppId && (
+            <div className="od-notes-preview-row">
+              <span className="od-notes-preview-label">Application ID</span>
+              <span className="od-notes-preview-value od-notes-preview-mono">{currentAppId}</span>
+            </div>
+          )}
+          {currentNotes && (
+            <div className="od-notes-preview-row">
+              <span className="od-notes-preview-label">Notes</span>
+              <span className="od-notes-preview-value">{notesPreview}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {open && (
         <div className="od-notes-body">
           {/* Application ID */}
@@ -201,13 +222,28 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
                 </div>
               </div>
             ) : (
-              <div style={{ marginTop: '0.5rem' }}>
+              <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
                 <button className="od-evisa-upload-btn" onClick={() => evisaInputRef.current?.click()} disabled={evisaUploading}>
                   {evisaUploading ? 'Uploading...' : '📤 Upload E-Visa'}
                 </button>
-                <p className="od-evisa-hint">Upload the approved eVisa (PDF or image). Status will be set to Approved.</p>
+                <p className="od-evisa-hint">Upload the approved eVisa (PDF or image). Status will be set to Completed.</p>
               </div>
             )}
+          </div>
+
+          {/* Email Customer Panel */}
+          <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--cloud)', paddingTop: '1rem' }}>
+            <EmailPanel
+              order={order}
+              setOrder={setOrder}
+              liveFlaggedFields={liveFlaggedFields}
+              saveFlags={saveFlags}
+              flagSaving={flagSaving}
+              toggleFlag={toggleFlag}
+              setFlaggedFields={setFlaggedFields}
+              specialistNotes={specialistNotes}
+              setSpecialistNotes={setSpecialistNotes}
+            />
           </div>
         </div>
       )}
@@ -254,7 +290,7 @@ function EvisaUpload({ orderId, order, setOrder }: { orderId: string; order: Ord
         const patchRes = await fetch(`/api/orders/${order.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ evisaUrl: uploadData.url, status: 'APPROVED' }),
+          body: JSON.stringify({ evisaUrl: uploadData.url, status: 'COMPLETED' }),
         });
         if (patchRes.ok) {
           const updated = await patchRes.json();
@@ -317,6 +353,209 @@ function EvisaUpload({ orderId, order, setOrder }: { orderId: string; order: Ord
             {uploading ? 'Uploading...' : '📤 Upload E-Visa'}
           </button>
           <p className="od-evisa-hint">Upload the approved eVisa (PDF or image). This will be visible to the customer and the order status will be set to Approved.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Email Panel ───────────────────────────────────────────────────────────── */
+
+function EmailPanel({ order, setOrder, liveFlaggedFields, saveFlags, flagSaving, toggleFlag, setFlaggedFields, specialistNotes, setSpecialistNotes }: {
+  order: Order;
+  setOrder: (o: Order) => void;
+  liveFlaggedFields?: string[];
+  saveFlags?: () => Promise<void> | void;
+  flagSaving?: boolean;
+  toggleFlag?: (f: string) => void;
+  setFlaggedFields?: (f: string[]) => void;
+  specialistNotes?: string;
+  setSpecialistNotes?: (v: string) => void;
+}) {
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [sending, setSending] = useState(false);
+  const [lastResult, setLastResult] = useState<any>(null);
+
+  // Parse the email history
+  let history: Record<string, string> = {};
+  try { if (order.emailHistory) history = JSON.parse(order.emailHistory); } catch {}
+
+  // Determine if we have flagged fields — either currently selected in UI or saved in DB
+  const currentFlags = liveFlaggedFields ?? (() => {
+    try { return JSON.parse(order.flaggedFields || '[]'); } catch { return []; }
+  })();
+  const hasFlags = Array.isArray(currentFlags) && currentFlags.length > 0;
+  // Check if there are unsaved flag changes (user still in flag mode, hasn't saved)
+  const savedFlags = order.flaggedFields || '[]';
+  const liveJson = JSON.stringify(currentFlags);
+  const hasUnsavedFlagChanges = liveJson !== savedFlags;
+
+  const EMAILS: { type: string; label: string; description: string; color?: string; disabled?: boolean; disabledReason?: string; warning?: string }[] = [
+    { type: 'confirmation', label: 'Order Confirmation / Receipt', description: 'Thank-you with order summary (normally auto-sent at checkout).' },
+    { type: 'reminder',     label: 'Finish Application Reminder',  description: 'Nudge the customer to complete their application.' },
+    { type: 'correction',   label: 'Correction Needed',
+      description: `Sends current specialist notes + ${currentFlags.length} flagged field${currentFlags.length === 1 ? '' : 's'}.`,
+      disabled: !hasFlags,
+      disabledReason: 'No fields are flagged yet — flag at least one field first.',
+      warning: hasUnsavedFlagChanges ? 'You have unsaved flag changes. Sending will save them first.' : undefined,
+    },
+    { type: 'submitted',    label: 'Application Submitted',        description: 'Confirms we submitted to gov site (needs Application ID).', disabled: !order.applicationId, disabledReason: 'No Application ID on this order yet.' },
+    { type: 'status',       label: 'Status Update',                description: `Current status: ${order.status.replace('_', ' ')}.` },
+    { type: 'evisa',        label: 'eVisa Ready',                  description: 'Notifies the customer their visa is ready to download.', disabled: !order.evisaUrl, disabledReason: 'No eVisa has been uploaded yet.' },
+    { type: 'autoClosed',   label: 'Order Auto-Closed',            description: 'Closes out the order after repeated non-response.' },
+  ];
+
+  const toggleAll = (v: boolean) => {
+    const next: Record<string, boolean> = {};
+    for (const e of EMAILS) { if (!e.disabled) next[e.type] = v; }
+    setSelected(next);
+  };
+
+  const send = async () => {
+    const types = Object.keys(selected).filter(k => selected[k]);
+    if (types.length === 0) return;
+    setSending(true);
+    setLastResult(null);
+    try {
+      // If sending a correction email AND there are unsaved flag changes, save first
+      if (types.includes('correction') && hasUnsavedFlagChanges && saveFlags) {
+        await saveFlags();
+      }
+      const res = await fetch('/api/orders/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.id, types }),
+      });
+      const data = await res.json();
+      setLastResult(data);
+      if (data.history) setOrder({ ...order, emailHistory: JSON.stringify(data.history) });
+      setSelected({});
+    } catch (err: any) {
+      setLastResult({ error: err?.message || 'Failed to send' });
+    } finally { setSending(false); }
+  };
+
+  const fmtDate = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const selectedCount = Object.values(selected).filter(Boolean).length;
+
+  return (
+    <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '0.85rem', padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: '1rem' }}>📧 Email Customer</div>
+          <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>Select which emails to send — nothing is sent automatically (except the confirmation at checkout).</div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button onClick={() => toggleAll(true)}  className="od-edit-btn" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}>Select All</button>
+          <button onClick={() => toggleAll(false)} className="od-edit-btn" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}>Clear</button>
+        </div>
+      </div>
+
+      {/* Flagged fields + Specialist's Note — shown when any fields are flagged */}
+      {liveFlaggedFields && liveFlaggedFields.length > 0 && (
+        <div className="od-flag-section" style={{ marginBottom: '1rem' }}>
+          <div className="od-flag-header">
+            <span>🚩 {liveFlaggedFields.length} field{liveFlaggedFields.length !== 1 ? 's' : ''} flagged</span>
+            {setFlaggedFields && <button className="od-flag-clear" onClick={() => setFlaggedFields([])}>Clear all flags</button>}
+          </div>
+          <div className="od-flag-tags">
+            {liveFlaggedFields.map((f: string) => (
+              <span key={f} className="od-flag-tag" onClick={() => toggleFlag && toggleFlag(f)}>{f} ✕</span>
+            ))}
+          </div>
+          {setSpecialistNotes && (
+            <div className="ap-field" style={{ marginTop: '0.75rem' }}>
+              <label className="ap-field-label">Specialist&apos;s Note (visible to customer)</label>
+              <textarea
+                className="ap-input contact-textarea"
+                rows={3}
+                placeholder="Explain what needs to be corrected..."
+                value={specialistNotes ?? ''}
+                onChange={ev => setSpecialistNotes(ev.target.value)}
+              />
+              <p style={{ fontSize: '0.78rem', color: 'var(--slate)', marginTop: '0.4rem' }}>
+                💡 Sent to the customer when you check <strong>&quot;Correction Needed&quot;</strong> below.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+        {EMAILS.map(e => {
+          const sentAt = history[e.type];
+          return (
+            <label key={e.type} style={{
+              display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+              padding: '0.65rem 0.8rem', borderRadius: '0.55rem',
+              background: selected[e.type] ? '#eff6ff' : '#f9fafb',
+              border: '1px solid ' + (selected[e.type] ? '#bfdbfe' : '#e5e7eb'),
+              cursor: e.disabled ? 'not-allowed' : 'pointer',
+              opacity: e.disabled ? 0.55 : 1,
+            }}>
+              <input
+                type="checkbox"
+                checked={!!selected[e.type]}
+                disabled={e.disabled || sending}
+                onChange={ev => setSelected(s => ({ ...s, [e.type]: ev.target.checked }))}
+                style={{ marginTop: '0.2rem', width: '16px', height: '16px' }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>{e.label}</span>
+                  {sentAt && (
+                    <span style={{ fontSize: '0.72rem', color: '#059669', background: '#d1fae5', padding: '0.12rem 0.5rem', borderRadius: '0.3rem' }}>
+                      Last sent: {fmtDate(sentAt)}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                  {e.disabled ? <span style={{ color: '#dc2626' }}>⚠️ {e.disabledReason}</span> : e.description}
+                </div>
+                {!e.disabled && e.warning && (
+                  <div style={{ fontSize: '0.78rem', color: '#d97706', marginTop: '0.25rem' }}>ℹ️ {e.warning}</div>
+                )}
+              </div>
+            </label>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.85rem' }}>
+        <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>
+          Sending to: <span style={{ fontWeight: 600, color: '#1f2937' }}>{order.billingEmail}</span>
+        </div>
+        <button
+          onClick={send}
+          disabled={selectedCount === 0 || sending}
+          style={{
+            background: selectedCount === 0 ? '#e5e7eb' : '#3b82f6', color: selectedCount === 0 ? '#9ca3af' : 'white',
+            border: 'none', padding: '0.55rem 1.1rem', borderRadius: '0.5rem', fontWeight: 600, fontSize: '0.9rem',
+            cursor: selectedCount === 0 ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {sending ? 'Sending…' : `✉️ Send ${selectedCount > 0 ? `(${selectedCount})` : ''}`}
+        </button>
+      </div>
+
+      {lastResult && (
+        <div style={{ marginTop: '0.75rem', padding: '0.65rem 0.8rem', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '0.5rem', fontSize: '0.82rem' }}>
+          {lastResult.error ? (
+            <span style={{ color: '#dc2626' }}>❌ {lastResult.error}</span>
+          ) : (
+            <div>
+              {lastResult.results?.map((r: any) => (
+                <div key={r.type} style={{ color: r.sent ? '#059669' : '#dc2626' }}>
+                  {r.sent ? '✅' : '❌'} {r.type}{r.error ? ` — ${r.error}` : ''}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -535,12 +774,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       if (res.ok) {
         const updated = await res.json();
         setOrder(updated);
-        // Send correction email
-        await fetch('/api/orders/notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId: order.id, type: 'correction' }),
-        });
+        // NOTE: Correction email is NOT auto-sent. Admin must send manually from the Email panel.
       }
     } catch {} finally { setNotifying(false); }
   };
@@ -625,7 +859,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div className="od-status-bar">
         <div className="od-status-left">
           <span className="od-status-label">Status</span>
-          <span className={`admin-status ${STATUS_COLORS[editing ? editData.status : order.status] ?? ''}`}>{(editing ? editData.status : order.status).replace('_', ' ')}</span>
+          <span className={`admin-status ${STATUS_COLORS[editing ? editData.status : order.status] ?? ''}`}>{STATUS_LABELS[editing ? editData.status : order.status] || (editing ? editData.status : order.status).replace('_', ' ')}</span>
         </div>
         <div className="od-status-right">
           <label className="od-status-label">Update status</label>
@@ -634,13 +868,14 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             value={editing ? editData.status : order.status}
             onChange={e => editing ? updateEditField('status', e.target.value) : handleStatusChange(e.target.value)}
           >
-            <option value="PENDING">Pending</option>
-            <option value="UNDER_REVIEW">Under Review</option>
-            <option value="APPROVED">Approved</option>
+            <option value="UNFINISHED">Unfinished</option>
+            <option value="PROCESSING">Processing</option>
+            <option value="NEEDS_CORRECTION">Needs Correction</option>
+            <option value="SUBMITTED">Submitted</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="ON_HOLD">On Hold</option>
             <option value="REJECTED">Rejected</option>
             <option value="REFUNDED">Refunded</option>
-            <option value="ON_HOLD">On Hold</option>
-            <option value="NEEDS_CORRECTION">Needs Correction</option>
           </select>
           {order.status !== 'REFUNDED' && !editing && (
             <button className="od-refund-btn" onClick={() => setShowRefundModal(true)}>
@@ -650,33 +885,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {/* Flag & Notify section */}
-      {flaggedFields.length > 0 && (
-        <div className="od-flag-section">
-          <div className="od-flag-header">
-            <span>🚩 {flaggedFields.length} field{flaggedFields.length !== 1 ? 's' : ''} flagged</span>
-            <button className="od-flag-clear" onClick={() => setFlaggedFields([])}>Clear all flags</button>
-          </div>
-          <div className="od-flag-tags">
-            {flaggedFields.map(f => (
-              <span key={f} className="od-flag-tag" onClick={() => toggleFlag(f)}>{f} ✕</span>
-            ))}
-          </div>
-          <div className="ap-field" style={{ marginTop: '0.75rem' }}>
-            <label className="ap-field-label">Specialist&apos;s Note (visible to customer)</label>
-            <textarea
-              className="ap-input contact-textarea"
-              rows={3}
-              placeholder="Explain what needs to be corrected..."
-              value={specialistNotes}
-              onChange={e => setSpecialistNotes(e.target.value)}
-            />
-          </div>
-          <button className="od-notify-btn" onClick={notifyCustomer} disabled={notifying}>
-            {notifying ? 'Notifying...' : '📨 Notify Customer'}
-          </button>
-        </div>
-      )}
 
       {/* Refund info banner */}
       {order.status === 'REFUNDED' && (
@@ -735,7 +943,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {/* ── INTERNAL NOTES DROPDOWN ── */}
+      {/* ── INTERNAL NOTES DROPDOWN (contains Email Customer panel) ── */}
       <NotesDropdown
         notes={notes}
         setNotes={setNotes}
@@ -752,10 +960,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         orderId={id}
         order={order}
         setOrder={setOrder}
+        liveFlaggedFields={flaggedFields}
+        saveFlags={saveFlags}
+        flagSaving={flagSaving}
+        toggleFlag={toggleFlag}
+        setFlaggedFields={setFlaggedFields}
+        specialistNotes={specialistNotes}
+        setSpecialistNotes={setSpecialistNotes}
       />
 
       {/* ── ACTION BUTTONS ── */}
-      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+      <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
         {!editing ? (
           <>
             <button className="od-edit-btn" onClick={startEditing}>✏️ Full Edit</button>
@@ -793,6 +1008,32 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         )}
       </div>
 
+      {/* ── BOT FLAGS ── */}
+      {order.botFlags && (() => {
+        try {
+          const flags: string[] = JSON.parse(order.botFlags);
+          if (flags.length === 0) return null;
+          return (
+            <div className="od-bot-flags">
+              <div className="od-bot-flags-header">🤖 Bot Processing Flags ({flags.length})</div>
+              <ul className="od-bot-flags-list">
+                {flags.map((f, i) => <li key={i}>{f}</li>)}
+              </ul>
+              <button className="od-bot-flags-dismiss" onClick={async () => {
+                try {
+                  await fetch(`/api/orders/${order.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ botFlags: null }),
+                  });
+                  setOrder({ ...order, botFlags: null });
+                } catch {}
+              }}>✓ Dismiss Flags</button>
+            </div>
+          );
+        } catch { return null; }
+      })()}
+
       {/* ── TRAVELER DETAILS: Full-width ── */}
       <div className="od-traveler-sections">
 
@@ -807,142 +1048,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </div>
 
               {!editing ? (
-                <>
-                  {/* Personal */}
-                  <div className="modal-subsection-title">Personal Details</div>
-                  <div className="modal-rows">
-                    <FlagRow field="firstName" label="Full name" value={`${t.firstName} ${t.lastName}`} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="dob" label="Date of birth" value={t.dob} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="email" label="Email" value={t.email} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="gender" label="Gender" value={t.gender} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="countryOfBirth" label="Country of birth" value={t.countryOfBirth} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="cityOfBirth" label="City of birth" value={t.cityOfBirth} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="maritalStatus" label="Marital status" value={t.maritalStatus} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="citizenshipId" label="Citizenship/National ID" value={t.citizenshipId} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
-                    <FlagRow field="religion" label="Religion" value={t.religion} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="visibleMarks" label="Visible marks" value={t.visibleMarks} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="educationalQualification" label="Education" value={t.educationalQualification} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="nationalityByBirth" label="Nationality acquired" value={t.nationalityByBirth ? (t.nationalityByBirth === 'birth' ? 'By birth' : 'By naturalization') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="livedTwoYears" label="Lived 2+ yrs" value={t.livedTwoYears ? (t.livedTwoYears === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="phoneNumber" label="Phone" value={t.phoneNumber} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="holdAnotherNationality" label="Other nationality" value={t.holdAnotherNationality ? (t.holdAnotherNationality === 'yes' ? `Yes — ${t.otherNationality}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    <FlagRow field="parentsFromPakistan" label="Parents from Pakistan" value={t.parentsFromPakistan ? (t.parentsFromPakistan === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                  </div>
-
-                  {/* Trip Details */}
-                  {(t.arrivalDate || t.arrivalPoint || (t.visitedCountries && t.visitedCountries.length > 0)) && <>
-                    <div className="modal-subsection-title">Trip Details</div>
-                    <div className="modal-rows">
-                      <FlagRow field="arrivalDate" label="Arrival date" value={t.arrivalDate} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="arrivalPoint" label="Arrival point" value={t.arrivalPoint} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="visitedCountries" label="Countries visited (10 yrs)" value={t.visitedCountries?.length ? t.visitedCountries.join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    </div>
-                  </>}
-
-                  {/* Address */}
-                  {(t.address || t.city || t.state || t.zip || t.residenceCountry) && <>
-                    <div className="modal-subsection-title">Address</div>
-                    <div className="modal-rows">
-                      <FlagRow field="residenceCountry" label="Country of residence" value={t.residenceCountry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="address" label="Home address" value={t.address} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="city" label="City / State / ZIP" value={(t.city || t.state || t.zip) ? [t.city, t.state, t.zip].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    </div>
-                  </>}
-
-                  {/* Employment */}
-                  {(t.employmentStatus || t.isEmployed || t.servedMilitary) && <>
-                    <div className="modal-subsection-title">Employment</div>
-                    <div className="modal-rows">
-                      <FlagRow field="employmentStatus" label="Status" value={t.employmentStatus} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="employerName" label="Employer" value={t.employerName} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="employerAddress" label="Employer address" value={t.employerAddress ? [t.employerAddress, t.employerCity, t.employerState, t.employerCountry, t.employerZip].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="servedMilitary" label="Military/police" value={t.servedMilitary ? (t.servedMilitary === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    </div>
-                  </>}
-
-                  {/* Additional Info (legacy) */}
-                  {(t.hasCriminalRecord || t.hasConfirmedTravel) && <>
-                    <div className="modal-subsection-title">Additional Information</div>
-                    <div className="modal-rows">
-                      {t.hasCriminalRecord && <div className="modal-row"><span className="modal-row-label">Criminal record</span><span className={`modal-row-value${t.hasCriminalRecord === 'yes' ? ' text-red-600 font-semibold' : ''}`}>{t.hasCriminalRecord === 'yes' ? 'Yes' : 'No'}</span></div>}
-                      {t.hasConfirmedTravel && <div className="modal-row"><span className="modal-row-label">Confirmed travel</span><span className="modal-row-value">{t.hasConfirmedTravel === 'yes' ? 'Yes' : 'No'}</span></div>}
-                    </div>
-                  </>}
-
-                  {/* Family */}
-                  {(t.fatherName || t.motherName || t.spouseName || t.knowParents) && <>
-                    <div className="modal-subsection-title">Family Details</div>
-                    <div className="modal-rows">
-                      <FlagRow field="fatherName" label="Father" value={t.fatherName ? `${t.fatherName}${t.fatherNationality ? ` (${t.fatherNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="fatherPlaceOfBirth" label="Father's birthplace" value={(t.fatherPlaceOfBirth || t.fatherCountryOfBirth) ? [t.fatherPlaceOfBirth, t.fatherCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="motherName" label="Mother" value={t.motherName ? `${t.motherName}${t.motherNationality ? ` (${t.motherNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="motherPlaceOfBirth" label="Mother's birthplace" value={(t.motherPlaceOfBirth || t.motherCountryOfBirth) ? [t.motherPlaceOfBirth, t.motherCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="spouseName" label="Spouse" value={t.spouseName ? `${t.spouseName}${t.spouseNationality ? ` (${t.spouseNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="spousePlaceOfBirth" label="Spouse's birthplace" value={(t.spousePlaceOfBirth || t.spouseCountryOfBirth) ? [t.spousePlaceOfBirth, t.spouseCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    </div>
-                  </>}
-
-                  {/* Passport */}
-                  {(t.passportCountry || t.passportNumber) && <>
-                    <div className="modal-subsection-title">Passport Details</div>
-                    <div className="modal-rows">
-                      <FlagRow field="passportCountry" label="Country" value={t.passportCountry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="passportNumber" label="Number" value={t.passportNumber} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
-                      <FlagRow field="passportPlaceOfIssue" label="Place of issue" value={t.passportPlaceOfIssue} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="passportCountryOfIssue" label="Country of issue" value={t.passportCountryOfIssue} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="passportIssued" label="Issued" value={t.passportIssued} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="passportExpiry" label="Expiry" value={t.passportExpiry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="hasOtherPassport" label="Other passport/IC" value={t.hasOtherPassport ? (t.hasOtherPassport === 'yes' ? `Yes — ${t.otherPassportNumber || ''}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    </div>
-                  </>}
-
-                  {/* Travel & Accommodation */}
-                  {(t.placesToVisit || t.bookedHotel || t.exitPort || t.visitedIndiaBefore) && <>
-                    <div className="modal-subsection-title">Travel &amp; Accommodation</div>
-                    <div className="modal-rows">
-                      <FlagRow field="placesToVisit" label="Places to visit" value={t.placesToVisit} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="bookedHotel" label="Hotel booked" value={t.bookedHotel ? (t.bookedHotel === 'yes' ? `Yes — ${t.hotelName || ''}, ${t.hotelPlace || ''}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="tourOperatorName" label="Tour operator" value={t.tourOperatorName} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="exitPort" label="Exit airport" value={t.exitPort} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="visitedIndiaBefore" label="Visited India before" value={t.visitedIndiaBefore ? (t.visitedIndiaBefore === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      {t.visitedIndiaBefore === 'yes' && <>
-                        <FlagRow field="prevIndiaAddress" label="Previous address in India" value={(t as any).prevIndiaAddress} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                        <FlagRow field="prevIndiaCities" label="Cities visited" value={(t as any).prevIndiaCities} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                        <FlagRow field="prevIndiaVisaNo" label="Last visa number" value={(t as any).prevIndiaVisaNo} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
-                        <FlagRow field="prevIndiaVisaType" label="Last visa type" value={(t as any).prevIndiaVisaType} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                        <FlagRow field="prevIndiaVisaPlace" label="Last visa place of issue" value={(t as any).prevIndiaVisaPlace} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                        <FlagRow field="prevIndiaVisaDate" label="Last visa date of issue" value={(t as any).prevIndiaVisaDate} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      </>}
-                      <FlagRow field="visaRefusedBefore" label="Visa refused before" value={t.visaRefusedBefore ? (t.visaRefusedBefore === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.visaRefusedBefore === 'yes' ? 'text-red-600 font-semibold' : ''} />
-                    </div>
-                  </>}
-
-                  {/* References */}
-                  {(t.refNameIndia || t.refAddressHome) && <>
-                    <div className="modal-subsection-title">References</div>
-                    <div className="modal-rows">
-                      <FlagRow field="refNameIndia" label="India reference" value={t.refNameIndia} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="refAddressIndia" label="India address" value={t.refAddressIndia ? [t.refAddressIndia, t.refStateIndia, t.refDistrictIndia].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="refPhoneIndia" label="India phone" value={t.refPhoneIndia} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="refAddressHome" label="Home country address" value={t.refAddressHome ? [t.refAddressHome, t.refStateHome, t.refDistrictHome].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                      <FlagRow field="refPhoneHome" label="Home country phone" value={t.refPhoneHome} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
-                    </div>
-                  </>}
-
-                  {/* Security Questions */}
-                  {(t.everArrested || t.everRefusedEntry || t.soughtAsylum) && <>
-                    <div className="modal-subsection-title">Security</div>
-                    <div className="modal-rows">
-                      <FlagRow field="everArrested" label="Arrested/convicted" value={t.everArrested ? (t.everArrested === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.everArrested === 'yes' ? 'text-red-600 font-semibold' : ''} />
-                      <FlagRow field="everRefusedEntry" label="Refused entry/deported" value={t.everRefusedEntry ? (t.everRefusedEntry === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.everRefusedEntry === 'yes' ? 'text-red-600 font-semibold' : ''} />
-                      <FlagRow field="soughtAsylum" label="Sought asylum" value={t.soughtAsylum ? (t.soughtAsylum === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.soughtAsylum === 'yes' ? 'text-red-600 font-semibold' : ''} />
-                    </div>
-                  </>}
-
-                  {/* Uploaded Documents */}
-                  {(t.photoUrl || t.passportBioUrl) && <>
-                    <div className="modal-subsection-title">Uploaded Documents</div>
-                    <div style={{display:'flex',gap:'1.5rem',flexWrap:'wrap',marginTop:'0.5rem'}}>
+                <div className="ts-grid">
+                  {/* Uploaded Documents — shown at the top for quick visual verification */}
+                  {(t.photoUrl || t.passportBioUrl) && (
+                    <div className="ts-card ts-card-docs">
+                      <div className="ts-card-header"><span className="ts-card-icon">📎</span><span>Uploaded Documents</span></div>
+                      <div style={{display:'flex',gap:'1.5rem',flexWrap:'wrap',marginTop:'0.5rem'}}>
                       {t.photoUrl && (
                         <div style={{textAlign:'center', border: flaggedFields.includes('photoUrl') ? '2px solid #dc2626' : 'none', borderRadius:'1rem', padding:'0.5rem'}}>
                           <a href={t.photoUrl} target="_blank" rel="noopener noreferrer">
@@ -983,208 +1094,489 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                           </div>
                         </div>
                       )}
+                      </div>
                     </div>
-                  </>}
+                  )}
 
-                  {/* Application Progress */}
-                  {t.finishStep && <div style={{marginTop:'0.5rem',fontSize:'0.75rem',color:'var(--slate)'}}>Application progress: {t.finishStep}</div>}
-                </>
-              ) : (
-                <div className="od-edit-grid">
-                  {/* Personal Details */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1'}}>Personal Details</div>
-                  <div className="ap-field"><label className="ap-field-label">First name</label><input className="od-edit-input" value={t.firstName} onChange={e => updateEditTraveler(i, 'firstName', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Last name</label><input className="od-edit-input" value={t.lastName} onChange={e => updateEditTraveler(i, 'lastName', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Email</label><input className="od-edit-input" type="email" value={t.email} onChange={e => updateEditTraveler(i, 'email', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Date of birth</label><input className="od-edit-input" value={t.dob ?? ''} onChange={e => updateEditTraveler(i, 'dob', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Gender</label>
-                    <select className="od-edit-input" value={t.gender ?? ''} onChange={e => updateEditTraveler(i, 'gender', e.target.value)}>
-                      <option value="">—</option><option value="Male">Male</option><option value="Female">Female</option>
-                    </select></div>
-                  <div className="ap-field"><label className="ap-field-label">Country of birth</label><input className="od-edit-input" value={t.countryOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'countryOfBirth', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">City of birth</label><input className="od-edit-input" value={t.cityOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'cityOfBirth', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Citizenship/National ID</label><input className="od-edit-input" value={t.citizenshipId ?? ''} onChange={e => updateEditTraveler(i, 'citizenshipId', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Religion</label><input className="od-edit-input" value={t.religion ?? ''} onChange={e => updateEditTraveler(i, 'religion', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Visible marks</label><input className="od-edit-input" value={t.visibleMarks ?? ''} onChange={e => updateEditTraveler(i, 'visibleMarks', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Education</label><input className="od-edit-input" value={t.educationalQualification ?? ''} onChange={e => updateEditTraveler(i, 'educationalQualification', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Nationality acquired</label>
-                    <select className="od-edit-input" value={t.nationalityByBirth ?? ''} onChange={e => updateEditTraveler(i, 'nationalityByBirth', e.target.value)}>
-                      <option value="">—</option><option value="birth">By birth</option><option value="naturalization">By naturalization</option>
-                    </select></div>
-                  <div className="ap-field"><label className="ap-field-label">Lived 2+ yrs</label>
-                    <select className="od-edit-input" value={t.livedTwoYears ?? ''} onChange={e => updateEditTraveler(i, 'livedTwoYears', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
-                  <div className="ap-field"><label className="ap-field-label">Phone</label><input className="od-edit-input" value={t.phoneNumber ?? ''} onChange={e => updateEditTraveler(i, 'phoneNumber', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Marital status</label>
-                    <select className="od-edit-input" value={t.maritalStatus ?? ''} onChange={e => updateEditTraveler(i, 'maritalStatus', e.target.value)}>
-                      <option value="">—</option><option value="Married">Married</option><option value="Single">Single</option><option value="Divorced">Divorced</option><option value="Widowed">Widowed</option>
-                    </select></div>
-                  <div className="ap-field"><label className="ap-field-label">Other nationality</label>
-                    <select className="od-edit-input" value={t.holdAnotherNationality ?? ''} onChange={e => updateEditTraveler(i, 'holdAnotherNationality', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
-                  {t.holdAnotherNationality === 'yes' && <div className="ap-field"><label className="ap-field-label">Other nationality</label><input className="od-edit-input" value={t.otherNationality ?? ''} onChange={e => updateEditTraveler(i, 'otherNationality', e.target.value)} /></div>}
-                  <div className="ap-field"><label className="ap-field-label">Parents from Pakistan</label>
-                    <select className="od-edit-input" value={t.parentsFromPakistan ?? ''} onChange={e => updateEditTraveler(i, 'parentsFromPakistan', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
+                  {/* Personal */}
+                  <div className="ts-card ts-card-personal">
+                    <div className="ts-card-header"><span className="ts-card-icon">🧍</span><span>Personal Details</span></div>
+                    <div className="modal-rows">
+                      <FlagRow field="firstName" label="Full name" value={`${t.firstName} ${t.lastName}`} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="dob" label="Date of birth" value={t.dob} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="email" label="Email" value={t.email} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="phoneNumber" label="Phone" value={t.phoneNumber} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="gender" label="Gender" value={t.gender} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="maritalStatus" label="Marital status" value={t.maritalStatus} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="religion" label="Religion" value={t.religion} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    </div>
+                  </div>
 
-                  {/* Trip Details */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1'}}>Trip Details</div>
-                  <div className="ap-field"><label className="ap-field-label">Arrival date</label><input className="od-edit-input" value={t.arrivalDate ?? ''} onChange={e => updateEditTraveler(i, 'arrivalDate', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Arrival point</label><input className="od-edit-input" value={t.arrivalPoint ?? ''} onChange={e => updateEditTraveler(i, 'arrivalPoint', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Confirmed travel</label>
-                    <select className="od-edit-input" value={t.hasConfirmedTravel ?? ''} onChange={e => updateEditTraveler(i, 'hasConfirmedTravel', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
+                  {/* Birth & Identity */}
+                  <div className="ts-card ts-card-birth">
+                    <div className="ts-card-header"><span className="ts-card-icon">🌍</span><span>Birth & Identity</span></div>
+                    <div className="modal-rows">
+                      <FlagRow field="cityOfBirth" label="City of birth" value={t.cityOfBirth} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="countryOfBirth" label="Country of birth" value={t.countryOfBirth} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="citizenshipId" label="Citizenship/National ID" value={t.citizenshipId} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
+                      <FlagRow field="nationalityByBirth" label="Nationality acquired" value={t.nationalityByBirth ? (t.nationalityByBirth === 'birth' ? 'By birth' : 'By naturalization') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="holdAnotherNationality" label="Other nationality" value={t.holdAnotherNationality ? (t.holdAnotherNationality === 'yes' ? `Yes — ${t.otherNationality}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="livedTwoYears" label="Lived 2+ yrs in country" value={t.livedTwoYears ? (t.livedTwoYears === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="parentsFromPakistan" label="Parents from Pakistan" value={t.parentsFromPakistan ? (t.parentsFromPakistan === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="visibleMarks" label="Visible marks" value={t.visibleMarks} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      <FlagRow field="educationalQualification" label="Education" value={t.educationalQualification} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                    </div>
+                  </div>
 
                   {/* Address */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1'}}>Address</div>
-                  <div className="ap-field"><label className="ap-field-label">Country of residence</label><input className="od-edit-input" value={t.residenceCountry ?? ''} onChange={e => updateEditTraveler(i, 'residenceCountry', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Address</label><input className="od-edit-input" value={t.address ?? ''} onChange={e => updateEditTraveler(i, 'address', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">City</label><input className="od-edit-input" value={t.city ?? ''} onChange={e => updateEditTraveler(i, 'city', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">State</label><input className="od-edit-input" value={t.state ?? ''} onChange={e => updateEditTraveler(i, 'state', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">ZIP</label><input className="od-edit-input" value={t.zip ?? ''} onChange={e => updateEditTraveler(i, 'zip', e.target.value)} /></div>
+                  {(t.address || t.city || t.state || t.zip || t.residenceCountry) && (
+                    <div className="ts-card ts-card-address">
+                      <div className="ts-card-header"><span className="ts-card-icon">🏠</span><span>Address</span></div>
+                      <div className="modal-rows">
+                        <FlagRow field="residenceCountry" label="Country of residence" value={t.residenceCountry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="address" label="Home address" value={t.address} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="city" label="City / State / ZIP" value={(t.city || t.state || t.zip) ? [t.city, t.state, t.zip].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Employment */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1'}}>Employment</div>
-                  <div className="ap-field"><label className="ap-field-label">Employment status</label>
-                    <select className="od-edit-input" value={t.employmentStatus ?? ''} onChange={e => updateEditTraveler(i, 'employmentStatus', e.target.value)}>
-                      <option value="">—</option><option value="Employed">Employed</option><option value="Unemployed">Unemployed</option><option value="Student">Student</option><option value="Retired">Retired</option>
-                    </select></div>
-                  <div className="ap-field"><label className="ap-field-label">Employer name</label><input className="od-edit-input" value={t.employerName ?? ''} onChange={e => updateEditTraveler(i, 'employerName', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Employer address</label><input className="od-edit-input" value={t.employerAddress ?? ''} onChange={e => updateEditTraveler(i, 'employerAddress', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Employer city</label><input className="od-edit-input" value={t.employerCity ?? ''} onChange={e => updateEditTraveler(i, 'employerCity', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Employer state</label><input className="od-edit-input" value={t.employerState ?? ''} onChange={e => updateEditTraveler(i, 'employerState', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Employer country</label><input className="od-edit-input" value={t.employerCountry ?? ''} onChange={e => updateEditTraveler(i, 'employerCountry', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Employer ZIP</label><input className="od-edit-input" value={t.employerZip ?? ''} onChange={e => updateEditTraveler(i, 'employerZip', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Military/police</label>
-                    <select className="od-edit-input" value={t.servedMilitary ?? ''} onChange={e => updateEditTraveler(i, 'servedMilitary', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
+                  {(t.employmentStatus || t.isEmployed || t.servedMilitary) && (
+                    <div className="ts-card ts-card-employment">
+                      <div className="ts-card-header"><span className="ts-card-icon">💼</span><span>Employment</span></div>
+                      <div className="modal-rows">
+                        <FlagRow field="employmentStatus" label="Status" value={t.employmentStatus} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="employerName" label="Employer" value={t.employerName} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="employerAddress" label="Employer address" value={t.employerAddress ? [t.employerAddress, t.employerCity, t.employerState, t.employerCountry, t.employerZip].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="servedMilitary" label="Military/police" value={t.servedMilitary ? (t.servedMilitary === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Family — Father */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    <span>Father&apos;s Details</span>
-                    {t.fatherName ? (
-                      <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'father')}>✕ Remove</button>
-                    ) : (
-                      <button type="button" className="od-edit-add-btn" onClick={() => updateEditTraveler(i, 'fatherName', ' ')}>+ Add</button>
-                    )}
-                  </div>
-                  {(t.fatherName || '').trim() !== '' && <>
-                    <div className="ap-field"><label className="ap-field-label">Father&apos;s name</label><input className="od-edit-input" value={t.fatherName ?? ''} onChange={e => updateEditTraveler(i, 'fatherName', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Father&apos;s nationality</label><input className="od-edit-input" value={t.fatherNationality ?? ''} onChange={e => updateEditTraveler(i, 'fatherNationality', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Father&apos;s birthplace</label><input className="od-edit-input" value={t.fatherPlaceOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'fatherPlaceOfBirth', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Father&apos;s birth country</label><input className="od-edit-input" value={t.fatherCountryOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'fatherCountryOfBirth', e.target.value)} /></div>
-                  </>}
-
-                  {/* Family — Mother */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    <span>Mother&apos;s Details</span>
-                    {t.motherName ? (
-                      <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'mother')}>✕ Remove</button>
-                    ) : (
-                      <button type="button" className="od-edit-add-btn" onClick={() => updateEditTraveler(i, 'motherName', ' ')}>+ Add</button>
-                    )}
-                  </div>
-                  {(t.motherName || '').trim() !== '' && <>
-                    <div className="ap-field"><label className="ap-field-label">Mother&apos;s name</label><input className="od-edit-input" value={t.motherName ?? ''} onChange={e => updateEditTraveler(i, 'motherName', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Mother&apos;s nationality</label><input className="od-edit-input" value={t.motherNationality ?? ''} onChange={e => updateEditTraveler(i, 'motherNationality', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Mother&apos;s birthplace</label><input className="od-edit-input" value={t.motherPlaceOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'motherPlaceOfBirth', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Mother&apos;s birth country</label><input className="od-edit-input" value={t.motherCountryOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'motherCountryOfBirth', e.target.value)} /></div>
-                  </>}
-
-                  {/* Family — Spouse */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                    <span>Spouse&apos;s Details</span>
-                    {t.spouseName ? (
-                      <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'spouse')}>✕ Remove</button>
-                    ) : (
-                      <button type="button" className="od-edit-add-btn" onClick={() => updateEditTraveler(i, 'spouseName', ' ')}>+ Add</button>
-                    )}
-                  </div>
-                  {(t.spouseName || '').trim() !== '' && <>
-                    <div className="ap-field"><label className="ap-field-label">Spouse&apos;s name</label><input className="od-edit-input" value={t.spouseName ?? ''} onChange={e => updateEditTraveler(i, 'spouseName', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Spouse&apos;s nationality</label><input className="od-edit-input" value={t.spouseNationality ?? ''} onChange={e => updateEditTraveler(i, 'spouseNationality', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Spouse&apos;s birthplace</label><input className="od-edit-input" value={t.spousePlaceOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'spousePlaceOfBirth', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Spouse&apos;s birth country</label><input className="od-edit-input" value={t.spouseCountryOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'spouseCountryOfBirth', e.target.value)} /></div>
-                  </>}
+                  {/* Family */}
+                  {(t.fatherName || t.motherName || t.spouseName || t.knowParents) && (
+                    <div className="ts-card ts-card-family">
+                      <div className="ts-card-header"><span className="ts-card-icon">👨‍👩‍👧</span><span>Family Details</span></div>
+                      <div className="modal-rows">
+                        <FlagRow field="fatherName" label="Father" value={t.fatherName ? `${t.fatherName}${t.fatherNationality ? ` (${t.fatherNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="fatherPlaceOfBirth" label="Father's birthplace" value={(t.fatherPlaceOfBirth || t.fatherCountryOfBirth) ? [t.fatherPlaceOfBirth, t.fatherCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="motherName" label="Mother" value={t.motherName ? `${t.motherName}${t.motherNationality ? ` (${t.motherNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="motherPlaceOfBirth" label="Mother's birthplace" value={(t.motherPlaceOfBirth || t.motherCountryOfBirth) ? [t.motherPlaceOfBirth, t.motherCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="spouseName" label="Spouse" value={t.spouseName ? `${t.spouseName}${t.spouseNationality ? ` (${t.spouseNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="spousePlaceOfBirth" label="Spouse's birthplace" value={(t.spousePlaceOfBirth || t.spouseCountryOfBirth) ? [t.spousePlaceOfBirth, t.spouseCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Passport */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1'}}>Passport</div>
-                  <div className="ap-field"><label className="ap-field-label">Passport country</label><input className="od-edit-input" value={t.passportCountry ?? ''} onChange={e => updateEditTraveler(i, 'passportCountry', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Passport number</label><input className="od-edit-input" value={t.passportNumber ?? ''} onChange={e => updateEditTraveler(i, 'passportNumber', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Place of issue</label><input className="od-edit-input" value={t.passportPlaceOfIssue ?? ''} onChange={e => updateEditTraveler(i, 'passportPlaceOfIssue', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Country of issue</label><input className="od-edit-input" value={t.passportCountryOfIssue ?? ''} onChange={e => updateEditTraveler(i, 'passportCountryOfIssue', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Passport issued</label><input className="od-edit-input" value={t.passportIssued ?? ''} onChange={e => updateEditTraveler(i, 'passportIssued', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Passport expiry</label><input className="od-edit-input" value={t.passportExpiry ?? ''} onChange={e => updateEditTraveler(i, 'passportExpiry', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Other passport</label>
-                    <select className="od-edit-input" value={t.hasOtherPassport ?? ''} onChange={e => updateEditTraveler(i, 'hasOtherPassport', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
-                  {t.hasOtherPassport === 'yes' && <>
-                    <div className="ap-field"><label className="ap-field-label">Other passport #</label><input className="od-edit-input" value={t.otherPassportNumber ?? ''} onChange={e => updateEditTraveler(i, 'otherPassportNumber', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Other passport issued</label><input className="od-edit-input" value={t.otherPassportDateOfIssue ?? ''} onChange={e => updateEditTraveler(i, 'otherPassportDateOfIssue', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Other passport place</label><input className="od-edit-input" value={t.otherPassportPlaceOfIssue ?? ''} onChange={e => updateEditTraveler(i, 'otherPassportPlaceOfIssue', e.target.value)} /></div>
-                  </>}
+                  {(t.passportCountry || t.passportNumber) && (
+                    <div className="ts-card ts-card-passport">
+                      <div className="ts-card-header"><span className="ts-card-icon">📕</span><span>Passport Details</span></div>
+                      <div className="modal-rows">
+                        <FlagRow field="passportCountry" label="Country" value={t.passportCountry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="passportNumber" label="Number" value={t.passportNumber} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
+                        <FlagRow field="passportPlaceOfIssue" label="Place of issue" value={t.passportPlaceOfIssue} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="passportCountryOfIssue" label="Country of issue" value={t.passportCountryOfIssue} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="passportIssued" label="Issued" value={t.passportIssued} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="passportExpiry" label="Expiry" value={t.passportExpiry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="hasOtherPassport" label="Other passport/IC" value={t.hasOtherPassport ? (t.hasOtherPassport === 'yes' ? `Yes — ${t.otherPassportNumber || ''}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Trip Details */}
+                  {(t.arrivalDate || t.arrivalPoint || (t.visitedCountries && t.visitedCountries.length > 0)) && (
+                    <div className="ts-card ts-card-trip">
+                      <div className="ts-card-header"><span className="ts-card-icon">✈️</span><span>Trip Details</span></div>
+                      <div className="modal-rows">
+                        <FlagRow field="arrivalDate" label="Arrival date" value={t.arrivalDate} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="arrivalPoint" label="Arrival point" value={t.arrivalPoint} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="visitedCountries" label="Countries visited (10 yrs)" value={t.visitedCountries?.length ? t.visitedCountries.join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Travel & Accommodation */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1'}}>Travel &amp; Accommodation</div>
-                  <div className="ap-field"><label className="ap-field-label">Places to visit</label><input className="od-edit-input" value={t.placesToVisit ?? ''} onChange={e => updateEditTraveler(i, 'placesToVisit', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Booked hotel</label>
-                    <select className="od-edit-input" value={t.bookedHotel ?? ''} onChange={e => updateEditTraveler(i, 'bookedHotel', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
-                  {t.bookedHotel === 'yes' && <>
-                    <div className="ap-field"><label className="ap-field-label">Hotel name</label><input className="od-edit-input" value={t.hotelName ?? ''} onChange={e => updateEditTraveler(i, 'hotelName', e.target.value)} /></div>
-                    <div className="ap-field"><label className="ap-field-label">Hotel place</label><input className="od-edit-input" value={t.hotelPlace ?? ''} onChange={e => updateEditTraveler(i, 'hotelPlace', e.target.value)} /></div>
-                  </>}
-                  <div className="ap-field"><label className="ap-field-label">Tour operator</label><input className="od-edit-input" value={t.tourOperatorName ?? ''} onChange={e => updateEditTraveler(i, 'tourOperatorName', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Tour operator address</label><input className="od-edit-input" value={t.tourOperatorAddress ?? ''} onChange={e => updateEditTraveler(i, 'tourOperatorAddress', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Exit airport</label><input className="od-edit-input" value={t.exitPort ?? ''} onChange={e => updateEditTraveler(i, 'exitPort', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Visited India before</label>
-                    <select className="od-edit-input" value={t.visitedIndiaBefore ?? ''} onChange={e => updateEditTraveler(i, 'visitedIndiaBefore', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
-                  <div className="ap-field"><label className="ap-field-label">Visa refused before</label>
-                    <select className="od-edit-input" value={t.visaRefusedBefore ?? ''} onChange={e => updateEditTraveler(i, 'visaRefusedBefore', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
+                  {(t.placesToVisit || t.bookedHotel || t.exitPort || t.visitedIndiaBefore) && (
+                    <div className="ts-card ts-card-accom">
+                      <div className="ts-card-header"><span className="ts-card-icon">🏨</span><span>Travel & Accommodation</span></div>
+                      <div className="modal-rows">
+                        <FlagRow field="placesToVisit" label="Places to visit" value={t.placesToVisit} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="bookedHotel" label="Hotel booked" value={t.bookedHotel ? (t.bookedHotel === 'yes' ? `Yes — ${t.hotelName || ''}, ${t.hotelPlace || ''}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="tourOperatorName" label="Tour operator" value={t.tourOperatorName} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="exitPort" label="Exit airport" value={t.exitPort} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="visitedIndiaBefore" label="Visited India before" value={t.visitedIndiaBefore ? (t.visitedIndiaBefore === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        {t.visitedIndiaBefore === 'yes' && <>
+                          <FlagRow field="prevIndiaAddress" label="Previous address in India" value={(t as any).prevIndiaAddress} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                          <FlagRow field="prevIndiaCities" label="Cities visited" value={(t as any).prevIndiaCities} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                          <FlagRow field="prevIndiaVisaNo" label="Last visa number" value={(t as any).prevIndiaVisaNo} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
+                          <FlagRow field="prevIndiaVisaType" label="Last visa type" value={(t as any).prevIndiaVisaType} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                          <FlagRow field="prevIndiaVisaPlace" label="Last visa place of issue" value={(t as any).prevIndiaVisaPlace} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                          <FlagRow field="prevIndiaVisaDate" label="Last visa date of issue" value={(t as any).prevIndiaVisaDate} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        </>}
+                        <FlagRow field="visaRefusedBefore" label="Visa refused before" value={t.visaRefusedBefore ? (t.visaRefusedBefore === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.visaRefusedBefore === 'yes' ? 'text-red-600 font-semibold' : ''} />
+                      </div>
+                    </div>
+                  )}
 
                   {/* References */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1'}}>References — India</div>
-                  <div className="ap-field"><label className="ap-field-label">Reference name</label><input className="od-edit-input" value={t.refNameIndia ?? ''} onChange={e => updateEditTraveler(i, 'refNameIndia', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Reference address</label><input className="od-edit-input" value={t.refAddressIndia ?? ''} onChange={e => updateEditTraveler(i, 'refAddressIndia', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">State</label><input className="od-edit-input" value={t.refStateIndia ?? ''} onChange={e => updateEditTraveler(i, 'refStateIndia', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">District</label><input className="od-edit-input" value={t.refDistrictIndia ?? ''} onChange={e => updateEditTraveler(i, 'refDistrictIndia', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Phone</label><input className="od-edit-input" value={t.refPhoneIndia ?? ''} onChange={e => updateEditTraveler(i, 'refPhoneIndia', e.target.value)} /></div>
+                  {(t.refNameIndia || t.refAddressHome) && (
+                    <div className="ts-card ts-card-reference">
+                      <div className="ts-card-header"><span className="ts-card-icon">📇</span><span>References</span></div>
+                      <div className="modal-rows">
+                        <FlagRow field="refNameIndia" label="India reference" value={t.refNameIndia} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="refAddressIndia" label="India address" value={t.refAddressIndia ? [t.refAddressIndia, t.refStateIndia, t.refDistrictIndia].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="refPhoneIndia" label="India phone" value={t.refPhoneIndia} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="refNameHome" label="Home country reference" value={t.refNameHome} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="refAddressHome" label="Home country address" value={t.refAddressHome ? [t.refAddressHome, t.refStateHome, t.refDistrictHome].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="refPhoneHome" label="Home country phone" value={t.refPhoneHome} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1'}}>References — Home Country</div>
-                  <div className="ap-field"><label className="ap-field-label">Address</label><input className="od-edit-input" value={t.refAddressHome ?? ''} onChange={e => updateEditTraveler(i, 'refAddressHome', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">State</label><input className="od-edit-input" value={t.refStateHome ?? ''} onChange={e => updateEditTraveler(i, 'refStateHome', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">District</label><input className="od-edit-input" value={t.refDistrictHome ?? ''} onChange={e => updateEditTraveler(i, 'refDistrictHome', e.target.value)} /></div>
-                  <div className="ap-field"><label className="ap-field-label">Phone</label><input className="od-edit-input" value={t.refPhoneHome ?? ''} onChange={e => updateEditTraveler(i, 'refPhoneHome', e.target.value)} /></div>
+                  {/* Security Questions */}
+                  {(t.everArrested || t.everRefusedEntry || t.soughtAsylum || t.hasCriminalRecord) && (
+                    <div className="ts-card ts-card-security">
+                      <div className="ts-card-header"><span className="ts-card-icon">🛡️</span><span>Security</span></div>
+                      <div className="modal-rows">
+                        <FlagRow field="everArrested" label="Arrested/convicted" value={t.everArrested ? (t.everArrested === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.everArrested === 'yes' ? 'text-red-600 font-semibold' : ''} />
+                        <FlagRow field="everRefusedEntry" label="Refused entry/deported" value={t.everRefusedEntry ? (t.everRefusedEntry === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.everRefusedEntry === 'yes' ? 'text-red-600 font-semibold' : ''} />
+                        <FlagRow field="soughtAsylum" label="Sought asylum" value={t.soughtAsylum ? (t.soughtAsylum === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.soughtAsylum === 'yes' ? 'text-red-600 font-semibold' : ''} />
+                        {t.hasCriminalRecord && <div className="modal-row"><span className="modal-row-label">Criminal record</span><span className={`modal-row-value${t.hasCriminalRecord === 'yes' ? ' text-red-600 font-semibold' : ''}`}>{t.hasCriminalRecord === 'yes' ? 'Yes' : 'No'}</span></div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Application Progress */}
+                  {t.finishStep && (
+                    <div className="ts-card ts-card-progress">
+                      <div className="ts-card-header"><span className="ts-card-icon">📊</span><span>Application Progress</span></div>
+                      <div style={{fontSize:'0.85rem',color:'var(--ink)',padding:'0.25rem 0'}}>Step: <strong>{t.finishStep}</strong></div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="ts-grid">
+                  {/* Documents — upload/remove photo and passport bio (shown at top) */}
+                  <div className="ts-card ts-card-docs">
+                    <div className="ts-card-header"><span className="ts-card-icon">📎</span><span>Documents</span></div>
+                    <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginTop:'0.5rem'}}>
+                      {/* Photo */}
+                      <div style={{textAlign:'center', padding:'0.75rem', border:'1px solid var(--cloud)', borderRadius:'0.75rem'}}>
+                        <div style={{fontSize:'0.85rem', fontWeight:600, marginBottom:'0.5rem'}}>Traveler Photo</div>
+                        {t.photoUrl ? (
+                          <>
+                            <img src={t.photoUrl} alt="Photo" style={{maxWidth:'120px',maxHeight:'120px',borderRadius:'0.5rem',objectFit:'cover',marginBottom:'0.5rem'}} />
+                            <div style={{display:'flex', gap:'0.5rem', justifyContent:'center'}}>
+                              <button type="button" style={{padding:'0.35rem 0.75rem', fontSize:'0.8rem', background:'#dc2626', color:'white', border:'none', borderRadius:'0.35rem', cursor:'pointer'}} onClick={() => updateEditTraveler(i, 'photoUrl', '')}>Remove</button>
+                              <label style={{padding:'0.35rem 0.75rem', fontSize:'0.8rem', background:'var(--blue)', color:'white', border:'none', borderRadius:'0.35rem', cursor:'pointer'}}>
+                                Replace
+                                <input type="file" accept="image/*" style={{display:'none'}} onChange={async e => {
+                                  const file = e.target.files?.[0]; if (!file || !order) return;
+                                  const fd = new FormData();
+                                  fd.append('file', file); fd.append('orderId', order.id); fd.append('type', 'photo');
+                                  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                                  const data = await res.json();
+                                  if (data.url) updateEditTraveler(i, 'photoUrl', data.url);
+                                  else alert('Upload failed: ' + (data.error || 'unknown'));
+                                }} />
+                              </label>
+                            </div>
+                          </>
+                        ) : (
+                          <label style={{display:'inline-block', padding:'0.5rem 1rem', background:'var(--blue)', color:'white', borderRadius:'0.5rem', cursor:'pointer', fontSize:'0.85rem'}}>
+                            + Upload Photo
+                            <input type="file" accept="image/*" style={{display:'none'}} onChange={async e => {
+                              const file = e.target.files?.[0]; if (!file || !order) return;
+                              const fd = new FormData();
+                              fd.append('file', file); fd.append('orderId', order.id); fd.append('type', 'photo');
+                              const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                              const data = await res.json();
+                              if (data.url) updateEditTraveler(i, 'photoUrl', data.url);
+                              else alert('Upload failed: ' + (data.error || 'unknown'));
+                            }} />
+                          </label>
+                        )}
+                      </div>
+                      {/* Passport Bio */}
+                      <div style={{textAlign:'center', padding:'0.75rem', border:'1px solid var(--cloud)', borderRadius:'0.75rem'}}>
+                        <div style={{fontSize:'0.85rem', fontWeight:600, marginBottom:'0.5rem'}}>Passport Bio Page</div>
+                        {t.passportBioUrl ? (
+                          <>
+                            <img src={t.passportBioUrl} alt="Passport" style={{maxWidth:'160px',maxHeight:'120px',borderRadius:'0.5rem',objectFit:'cover',marginBottom:'0.5rem'}} />
+                            <div style={{display:'flex', gap:'0.5rem', justifyContent:'center'}}>
+                              <button type="button" style={{padding:'0.35rem 0.75rem', fontSize:'0.8rem', background:'#dc2626', color:'white', border:'none', borderRadius:'0.35rem', cursor:'pointer'}} onClick={() => updateEditTraveler(i, 'passportBioUrl', '')}>Remove</button>
+                              <label style={{padding:'0.35rem 0.75rem', fontSize:'0.8rem', background:'var(--blue)', color:'white', border:'none', borderRadius:'0.35rem', cursor:'pointer'}}>
+                                Replace
+                                <input type="file" accept="image/*,application/pdf" style={{display:'none'}} onChange={async e => {
+                                  const file = e.target.files?.[0]; if (!file || !order) return;
+                                  const fd = new FormData();
+                                  fd.append('file', file); fd.append('orderId', order.id); fd.append('type', 'passport');
+                                  const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                                  const data = await res.json();
+                                  if (data.url) updateEditTraveler(i, 'passportBioUrl', data.url);
+                                  else alert('Upload failed: ' + (data.error || 'unknown'));
+                                }} />
+                              </label>
+                            </div>
+                          </>
+                        ) : (
+                          <label style={{display:'inline-block', padding:'0.5rem 1rem', background:'var(--blue)', color:'white', borderRadius:'0.5rem', cursor:'pointer', fontSize:'0.85rem'}}>
+                            + Upload Passport
+                            <input type="file" accept="image/*,application/pdf" style={{display:'none'}} onChange={async e => {
+                              const file = e.target.files?.[0]; if (!file || !order) return;
+                              const fd = new FormData();
+                              fd.append('file', file); fd.append('orderId', order.id); fd.append('type', 'passport');
+                              const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                              const data = await res.json();
+                              if (data.url) updateEditTraveler(i, 'passportBioUrl', data.url);
+                              else alert('Upload failed: ' + (data.error || 'unknown'));
+                            }} />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Personal Details */}
+                  <div className="ts-card ts-card-personal">
+                    <div className="ts-card-header"><span className="ts-card-icon">🧍</span><span>Personal Details</span></div>
+                    <div className="ts-edit-fields">
+                      <div className="ap-field"><label className="ap-field-label">First name</label><input className="od-edit-input" value={t.firstName} onChange={e => updateEditTraveler(i, 'firstName', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Last name</label><input className="od-edit-input" value={t.lastName} onChange={e => updateEditTraveler(i, 'lastName', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Email</label><input className="od-edit-input" type="email" value={t.email} onChange={e => updateEditTraveler(i, 'email', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Phone</label><input className="od-edit-input" value={t.phoneNumber ?? ''} onChange={e => updateEditTraveler(i, 'phoneNumber', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Date of birth</label><input className="od-edit-input" value={t.dob ?? ''} onChange={e => updateEditTraveler(i, 'dob', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Gender</label>
+                        <select className="od-edit-input" value={t.gender ?? ''} onChange={e => updateEditTraveler(i, 'gender', e.target.value)}>
+                          <option value="">—</option><option value="Male">Male</option><option value="Female">Female</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Marital status</label>
+                        <select className="od-edit-input" value={t.maritalStatus ?? ''} onChange={e => updateEditTraveler(i, 'maritalStatus', e.target.value)}>
+                          <option value="">—</option><option value="Married">Married</option><option value="Single">Single</option><option value="Divorced">Divorced</option><option value="Widowed">Widowed</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Religion</label><input className="od-edit-input" value={t.religion ?? ''} onChange={e => updateEditTraveler(i, 'religion', e.target.value)} /></div>
+                    </div>
+                  </div>
+
+                  {/* Birth & Identity */}
+                  <div className="ts-card ts-card-birth">
+                    <div className="ts-card-header"><span className="ts-card-icon">🌍</span><span>Birth & Identity</span></div>
+                    <div className="ts-edit-fields">
+                      <div className="ap-field"><label className="ap-field-label">City of birth</label><input className="od-edit-input" value={t.cityOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'cityOfBirth', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Country of birth</label><input className="od-edit-input" value={t.countryOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'countryOfBirth', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Citizenship/National ID</label><input className="od-edit-input" value={t.citizenshipId ?? ''} onChange={e => updateEditTraveler(i, 'citizenshipId', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Nationality acquired</label>
+                        <select className="od-edit-input" value={t.nationalityByBirth ?? ''} onChange={e => updateEditTraveler(i, 'nationalityByBirth', e.target.value)}>
+                          <option value="">—</option><option value="birth">By birth</option><option value="naturalization">By naturalization</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Other nationality</label>
+                        <select className="od-edit-input" value={t.holdAnotherNationality ?? ''} onChange={e => updateEditTraveler(i, 'holdAnotherNationality', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                      {t.holdAnotherNationality === 'yes' && <div className="ap-field"><label className="ap-field-label">Which one</label><input className="od-edit-input" value={t.otherNationality ?? ''} onChange={e => updateEditTraveler(i, 'otherNationality', e.target.value)} /></div>}
+                      <div className="ap-field"><label className="ap-field-label">Lived 2+ yrs in country</label>
+                        <select className="od-edit-input" value={t.livedTwoYears ?? ''} onChange={e => updateEditTraveler(i, 'livedTwoYears', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Parents from Pakistan</label>
+                        <select className="od-edit-input" value={t.parentsFromPakistan ?? ''} onChange={e => updateEditTraveler(i, 'parentsFromPakistan', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Visible marks</label><input className="od-edit-input" value={t.visibleMarks ?? ''} onChange={e => updateEditTraveler(i, 'visibleMarks', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Education</label><input className="od-edit-input" value={t.educationalQualification ?? ''} onChange={e => updateEditTraveler(i, 'educationalQualification', e.target.value)} /></div>
+                    </div>
+                  </div>
+
+                  {/* Address */}
+                  <div className="ts-card ts-card-address">
+                    <div className="ts-card-header"><span className="ts-card-icon">🏠</span><span>Address</span></div>
+                    <div className="ts-edit-fields">
+                      <div className="ap-field"><label className="ap-field-label">Country of residence</label><input className="od-edit-input" value={t.residenceCountry ?? ''} onChange={e => updateEditTraveler(i, 'residenceCountry', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Address</label><input className="od-edit-input" value={t.address ?? ''} onChange={e => updateEditTraveler(i, 'address', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">City</label><input className="od-edit-input" value={t.city ?? ''} onChange={e => updateEditTraveler(i, 'city', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">State</label><input className="od-edit-input" value={t.state ?? ''} onChange={e => updateEditTraveler(i, 'state', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">ZIP</label><input className="od-edit-input" value={t.zip ?? ''} onChange={e => updateEditTraveler(i, 'zip', e.target.value)} /></div>
+                    </div>
+                  </div>
+
+                  {/* Employment */}
+                  <div className="ts-card ts-card-employment">
+                    <div className="ts-card-header"><span className="ts-card-icon">💼</span><span>Employment</span></div>
+                    <div className="ts-edit-fields">
+                      <div className="ap-field"><label className="ap-field-label">Employment status</label>
+                        <select className="od-edit-input" value={t.employmentStatus ?? ''} onChange={e => updateEditTraveler(i, 'employmentStatus', e.target.value)}>
+                          <option value="">—</option><option value="Employed">Employed</option><option value="Unemployed">Unemployed</option><option value="Student">Student</option><option value="Retired">Retired</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Employer name</label><input className="od-edit-input" value={t.employerName ?? ''} onChange={e => updateEditTraveler(i, 'employerName', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Employer address</label><input className="od-edit-input" value={t.employerAddress ?? ''} onChange={e => updateEditTraveler(i, 'employerAddress', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Employer city</label><input className="od-edit-input" value={t.employerCity ?? ''} onChange={e => updateEditTraveler(i, 'employerCity', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Employer state</label><input className="od-edit-input" value={t.employerState ?? ''} onChange={e => updateEditTraveler(i, 'employerState', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Employer country</label><input className="od-edit-input" value={t.employerCountry ?? ''} onChange={e => updateEditTraveler(i, 'employerCountry', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Employer ZIP</label><input className="od-edit-input" value={t.employerZip ?? ''} onChange={e => updateEditTraveler(i, 'employerZip', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Military/police</label>
+                        <select className="od-edit-input" value={t.servedMilitary ?? ''} onChange={e => updateEditTraveler(i, 'servedMilitary', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                    </div>
+                  </div>
+
+                  {/* Family */}
+                  <div className="ts-card ts-card-family">
+                    <div className="ts-card-header"><span className="ts-card-icon">👨‍👩‍👧</span><span>Family Details</span></div>
+                    <div className="ts-edit-fields">
+                      {/* Father */}
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.25rem'}}>
+                        <span>Father</span>
+                        {(t.fatherName || '').trim() !== '' ? (
+                          <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'father')}>✕ Remove</button>
+                        ) : (
+                          <button type="button" className="od-edit-add-btn" onClick={() => updateEditTraveler(i, 'fatherName', ' ')}>+ Add</button>
+                        )}
+                      </div>
+                      {(t.fatherName || '').trim() !== '' && <>
+                        <div className="ap-field"><label className="ap-field-label">Name</label><input className="od-edit-input" value={t.fatherName ?? ''} onChange={e => updateEditTraveler(i, 'fatherName', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Nationality</label><input className="od-edit-input" value={t.fatherNationality ?? ''} onChange={e => updateEditTraveler(i, 'fatherNationality', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Birthplace</label><input className="od-edit-input" value={t.fatherPlaceOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'fatherPlaceOfBirth', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Birth country</label><input className="od-edit-input" value={t.fatherCountryOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'fatherCountryOfBirth', e.target.value)} /></div>
+                      </>}
+                      {/* Mother */}
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.75rem'}}>
+                        <span>Mother</span>
+                        {(t.motherName || '').trim() !== '' ? (
+                          <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'mother')}>✕ Remove</button>
+                        ) : (
+                          <button type="button" className="od-edit-add-btn" onClick={() => updateEditTraveler(i, 'motherName', ' ')}>+ Add</button>
+                        )}
+                      </div>
+                      {(t.motherName || '').trim() !== '' && <>
+                        <div className="ap-field"><label className="ap-field-label">Name</label><input className="od-edit-input" value={t.motherName ?? ''} onChange={e => updateEditTraveler(i, 'motherName', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Nationality</label><input className="od-edit-input" value={t.motherNationality ?? ''} onChange={e => updateEditTraveler(i, 'motherNationality', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Birthplace</label><input className="od-edit-input" value={t.motherPlaceOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'motherPlaceOfBirth', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Birth country</label><input className="od-edit-input" value={t.motherCountryOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'motherCountryOfBirth', e.target.value)} /></div>
+                      </>}
+                      {/* Spouse */}
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.75rem'}}>
+                        <span>Spouse</span>
+                        {(t.spouseName || '').trim() !== '' ? (
+                          <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'spouse')}>✕ Remove</button>
+                        ) : (
+                          <button type="button" className="od-edit-add-btn" onClick={() => updateEditTraveler(i, 'spouseName', ' ')}>+ Add</button>
+                        )}
+                      </div>
+                      {(t.spouseName || '').trim() !== '' && <>
+                        <div className="ap-field"><label className="ap-field-label">Name</label><input className="od-edit-input" value={t.spouseName ?? ''} onChange={e => updateEditTraveler(i, 'spouseName', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Nationality</label><input className="od-edit-input" value={t.spouseNationality ?? ''} onChange={e => updateEditTraveler(i, 'spouseNationality', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Birthplace</label><input className="od-edit-input" value={t.spousePlaceOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'spousePlaceOfBirth', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Birth country</label><input className="od-edit-input" value={t.spouseCountryOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'spouseCountryOfBirth', e.target.value)} /></div>
+                      </>}
+                    </div>
+                  </div>
+
+                  {/* Passport */}
+                  <div className="ts-card ts-card-passport">
+                    <div className="ts-card-header"><span className="ts-card-icon">📕</span><span>Passport Details</span></div>
+                    <div className="ts-edit-fields">
+                      <div className="ap-field"><label className="ap-field-label">Passport country</label><input className="od-edit-input" value={t.passportCountry ?? ''} onChange={e => updateEditTraveler(i, 'passportCountry', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Passport number</label><input className="od-edit-input" value={t.passportNumber ?? ''} onChange={e => updateEditTraveler(i, 'passportNumber', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Place of issue</label><input className="od-edit-input" value={t.passportPlaceOfIssue ?? ''} onChange={e => updateEditTraveler(i, 'passportPlaceOfIssue', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Country of issue</label><input className="od-edit-input" value={t.passportCountryOfIssue ?? ''} onChange={e => updateEditTraveler(i, 'passportCountryOfIssue', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Passport issued</label><input className="od-edit-input" value={t.passportIssued ?? ''} onChange={e => updateEditTraveler(i, 'passportIssued', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Passport expiry</label><input className="od-edit-input" value={t.passportExpiry ?? ''} onChange={e => updateEditTraveler(i, 'passportExpiry', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Other passport</label>
+                        <select className="od-edit-input" value={t.hasOtherPassport ?? ''} onChange={e => updateEditTraveler(i, 'hasOtherPassport', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                      {t.hasOtherPassport === 'yes' && <>
+                        <div className="ap-field"><label className="ap-field-label">Other passport #</label><input className="od-edit-input" value={t.otherPassportNumber ?? ''} onChange={e => updateEditTraveler(i, 'otherPassportNumber', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Other passport issued</label><input className="od-edit-input" value={t.otherPassportDateOfIssue ?? ''} onChange={e => updateEditTraveler(i, 'otherPassportDateOfIssue', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Other passport place</label><input className="od-edit-input" value={t.otherPassportPlaceOfIssue ?? ''} onChange={e => updateEditTraveler(i, 'otherPassportPlaceOfIssue', e.target.value)} /></div>
+                      </>}
+                    </div>
+                  </div>
+
+                  {/* Trip Details */}
+                  <div className="ts-card ts-card-trip">
+                    <div className="ts-card-header"><span className="ts-card-icon">✈️</span><span>Trip Details</span></div>
+                    <div className="ts-edit-fields">
+                      <div className="ap-field"><label className="ap-field-label">Arrival date</label><input className="od-edit-input" value={t.arrivalDate ?? ''} onChange={e => updateEditTraveler(i, 'arrivalDate', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Arrival point</label><input className="od-edit-input" value={t.arrivalPoint ?? ''} onChange={e => updateEditTraveler(i, 'arrivalPoint', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Confirmed travel</label>
+                        <select className="od-edit-input" value={t.hasConfirmedTravel ?? ''} onChange={e => updateEditTraveler(i, 'hasConfirmedTravel', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                    </div>
+                  </div>
+
+                  {/* Travel & Accommodation */}
+                  <div className="ts-card ts-card-accom">
+                    <div className="ts-card-header"><span className="ts-card-icon">🏨</span><span>Travel & Accommodation</span></div>
+                    <div className="ts-edit-fields">
+                      <div className="ap-field"><label className="ap-field-label">Places to visit</label><input className="od-edit-input" value={t.placesToVisit ?? ''} onChange={e => updateEditTraveler(i, 'placesToVisit', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Booked hotel</label>
+                        <select className="od-edit-input" value={t.bookedHotel ?? ''} onChange={e => updateEditTraveler(i, 'bookedHotel', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                      {t.bookedHotel === 'yes' && <>
+                        <div className="ap-field"><label className="ap-field-label">Hotel name</label><input className="od-edit-input" value={t.hotelName ?? ''} onChange={e => updateEditTraveler(i, 'hotelName', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Hotel place</label><input className="od-edit-input" value={t.hotelPlace ?? ''} onChange={e => updateEditTraveler(i, 'hotelPlace', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Tour operator</label><input className="od-edit-input" value={t.tourOperatorName ?? ''} onChange={e => updateEditTraveler(i, 'tourOperatorName', e.target.value)} /></div>
+                        <div className="ap-field"><label className="ap-field-label">Tour operator address</label><input className="od-edit-input" value={t.tourOperatorAddress ?? ''} onChange={e => updateEditTraveler(i, 'tourOperatorAddress', e.target.value)} /></div>
+                      </>}
+                      <div className="ap-field"><label className="ap-field-label">Exit airport</label><input className="od-edit-input" value={t.exitPort ?? ''} onChange={e => updateEditTraveler(i, 'exitPort', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Visited India before</label>
+                        <select className="od-edit-input" value={t.visitedIndiaBefore ?? ''} onChange={e => updateEditTraveler(i, 'visitedIndiaBefore', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Visa refused before</label>
+                        <select className="od-edit-input" value={t.visaRefusedBefore ?? ''} onChange={e => updateEditTraveler(i, 'visaRefusedBefore', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                    </div>
+                  </div>
+
+                  {/* References */}
+                  <div className="ts-card ts-card-reference">
+                    <div className="ts-card-header"><span className="ts-card-icon">📇</span><span>References</span></div>
+                    <div className="ts-edit-fields">
+                      <div style={{fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.25rem'}}>India</div>
+                      <div className="ap-field"><label className="ap-field-label">Reference name</label><input className="od-edit-input" value={t.refNameIndia ?? ''} onChange={e => updateEditTraveler(i, 'refNameIndia', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Address</label><input className="od-edit-input" value={t.refAddressIndia ?? ''} onChange={e => updateEditTraveler(i, 'refAddressIndia', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">State</label><input className="od-edit-input" value={t.refStateIndia ?? ''} onChange={e => updateEditTraveler(i, 'refStateIndia', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">District</label><input className="od-edit-input" value={t.refDistrictIndia ?? ''} onChange={e => updateEditTraveler(i, 'refDistrictIndia', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Phone</label><input className="od-edit-input" value={t.refPhoneIndia ?? ''} onChange={e => updateEditTraveler(i, 'refPhoneIndia', e.target.value)} /></div>
+
+                      <div style={{fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.75rem'}}>Home Country</div>
+                      <div className="ap-field"><label className="ap-field-label">Reference name</label><input className="od-edit-input" value={t.refNameHome ?? ''} onChange={e => updateEditTraveler(i, 'refNameHome', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Address</label><input className="od-edit-input" value={t.refAddressHome ?? ''} onChange={e => updateEditTraveler(i, 'refAddressHome', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">State</label><input className="od-edit-input" value={t.refStateHome ?? ''} onChange={e => updateEditTraveler(i, 'refStateHome', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">District</label><input className="od-edit-input" value={t.refDistrictHome ?? ''} onChange={e => updateEditTraveler(i, 'refDistrictHome', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Phone</label><input className="od-edit-input" value={t.refPhoneHome ?? ''} onChange={e => updateEditTraveler(i, 'refPhoneHome', e.target.value)} /></div>
+                    </div>
+                  </div>
 
                   {/* Security */}
-                  <div className="od-edit-section-title" style={{gridColumn:'1/-1'}}>Security</div>
-                  <div className="ap-field"><label className="ap-field-label">Arrested/convicted</label>
-                    <select className="od-edit-input" value={t.everArrested ?? ''} onChange={e => updateEditTraveler(i, 'everArrested', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
-                  <div className="ap-field"><label className="ap-field-label">Refused entry/deported</label>
-                    <select className="od-edit-input" value={t.everRefusedEntry ?? ''} onChange={e => updateEditTraveler(i, 'everRefusedEntry', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
-                  <div className="ap-field"><label className="ap-field-label">Sought asylum</label>
-                    <select className="od-edit-input" value={t.soughtAsylum ?? ''} onChange={e => updateEditTraveler(i, 'soughtAsylum', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
-                  <div className="ap-field"><label className="ap-field-label">Criminal record</label>
-                    <select className="od-edit-input" value={t.hasCriminalRecord ?? ''} onChange={e => updateEditTraveler(i, 'hasCriminalRecord', e.target.value)}>
-                      <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
-                    </select></div>
+                  <div className="ts-card ts-card-security">
+                    <div className="ts-card-header"><span className="ts-card-icon">🛡️</span><span>Security</span></div>
+                    <div className="ts-edit-fields">
+                      <div className="ap-field"><label className="ap-field-label">Arrested/convicted</label>
+                        <select className="od-edit-input" value={t.everArrested ?? ''} onChange={e => updateEditTraveler(i, 'everArrested', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Refused entry/deported</label>
+                        <select className="od-edit-input" value={t.everRefusedEntry ?? ''} onChange={e => updateEditTraveler(i, 'everRefusedEntry', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Sought asylum</label>
+                        <select className="od-edit-input" value={t.soughtAsylum ?? ''} onChange={e => updateEditTraveler(i, 'soughtAsylum', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                      <div className="ap-field"><label className="ap-field-label">Criminal record</label>
+                        <select className="od-edit-input" value={t.hasCriminalRecord ?? ''} onChange={e => updateEditTraveler(i, 'hasCriminalRecord', e.target.value)}>
+                          <option value="">—</option><option value="yes">Yes</option><option value="no">No</option>
+                        </select></div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

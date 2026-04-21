@@ -205,12 +205,17 @@ export function statusUpdateEmail(data: {
   status: string;
 }) {
   const statusLabels: Record<string, string> = {
-    PENDING: 'Pending',
-    UNDER_REVIEW: 'Under Review',
-    APPROVED: 'Approved',
-    REJECTED: 'Rejected',
-    ON_HOLD: 'On Hold',
-    REFUNDED: 'Refunded',
+    UNFINISHED:       'Unfinished',
+    PROCESSING:       'Processing',
+    SUBMITTED:        'Submitted',
+    COMPLETED:        'Completed',
+    NEEDS_CORRECTION: 'Needs Correction',
+    ON_HOLD:          'On Hold',
+    REJECTED:         'Rejected',
+    REFUNDED:         'Refunded',
+    PENDING:          'Pending',
+    UNDER_REVIEW:     'Under Review',
+    APPROVED:         'Approved',
   };
 
   return {
@@ -247,6 +252,65 @@ export function finishReminderEmail(data: {
       </div>
 
       <p style="font-size:13px; color:#94A3B8;">Log in with your email and order number #${data.orderNumber}.</p>
+    `),
+  };
+}
+
+/** Application submitted — sent once we have an Application ID from the gov site */
+export function applicationSubmittedEmail(data: {
+  name: string;
+  orderNumber: string;
+  applicationId: string;
+  destination: string;
+}) {
+  return {
+    subject: `Application Submitted — #${data.orderNumber}`,
+    html: wrap(`
+      <div style="text-align:center; margin-bottom:24px;">
+        <span style="font-size:48px;">📨</span>
+      </div>
+      <h1 style="font-size:24px; margin-bottom:8px; text-align:center;">Your application is in!</h1>
+      <p style="color:#94A3B8; text-align:center; margin-bottom:24px;">Hi ${data.name}, we've successfully submitted your ${data.destination} visa application. Now we wait for approval.</p>
+
+      <div style="${cardStyle}">
+        <table style="width:100%; font-size:14px;" cellpadding="6">
+          <tr><td style="color:#94A3B8;">Order #</td><td style="text-align:right; font-weight:600;">${data.orderNumber}</td></tr>
+          <tr><td style="color:#94A3B8;">Destination</td><td style="text-align:right;">${data.destination}</td></tr>
+          <tr><td style="color:#94A3B8;">Application ID</td><td style="text-align:right; font-weight:700; font-family:monospace; color:#6C8AFF;">${data.applicationId}</td></tr>
+        </table>
+      </div>
+
+      <p style="margin:24px 0;">Processing typically takes 2–4 business days. We'll email you the moment your eVisa is approved.</p>
+
+      <div style="text-align:center; margin:32px 0;">
+        <a href="${SITE_URL}/login" style="${buttonStyle}">View Application Status</a>
+      </div>
+
+      <p style="font-size:13px; color:#94A3B8;">Keep your Application ID handy — you can use it on the Indian Government portal to check processing status directly.</p>
+    `),
+  };
+}
+
+/** Auto-closed — sent when a customer never completes their application after 3 reminders */
+export function autoClosedEmail(data: {
+  name: string;
+  orderNumber: string;
+}) {
+  return {
+    subject: `Order Closed — #${data.orderNumber}`,
+    html: wrap(`
+      <h1 style="font-size:24px; margin-bottom:8px;">Your order has been closed</h1>
+      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name}, we noticed your visa application at VisaTrips was never completed despite our reminders.</p>
+
+      <div style="${cardStyle}">
+        <p style="margin:0;">Order #${data.orderNumber} has been marked as closed. If you still need your visa, please reach out and we'll help you pick up where you left off.</p>
+      </div>
+
+      <div style="text-align:center; margin:32px 0;">
+        <a href="${SITE_URL}/contact" style="${buttonStyle}">Contact Support</a>
+      </div>
+
+      <p style="font-size:13px; color:#94A3B8;">This is a courtesy notice. You can still log back in with order #${data.orderNumber} if you'd like to complete your application.</p>
     `),
   };
 }

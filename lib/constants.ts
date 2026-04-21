@@ -25,14 +25,47 @@ export const VISA_LABELS: Record<string, string> = {
 };
 
 export const STATUS_COLORS: Record<string, string> = {
-  PENDING:      'status-pending',
-  UNDER_REVIEW: 'status-review',
-  APPROVED:     'status-approved',
-  REJECTED:     'status-rejected',
-  REFUNDED:     'status-refunded',
-  ON_HOLD:      'status-onhold',
+  // New statuses
+  UNFINISHED:       'status-pending',      // customer hasn't completed finish page
+  PROCESSING:       'status-review',       // we review before submitting
+  SUBMITTED:        'status-submitted',    // submitted to gov, got app ID
+  COMPLETED:        'status-approved',     // visa delivered or auto-closed
   NEEDS_CORRECTION: 'status-correction',
+  ON_HOLD:          'status-onhold',
+  REJECTED:         'status-rejected',
+  REFUNDED:         'status-refunded',
+  // Legacy (fallback so old orders still render if any remain)
+  PENDING:          'status-pending',
+  UNDER_REVIEW:     'status-review',
+  APPROVED:         'status-approved',
 };
+
+export const STATUS_LABELS: Record<string, string> = {
+  UNFINISHED:       'Unfinished',
+  PROCESSING:       'Processing',
+  SUBMITTED:        'Submitted',
+  COMPLETED:        'Completed',
+  NEEDS_CORRECTION: 'Needs Correction',
+  ON_HOLD:          'On Hold',
+  REJECTED:         'Rejected',
+  REFUNDED:         'Refunded',
+  PENDING:          'Unfinished',
+  UNDER_REVIEW:     'Processing',
+  APPROVED:         'Completed',
+};
+
+// Statuses visible in admin filter tabs (order matters)
+export const STATUS_FILTER_ORDER = [
+  'ALL',
+  'UNFINISHED',
+  'PROCESSING',
+  'NEEDS_CORRECTION',
+  'SUBMITTED',
+  'COMPLETED',
+  'ON_HOLD',
+  'REJECTED',
+  'REFUNDED',
+] as const;
 
 export const VISA_COLORS: Record<string, string> = {
   TOURIST_30:    'visa-tourist',

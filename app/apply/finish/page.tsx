@@ -274,6 +274,7 @@ function FinishContent() {
   const [refPhoneIndia, setRefPhoneIndia] = useState('');
 
   // References in Home Country
+  const [refNameHome, setRefNameHome] = useState('');
   const [refAddressHome, setRefAddressHome] = useState('');
   const [refStateHome, setRefStateHome] = useState('');
   const [refDistrictHome, setRefDistrictHome] = useState('');
@@ -401,6 +402,7 @@ function FinishContent() {
           if (t.refStateIndia) setRefStateIndia(t.refStateIndia);
           if (t.refDistrictIndia) setRefDistrictIndia(t.refDistrictIndia);
           if (t.refPhoneIndia) setRefPhoneIndia(t.refPhoneIndia);
+          if (t.refNameHome) setRefNameHome(t.refNameHome);
           if (t.refAddressHome) setRefAddressHome(t.refAddressHome);
           if (t.refStateHome) setRefStateHome(t.refStateHome);
           if (t.refDistrictHome) setRefDistrictHome(t.refDistrictHome);
@@ -526,6 +528,7 @@ function FinishContent() {
         refDistrictIndia: refDistrictIndia || t.refDistrictIndia,
         refPhoneIndia: refPhoneIndia || t.refPhoneIndia,
         // References Home Country
+        refNameHome: refNameHome || t.refNameHome,
         refAddressHome: refAddressHome || t.refAddressHome,
         refStateHome: refStateHome || t.refStateHome,
         refDistrictHome: refDistrictHome || t.refDistrictHome,
@@ -937,7 +940,8 @@ function FinishContent() {
             {/* Citizenship / National ID */}
             <div className="finish-form-group">
               <label className="finish-form-label">Citizenship / National ID Number</label>
-              <input className="finish-form-input" value={citizenshipId} onChange={e => setCitizenshipId(e.target.value)} placeholder="Enter ID number" />
+              <input className="finish-form-input" value={citizenshipId} onChange={e => setCitizenshipId(e.target.value)} placeholder="Enter ID number, or N/A if non-applicable" />
+              <p className="finish-form-hint">Enter N/A if non-applicable.</p>
             </div>
 
             {/* Religion */}
@@ -954,7 +958,8 @@ function FinishContent() {
             {/* Visible Qualification Marks */}
             <div className="finish-form-group">
               <label className="finish-form-label">Visible identification marks</label>
-              <input className="finish-form-input" value={visibleMarks} onChange={e => setVisibleMarks(e.target.value)} placeholder="e.g. Mole on left cheek, scar on right arm, or None" />
+              <input className="finish-form-input" value={visibleMarks} onChange={e => setVisibleMarks(e.target.value)} placeholder="e.g. Mole on left cheek, scar on right arm" />
+              <p className="finish-form-hint">Mole, scar, etc. Leave blank if there are none.</p>
             </div>
 
             {/* Educational Qualification */}
@@ -1701,7 +1706,7 @@ function FinishContent() {
     const canProceedAdditional = hasOtherPassport &&
       placesToVisit && bookedHotel && exitPort && visitedIndiaBefore && visaRefusedBefore &&
       refNameIndia && refAddressIndia && refStateIndia && refPhoneIndia &&
-      refAddressHome && refStateHome && refPhoneHome &&
+      refNameHome && refAddressHome && refStateHome && refPhoneHome &&
       everArrested && everRefusedEntry && soughtAsylum;
 
     return (
@@ -1728,6 +1733,19 @@ function FinishContent() {
             <div className="finish-form-group">
               <label className="finish-form-label">Passport date of expiry</label>
               <input className="finish-form-input" value={finishPassportExpiry} onChange={e => setFinishPassportExpiry(e.target.value)} placeholder="e.g. January 15, 2030" />
+              {finishPassportExpiry && (() => {
+                const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                const match = finishPassportExpiry.match(/^(\w+)\s+(\d+),\s+(\d+)$/);
+                if (!match) return null;
+                const expDate = new Date(parseInt(match[3]), months.indexOf(match[1]), parseInt(match[2]));
+                let refDate = new Date(); refDate.setHours(0,0,0,0);
+                if (arrMonth && arrDay && arrYear) {
+                  refDate = new Date(parseInt(arrYear), months.indexOf(arrMonth), parseInt(arrDay));
+                }
+                const sixMonths = new Date(refDate); sixMonths.setMonth(sixMonths.getMonth() + 6);
+                if (expDate < sixMonths) return <p className="ap-field-error">Passport must be valid for at least 6 months from your travel date. India will reject applications with insufficient passport validity.</p>;
+                return null;
+              })()}
             </div>
 
             <div className="finish-form-group">
@@ -1794,19 +1812,19 @@ function FinishContent() {
                     <label className="finish-form-label">Place of Hotel/Resort</label>
                     <input className="finish-form-input" value={hotelPlace} onChange={e => setHotelPlace(e.target.value)} placeholder="Enter city/area" />
                   </div>
+                  <div className={`finish-form-group${flagClass('tourOperatorName')}`} style={{ marginBottom: 0 }}>
+                    <label className="finish-form-label">Name of tour operator (if any)</label>
+                    <input className={`finish-form-input${flagClass('tourOperatorName')}`} value={tourOperatorName} onChange={e => { setTourOperatorName(e.target.value); clearFlag('tourOperatorName'); }} placeholder="Enter name or N/A" />
+                    <FlagHint field="tourOperatorName" />
+                  </div>
+                  <div className={`finish-form-group${flagClass('tourOperatorAddress')}`} style={{ marginBottom: 0 }}>
+                    <label className="finish-form-label">Address of tour operator</label>
+                    <input className={`finish-form-input${flagClass('tourOperatorAddress')}`} value={tourOperatorAddress} onChange={e => { setTourOperatorAddress(e.target.value); clearFlag('tourOperatorAddress'); }} placeholder="Enter address or N/A" />
+                    <FlagHint field="tourOperatorAddress" />
+                  </div>
                 </div>
               )}
               <FlagHint field="bookedHotel" />
-            </div>
-            <div className={`finish-form-group${flagClass('tourOperatorName')}`}>
-              <label className="finish-form-label">Name of tour operator (if any)</label>
-              <input className={`finish-form-input${flagClass('tourOperatorName')}`} value={tourOperatorName} onChange={e => { setTourOperatorName(e.target.value); clearFlag('tourOperatorName'); }} placeholder="Enter name or N/A" />
-              <FlagHint field="tourOperatorName" />
-            </div>
-            <div className={`finish-form-group${flagClass('tourOperatorAddress')}`}>
-              <label className="finish-form-label">Address of tour operator</label>
-              <input className={`finish-form-input${flagClass('tourOperatorAddress')}`} value={tourOperatorAddress} onChange={e => { setTourOperatorAddress(e.target.value); clearFlag('tourOperatorAddress'); }} placeholder="Enter address or N/A" />
-              <FlagHint field="tourOperatorAddress" />
             </div>
             <div className={`finish-form-group${flagClass('exitPort')}`}>
               <label className="finish-form-label">Expected port of exit from India</label>
@@ -1868,7 +1886,7 @@ function FinishContent() {
 
             {/* Reference in India */}
             <h2 className="finish-section-title" style={{ marginTop: '2rem' }}>Reference in India</h2>
-            <p className="finish-form-hint" style={{ marginBottom: '1rem' }}>Provide details of a friend, relative, or hotel in India.</p>
+            <p className="finish-form-hint" style={{ marginBottom: '1rem' }}>Provide a friend's, family member's, or hotel's info in India. This is required by the Indian government.</p>
 
             <div className={`finish-form-group${flagClass('refNameIndia')}`}>
               <label className="finish-form-label">Reference name</label>
@@ -1907,7 +1925,13 @@ function FinishContent() {
 
             {/* Reference in Home Country */}
             <h2 className="finish-section-title" style={{ marginTop: '2rem' }}>Reference in Home Country</h2>
+            <p className="finish-form-hint" style={{ marginBottom: '1rem' }}>Provide a friend's or relative's contact info in your home country, to be contacted in case of emergency.</p>
 
+            <div className={`finish-form-group${flagClass('refNameHome')}`}>
+              <label className="finish-form-label">Reference name</label>
+              <input className={`finish-form-input${flagClass('refNameHome')}`} value={refNameHome} onChange={e => { setRefNameHome(e.target.value); clearFlag('refNameHome'); }} placeholder="Name of friend or relative" />
+              <FlagHint field="refNameHome" />
+            </div>
             <div className={`finish-form-group${flagClass('refAddressHome')}`}>
               <label className="finish-form-label">Address</label>
               <input className={`finish-form-input${flagClass('refAddressHome')}`} value={refAddressHome} onChange={e => { setRefAddressHome(e.target.value); clearFlag('refAddressHome'); }} placeholder="Full address" />
@@ -2059,6 +2083,7 @@ function FinishContent() {
         ['Phone', refPhoneIndia || '—'],
       ]},
       { title: 'Reference in Home Country', items: [
+        ['Name', refNameHome || '—'],
         ['Address', refAddressHome || '—'],
         ['State', refStateHome || '—'],
         ['Phone', refPhoneHome || '—'],
@@ -2077,7 +2102,7 @@ function FinishContent() {
         await fetch(`/api/orders/${orderId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'UNDER_REVIEW', flaggedFields: '[]', specialistNotes: '' }),
+          body: JSON.stringify({ status: 'PROCESSING', flaggedFields: '[]', specialistNotes: '' }),
         });
       } catch {}
     };

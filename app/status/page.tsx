@@ -178,7 +178,7 @@ export default function StatusPage() {
           body: JSON.stringify({
             travelers: JSON.stringify(updatedTravelers),
             flaggedFields: JSON.stringify(updatedFlags),
-            ...(updatedFlags.length === 0 ? { status: 'UNDER_REVIEW', specialistNotes: '' } : {}),
+            ...(updatedFlags.length === 0 ? { status: 'PROCESSING', specialistNotes: '' } : {}),
           }),
         });
         // Refresh page
@@ -349,7 +349,7 @@ export default function StatusPage() {
 
         {/* CTA */}
         {(() => {
-          const isProcessing = order.status === 'UNDER_REVIEW' || order.status === 'APPROVED' || travelers.some(t => t.finishStep === 'complete');
+          const isProcessing = order.status === 'PROCESSING' || order.status === 'SUBMITTED' || order.status === 'COMPLETED' || order.status === 'UNDER_REVIEW' || order.status === 'APPROVED' || travelers.some(t => t.finishStep === 'complete');
           return order.evisaUrl ? null : order.status === 'NEEDS_CORRECTION' ? null : isProcessing ? (
             <div className="customer-status-cta" style={{ background: '#16a34a' }}>
               <div>

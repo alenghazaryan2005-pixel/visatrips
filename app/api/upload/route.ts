@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { getAdminSession, getCustomerSession } from '@/lib/auth';
+import { logError, extractRequestContext } from '@/lib/error-log';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -79,16 +80,22 @@ export async function POST(req: NextRequest) {
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', safeOrderId);
     await mkdir(uploadDir, { recursive: true });
 
-    // Use safe filename
-    const safeExt = ALLOWED_TYPES[file.type]?.[0] || 'bin';
-    const filename = `${type}.${safeExt}`;
+    // Save raw file with its exact original name
+    const filename = file.name;
     const filepath = path.join(uploadDir, filename);
 
     await writeFile(filepath, buffer);
 
-    const url = `/uploads/${safeOrderId}/${filename}`;
+    const url = `/uploads/${safeOrderId}/${encodeURIComponent(filename)}`;
     return NextResponse.json({ url });
-  } catch {
+  } catch (err) {
+    await logError(err, {
+      ...extractRequestContext(req),
+      source: 'server',
+      statusCode: 500,
+      userEmail: (await getAdminSession())?.email || (await getCustomerSession())?.email,
+      extra: { route: '/api/upload' },
+    });
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
 }

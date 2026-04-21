@@ -24,7 +24,7 @@ interface Order {
   refundedAt:   string | null;
 }
 
-import { formatOrderNum, VISA_LABELS, STATUS_COLORS, VISA_COLORS, COUNTRY_FLAGS } from '@/lib/constants';
+import { formatOrderNum, VISA_LABELS, STATUS_COLORS, STATUS_LABELS, VISA_COLORS, COUNTRY_FLAGS } from '@/lib/constants';
 
 /* ── Login Screen ──────────────────────────────────────────────────────────── */
 
@@ -140,7 +140,7 @@ function OrderModal({ order, onClose, onStatusChange, onNotesChange }: {
             <div className="modal-date">{date} at {time}</div>
           </div>
           <div className="modal-header-right">
-            <span className={`admin-status ${STATUS_COLORS[order.status] ?? ''}`}>{order.status.replace('_', ' ')}</span>
+            <span className={`admin-status ${STATUS_COLORS[order.status] ?? ''}`}>{STATUS_LABELS[order.status] || order.status.replace('_', ' ')}</span>
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>
         </div>
@@ -194,13 +194,14 @@ function OrderModal({ order, onClose, onStatusChange, onNotesChange }: {
                     value={order.status}
                     onChange={e => onStatusChange(order.id, e.target.value)}
                   >
-                    <option value="PENDING">Pending</option>
-                    <option value="UNDER_REVIEW">Under Review</option>
-                    <option value="APPROVED">Approved</option>
+                    <option value="UNFINISHED">Unfinished</option>
+                    <option value="PROCESSING">Processing</option>
+                    <option value="NEEDS_CORRECTION">Needs Correction</option>
+                    <option value="SUBMITTED">Submitted</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="ON_HOLD">On Hold</option>
                     <option value="REJECTED">Rejected</option>
                     <option value="REFUNDED">Refunded</option>
-                    <option value="ON_HOLD">On Hold</option>
-                    <option value="NEEDS_CORRECTION">Needs Correction</option>
                   </select>
                 </div>
               </div>
@@ -285,7 +286,7 @@ function OrderRow({ order, onStatusChange, onNotesChange }: {
         <div className="admin-td-sub">{VISA_LABELS[order.visaType] ?? order.visaType}</div>
       </td>
       <td className="admin-td">
-        <span className={`admin-status ${STATUS_COLORS[order.status] ?? ''}`}>{order.status.replace('_', ' ')}</span>
+        <span className={`admin-status ${STATUS_COLORS[order.status] ?? ''}`}>{STATUS_LABELS[order.status] || order.status.replace('_', ' ')}</span>
       </td>
       <td className="admin-td admin-td-notes">
         <div className="admin-notes-text">{order.notes || <span className="admin-notes-empty">—</span>}</div>
@@ -297,12 +298,14 @@ function OrderRow({ order, onStatusChange, onNotesChange }: {
           value={order.status}
           onChange={e => onStatusChange(order.id, e.target.value)}
         >
-          <option value="PENDING">Pending</option>
-          <option value="UNDER_REVIEW">Under Review</option>
-          <option value="APPROVED">Approved</option>
+          <option value="UNFINISHED">Unfinished</option>
+          <option value="PROCESSING">Processing</option>
+          <option value="NEEDS_CORRECTION">Needs Correction</option>
+          <option value="SUBMITTED">Submitted</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="ON_HOLD">On Hold</option>
           <option value="REJECTED">Rejected</option>
           <option value="REFUNDED">Refunded</option>
-          <option value="ON_HOLD">On Hold</option>
         </select>
       </td>
     </tr>
@@ -317,7 +320,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [filter,        setFilter]        = useState('ALL');
   const [search,        setSearch]        = useState('');
   const [activeOrder,   setActiveOrder]   = useState<Order | null>(null);
-  const [orderSortBy, setOrderSortBy] = useState<string>('date');
+  const [orderSortBy, setOrderSortBy] = useState<string>('order');
   const [orderSortDir, setOrderSortDir] = useState<'asc' | 'desc'>('desc');
   const [activeSection, setActiveSectionRaw] = useState<'orders' | 'customers' | 'abandoned' | 'refunds' | 'crm'>(() => {
     if (typeof window !== 'undefined') {
@@ -331,6 +334,24 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
   const [abandonedApps, setAbandonedApps] = useState<any[]>([]);
   const [abandonedLoading, setAbandonedLoading] = useState(false);
+  const [unresolvedErrors, setUnresolvedErrors] = useState(0);
+
+  // Fetch error count every minute
+  useEffect(() => {
+    let cancelled = false;
+    const fetchErrorCount = async () => {
+      try {
+        const res = await fetch('/api/errors?resolved=false&limit=1');
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setUnresolvedErrors(data.counts?.unresolved || 0);
+        }
+      } catch {}
+    };
+    fetchErrorCount();
+    const interval = setInterval(fetchErrorCount, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -456,7 +477,16 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   };
   const setSortDir = setOrderSortDir;
 
-  const orderStatusOrder: Record<string, number> = { PENDING: 0, UNDER_REVIEW: 1, ON_HOLD: 2, NEEDS_CORRECTION: 3, APPROVED: 4, REJECTED: 5, REFUNDED: 6 };
+  const orderStatusOrder: Record<string, number> = {
+    UNFINISHED: 0, PENDING: 0,
+    PROCESSING: 1, UNDER_REVIEW: 1,
+    NEEDS_CORRECTION: 2,
+    SUBMITTED: 3,
+    ON_HOLD: 4,
+    COMPLETED: 5, APPROVED: 5,
+    REJECTED: 6,
+    REFUNDED: 7,
+  };
 
   const filtered = orders.filter(o => {
     const matchStatus = filter === 'ALL' || o.status === filter;
@@ -486,8 +516,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
   const stats = {
     total:    orders.length,
-    pending:  orders.filter(o => o.status === 'PENDING').length,
-    approved: orders.filter(o => o.status === 'APPROVED').length,
+    pending:  orders.filter(o => o.status === 'UNFINISHED' || o.status === 'PENDING').length,
+    approved: orders.filter(o => o.status === 'COMPLETED' || o.status === 'APPROVED').length,
     revenue:  orders.reduce((s, o) => s + o.totalUSD, 0),
   };
 
@@ -508,6 +538,17 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <div className={`admin-nav-item${activeSection === 'abandoned' ? ' active' : ''}`} onClick={() => setActiveSection('abandoned')}>🚫 Abandoned</div>
           <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>
           <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>💬 Emails</Link>
+          <Link href="/admin/errors" className="admin-nav-item" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>⚠️ Error Logs</span>
+            {unresolvedErrors > 0 && (
+              <span style={{
+                background: '#dc2626', color: 'white', borderRadius: '999px',
+                padding: '0.1rem 0.5rem', fontSize: '0.7rem', fontWeight: 700, minWidth: '20px', textAlign: 'center',
+              }}>
+                {unresolvedErrors > 99 ? '99+' : unresolvedErrors}
+              </span>
+            )}
+          </Link>
         </nav>
         <button className="admin-logout-btn" onClick={handleLogout}>← Sign Out</button>
       </aside>
@@ -522,14 +563,51 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <h1 className="admin-title">Orders</h1>
                 <p className="admin-sub">Manage and review incoming visa applications</p>
               </div>
-              <button className="admin-refresh-btn" onClick={fetchOrders}>↻ Refresh</button>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <Link
+                  href="/admin/errors"
+                  className="admin-refresh-btn"
+                  style={{
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    background: unresolvedErrors > 0 ? '#fef2f2' : undefined,
+                    borderColor: unresolvedErrors > 0 ? '#fecaca' : undefined,
+                    color: unresolvedErrors > 0 ? '#dc2626' : undefined,
+                  }}
+                >
+                  ⚠️ Error Logs
+                  {unresolvedErrors > 0 && (
+                    <span style={{
+                      background: '#dc2626', color: 'white', borderRadius: '999px',
+                      padding: '0.1rem 0.55rem', fontSize: '0.7rem', fontWeight: 700,
+                    }}>
+                      {unresolvedErrors > 99 ? '99+' : unresolvedErrors}
+                    </span>
+                  )}
+                </Link>
+                <button className="admin-refresh-btn" onClick={fetchOrders}>↻ Refresh</button>
+              </div>
             </div>
 
             {/* Stats */}
             <div className="admin-stats">
               <div className="admin-stat-card">
-                <div className="admin-stat-label">New Orders</div>
+                <div className="admin-stat-label">Unfinished</div>
                 <div className="admin-stat-value admin-stat-pending">{stats.pending}</div>
+              </div>
+              <div className="admin-stat-card">
+                <div className="admin-stat-label">Processing</div>
+                <div className="admin-stat-value admin-stat-pending">{orders.filter(o => o.status === 'PROCESSING' || o.status === 'UNDER_REVIEW').length}</div>
+              </div>
+              <div className="admin-stat-card">
+                <div className="admin-stat-label">Submitted</div>
+                <div className="admin-stat-value admin-stat-pending">{orders.filter(o => o.status === 'SUBMITTED').length}</div>
+              </div>
+              <div className="admin-stat-card">
+                <div className="admin-stat-label">Completed</div>
+                <div className="admin-stat-value admin-stat-pending">{stats.approved}</div>
               </div>
             </div>
 
@@ -538,7 +616,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               <input className="admin-search" placeholder="Search by order number, name, email, destination..."
                 value={search} onChange={e => setSearch(e.target.value)} />
               <div className="admin-filter-tabs">
-                {['ALL','PENDING','UNDER_REVIEW','APPROVED','REJECTED','REFUNDED','ON_HOLD','NEEDS_CORRECTION'].map(s => (
+                {['ALL','UNFINISHED','PROCESSING','NEEDS_CORRECTION','SUBMITTED','COMPLETED','ON_HOLD','REJECTED','REFUNDED'].map(s => (
                   <button key={s} className={`admin-filter-tab${filter === s ? ' active' : ''}`} onClick={() => setFilter(s)}>
                     {s === 'ALL' ? 'All' : s.replace('_',' ')}
                   </button>
@@ -639,7 +717,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                               </td>
                               <td className="admin-td">{customerOrders.length}</td>
                               <td className="admin-td">
-                                <span className={`admin-status ${STATUS_COLORS[latest.status] ?? ''}`}>{latest.status.replace('_', ' ')}</span>
+                                <span className={`admin-status ${STATUS_COLORS[latest.status] ?? ''}`}>{STATUS_LABELS[latest.status] || latest.status.replace('_', ' ')}</span>
                               </td>
                               <td className="admin-td">
                                 <span style={{ fontWeight: 600 }}>${totalSpent.toFixed(2)}</span>
@@ -657,7 +735,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                                 </td>
                                 <td className="admin-td">{new Date(o.createdAt).toLocaleDateString()}</td>
                                 <td className="admin-td">
-                                  <span className={`admin-status ${STATUS_COLORS[o.status] ?? ''}`}>{o.status.replace('_', ' ')}</span>
+                                  <span className={`admin-status ${STATUS_COLORS[o.status] ?? ''}`}>{STATUS_LABELS[o.status] || o.status.replace('_', ' ')}</span>
                                 </td>
                                 <td className="admin-td">${o.totalUSD.toFixed(2)}</td>
                               </tr>
@@ -961,7 +1039,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                             {customerOrders.map(o => (
                               <a key={o.id} href={`/admin/orders/${formatOrderNum(o.orderNumber)}`} className="crm-order-item">
                                 <span className="crm-order-num">#{formatOrderNum(o.orderNumber)}</span>
-                                <span className={`admin-status ${STATUS_COLORS[o.status] ?? ''}`}>{o.status.replace('_', ' ')}</span>
+                                <span className={`admin-status ${STATUS_COLORS[o.status] ?? ''}`}>{STATUS_LABELS[o.status] || o.status.replace('_', ' ')}</span>
                                 <span className="crm-order-amount">${o.totalUSD}</span>
                                 <span className="crm-order-date">{new Date(o.createdAt).toLocaleDateString()}</span>
                               </a>
