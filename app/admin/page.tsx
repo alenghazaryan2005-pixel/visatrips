@@ -17,7 +17,10 @@ interface Order {
   totalUSD:     number;
   status:       string;
   billingEmail: string;
-  travelers:    Traveler[];
+  /** API returns the raw JSON string from the DB; some callers parse it
+   *  before passing it around. Both shapes show up at runtime — guards
+   *  (`typeof t === 'string' ? JSON.parse(t) : t`) handle both. */
+  travelers:    Traveler[] | string;
   notes:        string | null;
   refundAmount: number | null;
   refundReason: string | null;
