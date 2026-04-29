@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { AdminSidebar } from '@/components/AdminSidebar';
 
 interface CannedResponse {
   id: string;
@@ -16,7 +17,6 @@ interface CannedResponse {
 export default function CannedResponsesPage() {
   const [responses, setResponses] = useState<CannedResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeFolder, setActiveFolder] = useState('All');
   const [editing, setEditing] = useState<CannedResponse | null>(null);
   const [showNew, setShowNew] = useState(false);
@@ -120,32 +120,10 @@ export default function CannedResponsesPage() {
     fetchResponses();
   };
 
-  const handleLogout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' });
-    window.location.href = '/admin';
-  };
 
   return (
     <div className="admin-shell">
-      <aside className={`admin-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
-        <div className="admin-sidebar-logo">
-          <Link href="/" className="logo" style={{ color: 'white', fontSize: '1rem' }}>
-            {sidebarCollapsed ? 'V' : <>VisaTrips<sup style={{ color: 'var(--blue2)' }}>®</sup></>}
-          </Link>
-          {!sidebarCollapsed && <span className="admin-sidebar-badge">Admin</span>}
-        </div>
-        <nav className="admin-nav">
-          {!sidebarCollapsed && <div className="admin-nav-section-label">Admin Panel</div>}
-          <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '📋' : '📋 Orders'}</Link>
-          {!sidebarCollapsed && <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>}
-          <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '💬' : '💬 Emails'}</Link>
-          <Link href="/admin/crm/canned" className="admin-nav-item active" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '📝' : '📝 Canned Responses'}</Link>
-        </nav>
-        <button className="sidebar-toggle" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
-          {sidebarCollapsed ? '→' : '← Collapse'}
-        </button>
-        <button className="admin-logout-btn" onClick={handleLogout}>{sidebarCollapsed ? '←' : '← Sign Out'}</button>
-      </aside>
+      <AdminSidebar active="emails" />
 
       <div className="admin-main" style={{ maxWidth: '100%', display: 'flex', gap: '1.5rem' }}>
 

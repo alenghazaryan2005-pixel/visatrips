@@ -2,6 +2,10 @@
 const { withSentryConfig } = require('@sentry/nextjs');
 
 const nextConfig = {
+  // E2E tests set NEXT_DIST_DIR=.next-test (via .env.test) so they get their own
+  // build lock — lets the test server run concurrently with `pnpm dev` without
+  // Next 16's per-distDir dev-server lock tripping.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // Output standalone for better Vercel compatibility
   output: 'standalone',
   // Allow uploaded images

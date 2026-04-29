@@ -7,21 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum OrderStatus {
-  // Legacy (kept for in-place migration; data will be migrated to new values)
-  PENDING
-  UNDER_REVIEW
-  APPROVED
-  // Active statuses
-  UNFINISHED          // Customer paid, hasn't completed the finish page yet
-  PROCESSING          // Customer finished application, we need to review
-  SUBMITTED           // We submitted to gov site, got Application ID
-  COMPLETED           // Visa delivered, or abandoned after 3 reminders
-  NEEDS_CORRECTION    // Waiting on customer to fix flagged fields
-  ON_HOLD             // Paused manually by admin
-  REJECTED            // Visa rejected by gov
-  REFUNDED            // Order refunded
-}
+// NOTE: `status` is a String (not an enum) so admins can define custom status
+// codes via /admin/settings/india → Status Labels. Built-in codes are:
+//   UNFINISHED, PROCESSING, SUBMITTED, COMPLETED, NEEDS_CORRECTION,
+//   ON_HOLD, REJECTED, REFUNDED
+// Legacy codes still valid: PENDING, UNDER_REVIEW, APPROVED.
 
 model Order {
   id           String      @id @default(cuid())
@@ -31,7 +21,7 @@ model Order {
   destination  String
   visaType     String
   totalUSD     Float
-  status       OrderStatus @default(UNFINISHED)
+  status       String      @default("UNFINISHED")
   notes        String?
   travelers    String
   billingEmail String
@@ -43,6 +33,20 @@ model Order {
   flaggedFields    String?  // JSON array of field names
   specialistNotes  String?  // Customer-visible correction notes
   botFlags         String?  // JSON array of bot processing issues that need manual attention
+  // Per-document approval — null means "not yet reviewed/approved by an
+  // admin". Set to NOW + admin name when the admin clicks "Approve" next to
+  // the document on the order detail page. AUTO-CLEARED whenever the
+  // matching URL (photoUrl / passportBioUrl in the travelers JSON) changes
+  // — so any re-upload (by customer or admin) forces a fresh review. The
+  // bot refuses to start while either approvedAt is null.
+  photoApprovedAt     DateTime?
+  photoApprovedBy     String?
+  passportApprovedAt  DateTime?
+  passportApprovedBy  String?
+  // Free-form admin tags — JSON array of OrderTag.id values. The catalog
+  // lives in the OrderTag model (admin-defined). Used for organizational
+  // workflow: "Photos Edited", "VIP", "Customer Replied", etc.
+  tags             String?
   refundAmount     Float?
   refundReason    String?
   refundedAt      DateTime?
@@ -51,11 +55,16 @@ model Order {
   lastReminderAt   DateTime?
   completedAt      DateTime?
   submittedAt      DateTime?
+  // Archive: set when a COMPLETED order is moved to the Archive tab by the
+  // daily cron (30 days after completedAt). While non-null, the detail view
+  // renders a redacted card — admins click Recover to null this out.
+  archivedAt       DateTime?
   // Track which emails have been sent (JSON: { "confirmation": "2026-04-18T...", "correction": "...", ... })
   emailHistory     String?   @db.Text
 
   @@index([status])
   @@index([createdAt])
+  @@index([archivedAt])
   @@map("orders")
 }
 
@@ -71,6 +80,11 @@ model AbandonedApplication {
   lastStep    String   @default("step1") // step1, step2, step2b, step3
   ipAddress   String?
   userAgent   String?
+  // Reminder tracking — daily cron sends every 2 days up to 3 times (days 2/4/6),
+  // then the record is hard-deleted on day 7. Only records with a non-null email
+  // are eligible for reminders.
+  reminderCount  Int       @default(0)
+  lastReminderAt DateTime?
 
   @@index([createdAt])
   @@index([email])
@@ -211,6 +225,109 @@ model AdminUser {
   createdAt DateTime @default(now())
 
   @@map("admin_users")
+}
+
+model Setting {
+  key       String   @id                  // e.g. "pricing.visa.TOURIST_30", "email.confirmation"
+  category  String                         // "pricing" | "email" | "status" | "general"
+  value     String   @db.Text              // JSON blob
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@index([category])
+  @@map("settings")
+}
+
+model CustomStatus {
+  id          String   @id @default(cuid())
+  country     String   @default("INDIA")  // which country this applies to
+  code        String                       // unique per country — stored on Order.status
+  label       String                       // display name
+  color       String   @default("slate")   // slate | blue | green | amber | red | purple | pink | emerald
+  description String?
+  sortOrder   Int      @default(50)        // ordering among all statuses (lower = earlier)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+
+  @@unique([country, code])
+  @@index([country])
+  @@map("custom_statuses")
+}
+
+// Admin-defined tag catalog for orders. Each Order references zero or more
+// tags via Order.tags (JSON array of OrderTag.id). Used for workflow
+// organization: "Photos Edited", "VIP", "Customer Replied", "Pending Refund",
+// etc. — admin defines whatever is useful.
+model OrderTag {
+  id          String   @id @default(cuid())
+  name        String   @unique          // display name; admin-editable
+  color       String   @default("blue") // slate | blue | green | amber | red | purple | pink | emerald
+  icon        String?                    // optional emoji (e.g. "📸"), shown before the name
+  description String?                    // hover hint
+  sortOrder   Int      @default(50)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+
+  @@index([sortOrder])
+  @@map("order_tags")
+}
+
+model CustomEmailTemplate {
+  id          String   @id @default(cuid())
+  country     String   @default("INDIA")  // which country this applies to
+  code        String                       // unique per country — used to identify the template
+  label       String                       // display name in admin panel
+  description String?
+  trigger     String   @default("manual") // "manual" | "on_status_UNFINISHED" | "on_status_PROCESSING" | etc.
+  subject     String
+  structured  String?  @db.Text            // JSON of StructuredEmail
+  html        String?  @db.Text            // raw HTML override (takes precedence over structured)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   String?
+
+  @@unique([country, code])
+  @@index([country])
+  @@index([trigger])
+  @@map("custom_email_templates")
+}
+
+model BotRun {
+  id          String          @id @default(cuid())
+  orderId     String
+  startedAt   DateTime        @default(now())
+  finishedAt  DateTime?
+  status      String          @default("running")  // running | completed | failed | cancelled
+  country     String          @default("INDIA")
+  errorMsg    String?         @db.Text
+  entries     BotRunEntry[]
+
+  @@index([orderId])
+  @@index([startedAt])
+  @@map("bot_runs")
+}
+
+model BotRunEntry {
+  id            String   @id @default(cuid())
+  runId         String
+  run           BotRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stepKey       String                    // e.g. "registration"
+  fieldKey      String                    // e.g. "nationality"
+  label         String                    // human-readable label at the time of run
+  action        String                    // fill | select | click | check | upload | skip | manual
+  source        String                    // admin | default | manual | skip
+  value         String?  @db.Text         // the value the bot tried to use (string)
+  success       Boolean  @default(true)
+  errorMsg      String?  @db.Text         // if success=false, why
+  selector      String?                   // the selector used
+  createdAt     DateTime @default(now())
+
+  @@index([runId])
+  @@index([stepKey])
+  @@map("bot_run_entries")
 }
 
 model ErrorLog {

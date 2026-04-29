@@ -1,11 +1,20 @@
 'use client';
 
-import { useState, useEffect, use, useRef } from 'react';
+import { useState, useEffect, useMemo, use, useRef } from 'react';
 import Link from 'next/link';
+import { AdminSidebar } from '@/components/AdminSidebar';
+import type { ApplicationSchema } from '@/lib/applicationSchema';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
-interface Traveler { firstName: string; lastName: string; email: string; dob?: string; address?: string; city?: string; state?: string; zip?: string; isEmployed?: string; hasCriminalRecord?: string; hasConfirmedTravel?: string; arrivalDate?: string; passportCountry?: string; passportNumber?: string; passportPlaceOfIssue?: string; passportCountryOfIssue?: string; passportIssued?: string; passportExpiry?: string; arrivalPoint?: string; visitedCountries?: string[]; parentsFromPakistan?: string; gender?: string; countryOfBirth?: string; cityOfBirth?: string; holdAnotherNationality?: string; otherNationality?: string; maritalStatus?: string; citizenshipId?: string; religion?: string; visibleMarks?: string; educationalQualification?: string; nationalityByBirth?: string; livedTwoYears?: string; phoneNumber?: string; residenceCountry?: string; employmentStatus?: string; employerName?: string; employerAddress?: string; employerCity?: string; employerState?: string; employerCountry?: string; employerZip?: string; studentProvider?: string; servedMilitary?: string; knowParents?: string; fatherName?: string; fatherNationality?: string; fatherPlaceOfBirth?: string; fatherCountryOfBirth?: string; motherName?: string; motherNationality?: string; motherPlaceOfBirth?: string; motherCountryOfBirth?: string; spouseName?: string; spouseNationality?: string; spousePlaceOfBirth?: string; spouseCountryOfBirth?: string; photoUrl?: string; passportBioUrl?: string; passportPlaceOfIssue2?: string; passportCountryOfIssue2?: string; hasOtherPassport?: string; otherPassportNumber?: string; otherPassportDateOfIssue?: string; otherPassportPlaceOfIssue?: string; placesToVisit?: string; bookedHotel?: string; hotelName?: string; hotelPlace?: string; tourOperatorName?: string; tourOperatorAddress?: string; exitPort?: string; visitedIndiaBefore?: string; visaRefusedBefore?: string; refNameIndia?: string; refAddressIndia?: string; refStateIndia?: string; refDistrictIndia?: string; refPhoneIndia?: string; refNameHome?: string; refAddressHome?: string; refStateHome?: string; refDistrictHome?: string; refPhoneHome?: string; everArrested?: string; everRefusedEntry?: string; soughtAsylum?: string; finishStep?: string; }
+interface Traveler { firstName: string; lastName: string; email: string; dob?: string; address?: string; city?: string; state?: string; zip?: string; isEmployed?: string; hasCriminalRecord?: string; hasConfirmedTravel?: string; arrivalDate?: string; passportCountry?: string; passportNumber?: string; passportPlaceOfIssue?: string; passportCountryOfIssue?: string; passportIssued?: string; passportExpiry?: string; arrivalPoint?: string; visitedCountries?: string[]; parentsFromPakistan?: string; gender?: string; countryOfBirth?: string; cityOfBirth?: string; holdAnotherNationality?: string; otherNationality?: string; maritalStatus?: string; citizenshipId?: string; religion?: string; visibleMarks?: string; educationalQualification?: string; nationalityByBirth?: string; livedTwoYears?: string; phoneNumber?: string; residenceCountry?: string; employmentStatus?: string; employerName?: string; employerAddress?: string; employerCity?: string; employerState?: string; employerCountry?: string; employerZip?: string; studentProvider?: string; servedMilitary?: string;
+  // Sub-purpose under the visa type (e.g. "Attend Technical/Business Meetings"
+  // for Business eVisa, "Tourism" for Tourist). Captured at apply Step 1.
+  purposeOfVisit?: string;
+  // Business-visa-only fields (only present when order.visaType === 'BUSINESS_1Y').
+  applicantCompanyName?: string; applicantCompanyAddress?: string; applicantCompanyPhone?: string; applicantCompanyWebsite?: string;
+  indianFirmName?: string; indianFirmAddress?: string; indianFirmPhone?: string; indianFirmWebsite?: string;
+  knowParents?: string; fatherName?: string; fatherNationality?: string; fatherPlaceOfBirth?: string; fatherCountryOfBirth?: string; motherName?: string; motherNationality?: string; motherPlaceOfBirth?: string; motherCountryOfBirth?: string; spouseName?: string; spouseNationality?: string; spousePlaceOfBirth?: string; spouseCountryOfBirth?: string; photoUrl?: string; passportBioUrl?: string; passportPlaceOfIssue2?: string; passportCountryOfIssue2?: string; hasOtherPassport?: string; otherPassportNumber?: string; otherPassportDateOfIssue?: string; otherPassportPlaceOfIssue?: string; placesToVisit?: string; bookedHotel?: string; hotelName?: string; hotelPlace?: string; tourOperatorName?: string; tourOperatorAddress?: string; exitPort?: string; visitedIndiaBefore?: string; visaRefusedBefore?: string; refNameIndia?: string; refAddressIndia?: string; refStateIndia?: string; refDistrictIndia?: string; refPhoneIndia?: string; refNameHome?: string; refAddressHome?: string; refStateHome?: string; refDistrictHome?: string; refPhoneHome?: string; everArrested?: string; everRefusedEntry?: string; soughtAsylum?: string; finishStep?: string; }
 
 interface Order {
   id:           string;
@@ -30,33 +39,35 @@ interface Order {
   refundReason:    string | null;
   refundedAt:      string | null;
   botFlags:        string | null;
+  /** Per-document approval — null means "needs admin review". Set when
+   *  admin clicks Approve next to the document. Auto-cleared on re-upload. */
+  photoApprovedAt:    string | null;
+  photoApprovedBy:    string | null;
+  passportApprovedAt: string | null;
+  passportApprovedBy: string | null;
+  /** JSON array of OrderTag.id values — admin tags applied to this order. */
+  tags:            string | null;
   emailHistory:    string | null;
+  /** Non-null = order has been archived (30 days post-completion). Triggers the
+   *  redacted detail card — full view comes back when admin clicks Recover. */
+  archivedAt:      string | null;
 }
 
-import { formatOrderNum, VISA_LABELS, STATUS_COLORS, STATUS_LABELS, VISA_COLORS, COUNTRY_FLAGS } from '@/lib/constants';
+import { formatOrderNum, VISA_LABELS, STATUS_COLORS, STATUS_LABELS, VISA_COLORS, COUNTRY_FLAGS, INDIA_RELIGIONS } from '@/lib/constants';
+import { CustomStatusesProvider, useCustomStatuses, StatusBadge } from '@/lib/customStatuses';
+import { stripDiacritics } from '@/lib/validation';
+import { SectionIcon } from '@/lib/sectionIcons';
+import { TagChip, TagPicker, useOrderTagCatalog, type OrderTag as OrderTagDef } from '@/components/OrderTags';
+import { useFeatureFlag } from '@/lib/useFeatureFlag';
+import {
+  Paperclip, User, FileBadge, Home, Briefcase, Building2, Users as UsersIcon,
+  BookOpen, Plane, Hotel, Contact, Shield, FileText, ClipboardList,
+  StickyNote, Mail as MailIcon, Palette, Check, X as XIcon, Upload,
+  Pencil, Bot, Flag, Save, Send, Undo2, Lightbulb, AlertTriangle,
+  CheckCircle, XCircle, Camera,
+} from 'lucide-react';
 
-/* ── Sidebar ───────────────────────────────────────────────────────────────── */
-
-function AdminSidebar({ onLogout }: { onLogout: () => void }) {
-  return (
-    <aside className="admin-sidebar">
-      <div className="admin-sidebar-logo">
-        <Link href="/" className="logo" style={{ color: 'white', fontSize: '1rem' }}>VisaTrips<sup style={{ color: 'var(--blue2)' }}>®</sup></Link>
-        <span className="admin-sidebar-badge">Admin</span>
-      </div>
-      <nav className="admin-nav">
-        <div className="admin-nav-section-label">Admin Panel</div>
-        <Link href="/admin" className="admin-nav-item active" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'orders'); }}>📋 Orders</Link>
-        <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'customers'); }}>👤 Customer Accounts</Link>
-        <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'refunds'); }}>💸 Refunds</Link>
-        <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }} onClick={() => { if (typeof window !== 'undefined') sessionStorage.setItem('admin_section', 'abandoned'); }}>🚫 Abandoned</Link>
-        <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>
-        <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>💬 Emails</Link>
-      </nav>
-      <button className="admin-logout-btn" onClick={onLogout}>← Sign Out</button>
-    </aside>
-  );
-}
+/* ── Sidebar is the shared <AdminSidebar> from components/AdminSidebar ── */
 
 /* ── Notes Dropdown ────────────────────────────────────────────────────────── */
 
@@ -130,7 +141,11 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
   return (
     <div className="od-notes-dropdown">
       <button className="od-notes-toggle" onClick={() => setOpen(!open)}>
-        <span className="od-notes-toggle-label">📝 Internal Notes {(hasNotes || hasAppId || hasFlags) && <span className="od-notes-indicator" style={hasFlags ? { background: '#dc2626' } : undefined} />}</span>
+        <span className="od-notes-toggle-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+          <StickyNote size={14} strokeWidth={2} />
+          <span>Internal Notes</span>
+          {(hasNotes || hasAppId || hasFlags) && <span className="od-notes-indicator" style={hasFlags ? { background: '#dc2626' } : undefined} />}
+        </span>
         <span className={`od-notes-chevron${open ? ' open' : ''}`}>▾</span>
       </button>
 
@@ -172,7 +187,7 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
                   disabled={appIdSaving || applicationId === (orderApplicationId ?? '')}
                   style={{ whiteSpace: 'nowrap', padding: '0.5rem 0.75rem', fontSize: '0.8rem', flexShrink: 0, width: 'auto', minWidth: 'auto' }}
                 >
-                  {appIdSaving ? '...' : appIdSaved ? '✓' : 'Save'}
+                  {appIdSaving ? '...' : appIdSaved ? <Check size={14} strokeWidth={2.5} /> : 'Save'}
                 </button>
               )}
             </div>
@@ -194,14 +209,14 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
               disabled={saving || notes === (orderNotes ?? '')}
               style={{ marginTop: '0.75rem' }}
             >
-              {saving ? 'Saving...' : saved ? '✓ Saved!' : 'Save Notes'}
+              {saving ? 'Saving...' : saved ? (<><Check size={13} strokeWidth={2.5} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.25rem' }} />Saved!</>) : 'Save Notes'}
             </button>
           )}
 
           {/* eVisa Upload */}
           <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--cloud)', paddingTop: '1rem' }}>
             <div className="od-evisa-header">
-              <span className="od-evisa-title">📄 E-Visa Document</span>
+              <span className="od-evisa-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><FileText size={14} strokeWidth={2} /><span>E-Visa Document</span></span>
               {order?.evisaUrl && <span className="od-evisa-badge">Uploaded</span>}
             </div>
             <input ref={evisaInputRef} type="file" accept=".pdf,image/*" style={{ display: 'none' }} onChange={handleEvisaUpload} />
@@ -209,7 +224,7 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
               <div className="od-evisa-preview">
                 <a href={order.evisaUrl} target="_blank" rel="noopener noreferrer" className="od-evisa-link">
                   {order.evisaUrl.endsWith('.pdf') ? (
-                    <div className="od-evisa-pdf">📄 <span>View E-Visa PDF</span></div>
+                    <div className="od-evisa-pdf" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><FileText size={14} strokeWidth={2} /><span>View E-Visa PDF</span></div>
                   ) : (
                     <img src={order.evisaUrl} alt="E-Visa" className="od-evisa-img" />
                   )}
@@ -217,14 +232,14 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
                 <div className="od-evisa-actions">
                   <a href={order.evisaUrl} download className="od-evisa-download">⬇ Download</a>
                   <button className="od-evisa-remove" onClick={handleEvisaRemove} disabled={evisaRemoving}>
-                    {evisaRemoving ? '...' : '✕ Remove'}
+                    {evisaRemoving ? '...' : (<><XIcon size={12} strokeWidth={2.5} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.25rem' }} />Remove</>)}
                   </button>
                 </div>
               </div>
             ) : (
               <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
                 <button className="od-evisa-upload-btn" onClick={() => evisaInputRef.current?.click()} disabled={evisaUploading}>
-                  {evisaUploading ? 'Uploading...' : '📤 Upload E-Visa'}
+                  {evisaUploading ? 'Uploading...' : (<><Upload size={13} strokeWidth={2.25} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.35rem' }} />Upload E-Visa</>)}
                 </button>
                 <p className="od-evisa-hint">Upload the approved eVisa (PDF or image). Status will be set to Completed.</p>
               </div>
@@ -245,6 +260,9 @@ function NotesDropdown({ notes, setNotes, editing, editData, updateEditField, sa
               setSpecialistNotes={setSpecialistNotes}
             />
           </div>
+
+          {/* Bot Run History was moved out of the notes dropdown so it's
+              always visible — see the bottom of OrderDetailPageInner. */}
         </div>
       )}
     </div>
@@ -260,7 +278,7 @@ function FlagRow({ field, label, value, flagged, onToggle, className, showFlags 
     <div className={`modal-row${isFlagged ? ' flagged-row' : ''}`}>
       {(showFlags || isFlagged) && (
         <button type="button" className={`flag-btn${isFlagged ? ' active' : ''}`} onClick={(e) => { e.stopPropagation(); onToggle(field); }} title={isFlagged ? 'Remove flag' : 'Flag this field'}>
-          🚩
+          <Flag size={13} strokeWidth={2.25} />
         </button>
       )}
       <span className="modal-row-label">{label}</span>
@@ -320,7 +338,7 @@ function EvisaUpload({ orderId, order, setOrder }: { orderId: string; order: Ord
   return (
     <div className="od-evisa-section">
       <div className="od-evisa-header">
-        <span className="od-evisa-title">📄 E-Visa Document</span>
+        <span className="od-evisa-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><FileText size={14} strokeWidth={2} /><span>E-Visa Document</span></span>
         {order.evisaUrl && <span className="od-evisa-badge">Uploaded</span>}
       </div>
       <input
@@ -335,7 +353,7 @@ function EvisaUpload({ orderId, order, setOrder }: { orderId: string; order: Ord
         <div className="od-evisa-preview">
           <a href={order.evisaUrl} target="_blank" rel="noopener noreferrer" className="od-evisa-link">
             {order.evisaUrl.endsWith('.pdf') ? (
-              <div className="od-evisa-pdf">📄 <span>View E-Visa PDF</span></div>
+              <div className="od-evisa-pdf" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><FileText size={14} strokeWidth={2} /><span>View E-Visa PDF</span></div>
             ) : (
               <img src={order.evisaUrl} alt="E-Visa" className="od-evisa-img" />
             )}
@@ -343,14 +361,14 @@ function EvisaUpload({ orderId, order, setOrder }: { orderId: string; order: Ord
           <div className="od-evisa-actions">
             <a href={order.evisaUrl} download className="od-evisa-download">⬇ Download</a>
             <button className="od-evisa-remove" onClick={handleRemove} disabled={removing}>
-              {removing ? '...' : '✕ Remove'}
+              {removing ? '...' : (<><XIcon size={12} strokeWidth={2.5} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.25rem' }} />Remove</>)}
             </button>
           </div>
         </div>
       ) : (
         <div className="od-evisa-upload">
           <button className="od-evisa-upload-btn" onClick={() => document.getElementById(`evisa-upload-${orderId}`)?.click()} disabled={uploading}>
-            {uploading ? 'Uploading...' : '📤 Upload E-Visa'}
+            {uploading ? 'Uploading...' : (<><Upload size={13} strokeWidth={2.25} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.35rem' }} />Upload E-Visa</>)}
           </button>
           <p className="od-evisa-hint">Upload the approved eVisa (PDF or image). This will be visible to the customer and the order status will be set to Approved.</p>
         </div>
@@ -375,6 +393,20 @@ function EmailPanel({ order, setOrder, liveFlaggedFields, saveFlags, flagSaving,
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
+  const [customTemplates, setCustomTemplates] = useState<Array<{ id: string; code: string; label: string; description: string | null; trigger: string; enabled: boolean }>>([]);
+
+  // Load custom email templates for INDIA (so admins can send them manually)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/settings/custom-emails?country=INDIA');
+        if (res.ok) {
+          const d = await res.json();
+          setCustomTemplates(d.templates || []);
+        }
+      } catch {}
+    })();
+  }, []);
 
   // Parse the email history
   let history: Record<string, string> = {};
@@ -447,7 +479,10 @@ function EmailPanel({ order, setOrder, liveFlaggedFields, saveFlags, flagSaving,
     <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '0.85rem', padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: '1rem' }}>📧 Email Customer</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <MailIcon size={16} strokeWidth={2} />
+            <span>Email Customer</span>
+          </div>
           <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>Select which emails to send — nothing is sent automatically (except the confirmation at checkout).</div>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -460,12 +495,18 @@ function EmailPanel({ order, setOrder, liveFlaggedFields, saveFlags, flagSaving,
       {liveFlaggedFields && liveFlaggedFields.length > 0 && (
         <div className="od-flag-section" style={{ marginBottom: '1rem' }}>
           <div className="od-flag-header">
-            <span>🚩 {liveFlaggedFields.length} field{liveFlaggedFields.length !== 1 ? 's' : ''} flagged</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Flag size={13} strokeWidth={2.25} />
+              <span>{liveFlaggedFields.length} field{liveFlaggedFields.length !== 1 ? 's' : ''} flagged</span>
+            </span>
             {setFlaggedFields && <button className="od-flag-clear" onClick={() => setFlaggedFields([])}>Clear all flags</button>}
           </div>
           <div className="od-flag-tags">
             {liveFlaggedFields.map((f: string) => (
-              <span key={f} className="od-flag-tag" onClick={() => toggleFlag && toggleFlag(f)}>{f} ✕</span>
+              <span key={f} className="od-flag-tag" onClick={() => toggleFlag && toggleFlag(f)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span>{f}</span>
+                <XIcon size={11} strokeWidth={2.5} />
+              </span>
             ))}
           </div>
           {setSpecialistNotes && (
@@ -479,7 +520,8 @@ function EmailPanel({ order, setOrder, liveFlaggedFields, saveFlags, flagSaving,
                 onChange={ev => setSpecialistNotes(ev.target.value)}
               />
               <p style={{ fontSize: '0.78rem', color: 'var(--slate)', marginTop: '0.4rem' }}>
-                💡 Sent to the customer when you check <strong>&quot;Correction Needed&quot;</strong> below.
+                <Lightbulb size={11} strokeWidth={2.25} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.3rem' }} />
+                Sent to the customer when you check <strong>&quot;Correction Needed&quot;</strong> below.
               </p>
             </div>
           )}
@@ -515,7 +557,12 @@ function EmailPanel({ order, setOrder, liveFlaggedFields, saveFlags, flagSaving,
                   )}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-                  {e.disabled ? <span style={{ color: '#dc2626' }}>⚠️ {e.disabledReason}</span> : e.description}
+                  {e.disabled ? (
+                    <span style={{ color: '#dc2626', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <AlertTriangle size={12} strokeWidth={2.25} />
+                      <span>{e.disabledReason}</span>
+                    </span>
+                  ) : e.description}
                 </div>
                 {!e.disabled && e.warning && (
                   <div style={{ fontSize: '0.78rem', color: '#d97706', marginTop: '0.25rem' }}>ℹ️ {e.warning}</div>
@@ -524,6 +571,53 @@ function EmailPanel({ order, setOrder, liveFlaggedFields, saveFlags, flagSaving,
             </label>
           );
         })}
+
+        {/* ── Custom email templates (filtered to manual + enabled) ── */}
+        {customTemplates.filter(ct => ct.enabled && ct.trigger === 'manual').length > 0 && (
+          <>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.03em', marginTop: '0.4rem', marginBottom: '0.1rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+              <Palette size={11} strokeWidth={2.5} />
+              <span>Custom</span>
+            </div>
+            {customTemplates.filter(ct => ct.enabled && ct.trigger === 'manual').map(ct => {
+              const key = `custom:${ct.id}`;
+              const sentAt = history[key];
+              return (
+                <label key={ct.id} style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.75rem',
+                  padding: '0.65rem 0.8rem', borderRadius: '0.55rem',
+                  background: selected[key] ? '#eff6ff' : '#f9fafb',
+                  border: '1px solid ' + (selected[key] ? '#bfdbfe' : '#e5e7eb'),
+                  cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={!!selected[key]}
+                    disabled={sending}
+                    onChange={ev => setSelected(s => ({ ...s, [key]: ev.target.checked }))}
+                    style={{ marginTop: '0.2rem', width: '16px', height: '16px' }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>
+                        {ct.label}
+                        <span style={{ marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, background: '#dbeafe', color: '#1e40af', padding: '0.1rem 0.4rem', borderRadius: '0.25rem', verticalAlign: 'middle' }}>CUSTOM</span>
+                      </span>
+                      {sentAt && (
+                        <span style={{ fontSize: '0.72rem', color: '#059669', background: '#d1fae5', padding: '0.12rem 0.5rem', borderRadius: '0.3rem' }}>
+                          Last sent: {fmtDate(sentAt)}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                      {ct.description || <em style={{ color: '#9ca3af' }}>No description</em>}
+                    </div>
+                  </div>
+                </label>
+              );
+            })}
+          </>
+        )}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.85rem' }}>
@@ -539,19 +633,25 @@ function EmailPanel({ order, setOrder, liveFlaggedFields, saveFlags, flagSaving,
             cursor: selectedCount === 0 ? 'not-allowed' : 'pointer',
           }}
         >
-          {sending ? 'Sending…' : `✉️ Send ${selectedCount > 0 ? `(${selectedCount})` : ''}`}
+          {sending ? 'Sending…' : (<><Send size={13} strokeWidth={2.25} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.35rem' }} />{`Send ${selectedCount > 0 ? `(${selectedCount})` : ''}`.trim()}</>)}
         </button>
       </div>
 
       {lastResult && (
         <div style={{ marginTop: '0.75rem', padding: '0.65rem 0.8rem', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '0.5rem', fontSize: '0.82rem' }}>
           {lastResult.error ? (
-            <span style={{ color: '#dc2626' }}>❌ {lastResult.error}</span>
+            <span style={{ color: '#dc2626', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+              <XCircle size={13} strokeWidth={2.25} />
+              <span>{lastResult.error}</span>
+            </span>
           ) : (
             <div>
               {lastResult.results?.map((r: any) => (
                 <div key={r.type} style={{ color: r.sent ? '#059669' : '#dc2626' }}>
-                  {r.sent ? '✅' : '❌'} {r.type}{r.error ? ` — ${r.error}` : ''}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                    {r.sent ? <CheckCircle size={12} strokeWidth={2.25} /> : <XCircle size={12} strokeWidth={2.25} />}
+                    <span>{r.type}{r.error ? ` — ${r.error}` : ''}</span>
+                  </span>
                 </div>
               ))}
             </div>
@@ -572,8 +672,18 @@ function parseTravelers(t: Traveler[] | string): Traveler[] {
   } catch { return []; }
 }
 
-export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function OrderDetailPage(props: { params: Promise<{ id: string }> }) {
+  return (
+    <CustomStatusesProvider country="INDIA">
+      <OrderDetailPageInner {...props} />
+    </CustomStatusesProvider>
+  );
+}
+
+function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { statuses: customStatuses } = useCustomStatuses();
+  const [customAppSchema, setCustomAppSchema] = useState<ApplicationSchema>({ country: 'INDIA', sections: [] });
   const [order, setOrder]     = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
@@ -611,6 +721,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       .catch(() => setError('Order not found.'))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Load admin-defined custom application schema for this order's country.
+  useEffect(() => {
+    if (!order) return;
+    const country = (order.destination || 'India').toUpperCase();
+    fetch(`/api/settings/application-schema?country=${encodeURIComponent(country)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data && Array.isArray(data.customSections)) setCustomAppSchema(data); })
+      .catch(() => {});
+  }, [order]);
 
   const travelers: Traveler[] = order ? parseTravelers(order.travelers) : [];
 
@@ -713,7 +833,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     setEditData((prev: any) => ({ ...prev, [field]: value }));
   };
 
-  const updateEditTraveler = (index: number, field: string, value: string) => {
+  const updateEditTraveler = (index: number, field: string, value: unknown) => {
     setEditTravelers(prev => prev.map((t, i) => i === index ? { ...t, [field]: value } : t));
   };
 
@@ -779,20 +899,152 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     } catch {} finally { setNotifying(false); }
   };
 
-  const handleLogout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' });
-    window.location.href = '/admin';
+  /* ── Order tags (free-form admin tags) ────────────────────────────────
+   * Backed by /api/order-tags catalog + the order's `tags` JSON array.
+   * Picker is a popup; clicking outside closes it. The whole Tags row is
+   * gated behind the orderTags feature flag (admin can flip it from
+   * /admin/features). When OFF, no UI renders and any tags already on the
+   * order stay safely in the JSON column for restoration on flip-ON. */
+  const tagsEnabled = useFeatureFlag('orderTags') ?? false;
+  const tagCatalog = useOrderTagCatalog();
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  const appliedTagIds: string[] = useMemo(() => {
+    if (!order?.tags) return [];
+    try { const a = JSON.parse(order.tags); return Array.isArray(a) ? a : []; } catch { return []; }
+  }, [order?.tags]);
+  const appliedTags: OrderTagDef[] = useMemo(() => {
+    return appliedTagIds
+      .map(id => tagCatalog.tags.find(t => t.id === id))
+      .filter((t): t is OrderTagDef => !!t);
+  }, [appliedTagIds, tagCatalog.tags]);
+
+  const persistTags = async (nextIds: string[]) => {
+    if (!order) return;
+    // Optimistic update — flip locally before the round trip.
+    const prevTags = order.tags;
+    const nextTags = nextIds.length > 0 ? JSON.stringify(nextIds) : null;
+    setOrder({ ...order, tags: nextTags });
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: nextTags }),
+      });
+      if (!res.ok) {
+        // Rollback on failure.
+        setOrder({ ...order, tags: prevTags });
+      } else {
+        const updated = await res.json();
+        setOrder(updated);
+      }
+    } catch {
+      setOrder({ ...order, tags: prevTags });
+    }
+  };
+
+  const handleTagApply = async (tagId: string, applied: boolean) => {
+    const next = applied
+      ? Array.from(new Set([...appliedTagIds, tagId]))
+      : appliedTagIds.filter(id => id !== tagId);
+    await persistTags(next);
+  };
+
+  const handleTagCreate = async (input: { name: string; color: string; icon?: string }) => {
+    const res = await fetch('/api/order-tags', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create tag.');
+    tagCatalog.upsertLocal(data.tag);
+    // Auto-apply the newly-created tag — that's almost always the user's intent.
+    await persistTags(Array.from(new Set([...appliedTagIds, data.tag.id])));
+    return data.tag;
+  };
+
+  const handleTagDelete = async (tagId: string) => {
+    const res = await fetch(`/api/order-tags/${tagId}`, { method: 'DELETE' });
+    if (res.ok) {
+      tagCatalog.removeLocal(tagId);
+      // Locally drop it from the applied list too — server already scrubbed every order's row.
+      if (appliedTagIds.includes(tagId)) {
+        const next = appliedTagIds.filter(id => id !== tagId);
+        setOrder(order ? { ...order, tags: next.length ? JSON.stringify(next) : null } : null);
+      }
+    }
+  };
+
+  /* ── Per-document approvals ──────────────────────────────────────────────
+   * Each document (photo, passport bio) needs an explicit admin approval
+   * before the bot will run. The server stamps both *ApprovedAt and
+   * *ApprovedBy when we send `photoApproved: true` (or false to revoke).
+   * Auto-cleared by the API whenever the underlying URL changes. */
+  const [approvalSaving, setApprovalSaving] = useState<'' | 'photo' | 'passport'>('');
+  const setDocApproval = async (which: 'photo' | 'passport', approve: boolean) => {
+    if (!order || approvalSaving) return;
+    const atKey = which === 'photo' ? 'photoApprovedAt' : 'passportApprovedAt';
+    const byKey = which === 'photo' ? 'photoApprovedBy' : 'passportApprovedBy';
+    setApprovalSaving(which);
+    // Optimistic — if approving, stamp a placeholder timestamp + name so the
+    // UI flips instantly; the server's response replaces it with canonical
+    // values a moment later.
+    const optimistic: Partial<Order> = approve
+      ? { [atKey]: new Date().toISOString(), [byKey]: 'You' } as any
+      : { [atKey]: null, [byKey]: null } as any;
+    const previous: Partial<Order> = {
+      [atKey]: order[atKey], [byKey]: order[byKey],
+    } as any;
+    setOrder({ ...order, ...optimistic } as Order);
+    try {
+      const body = which === 'photo'
+        ? { photoApproved: approve }
+        : { passportApproved: approve };
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        setOrder({ ...order, ...previous } as Order);
+      } else {
+        const updated = await res.json();
+        setOrder(updated);
+      }
+    } catch {
+      setOrder({ ...order, ...previous } as Order);
+    } finally {
+      setApprovalSaving('');
+    }
+  };
+
+  /** Convenience derivations. Both must be approved before bot can run. */
+  const photoApproved    = !!order?.photoApprovedAt;
+  const passportApproved = !!order?.passportApprovedAt;
+  const allDocsApproved  = photoApproved && passportApproved;
+
+  /** Format an approval as "✓ Approved by Alice · 5m ago" or null. */
+  const formatApproval = (at: string | null, by: string | null) => {
+    if (!at) return null;
+    const d = new Date(at);
+    const ago = Date.now() - d.getTime();
+    let when: string;
+    if (ago < 60_000)            when = 'just now';
+    else if (ago < 3600_000)     when = `${Math.floor(ago / 60_000)}m ago`;
+    else if (ago < 86_400_000)   when = `${Math.floor(ago / 3600_000)}h ago`;
+    else                         when = d.toLocaleDateString();
+    return `✓ Approved by ${by ?? 'admin'} · ${when}`;
   };
 
   if (loading) return (
     <div className="admin-shell">
-      <AdminSidebar onLogout={handleLogout} />
+      <AdminSidebar active="orders" />
       <div className="admin-main"><div className="order-detail-loading">Loading order...</div></div>
     </div>
   );
   if (error || !order) return (
     <div className="admin-shell">
-      <AdminSidebar onLogout={handleLogout} />
+      <AdminSidebar active="orders" />
       <div className="admin-main">
         <div className="order-detail-loading">
           <p>{error || 'Order not found.'}</p>
@@ -807,9 +1059,69 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const updatedDate = new Date(order.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const updatedTime = new Date(order.updatedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
+  /**
+   * Archived view — customer PII is redacted until the admin hits Recover.
+   * Renders the order number + date + amount only. Recover PATCHes
+   * archivedAt=null and reloads the page so the full detail appears.
+   */
+  if (order.archivedAt) {
+    const archivedDate = new Date(order.archivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const handleRecover = async () => {
+      if (!confirm('Recover this archived order? Its full details will be visible again.')) return;
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archivedAt: null }),
+      });
+      if (res.ok) window.location.reload();
+      else alert('Failed to recover the order — check the console.');
+    };
+    return (
+      <div className="admin-shell">
+        <AdminSidebar active="orders" />
+        <div className="admin-main">
+          <div className="order-detail-shell">
+            <div className="od-top-actions">
+              <Link href="/admin" className="order-detail-back">← Back to Orders</Link>
+            </div>
+            <div style={{
+              maxWidth: 480, margin: '3rem auto', background: '#f8fafc',
+              border: '1px dashed #cbd5e1', borderRadius: '0.75rem',
+              padding: '2.5rem', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: '2.25rem', marginBottom: '1rem' }}>📦</div>
+              <h1 className="order-detail-title" style={{ fontSize: '1.5rem', margin: 0 }}>
+                Order {formatOrderNum(order.orderNumber)}
+              </h1>
+              <p style={{ color: '#64748b', fontSize: '0.95rem', marginTop: '0.4rem' }}>
+                Archived on {archivedDate} &middot; ${order.totalUSD.toFixed(2)}
+              </p>
+              <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '1.5rem', maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
+                Customer details are hidden. Recover this order to view the full information.
+              </p>
+              <button
+                type="button"
+                onClick={handleRecover}
+                style={{
+                  marginTop: '1.75rem', background: 'var(--blue)', color: 'white',
+                  border: 'none', padding: '0.7rem 1.5rem', borderRadius: '0.5rem',
+                  fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                }}
+              >
+                <Undo2 size={15} strokeWidth={2.25} />
+                Recover Order
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-shell">
-      <AdminSidebar onLogout={handleLogout} />
+      <AdminSidebar active="orders" />
       <div className="admin-main">
       <div className="order-detail-shell">
 
@@ -833,6 +1145,25 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <option value="MEDICAL_60">Medical – 60 days</option>
             </select>
           )}
+          {/* Purpose of Visit — fine-grained sub-purpose the customer picked
+              at apply Step 1 (e.g. "Set Up Industrial/Business Venture" for
+              business visas, "Tourism" for tourist visas). Surfaced here so
+              admins can see what the bot will write into the gov form's
+              Visa Purpose dropdown. */}
+          {(() => {
+            const purpose = parseTravelers(order.travelers)[0]?.purposeOfVisit;
+            if (!purpose) return null;
+            return (
+              <span
+                title="Purpose of Visit (sub-purpose under the visa type)"
+                style={{
+                  background: '#f0fdf4', color: '#15803d',
+                  padding: '0.2rem 0.55rem', borderRadius: '0.3rem',
+                  fontSize: '0.78rem', fontWeight: 600,
+                }}
+              >· {purpose}</span>
+            );
+          })()}
         </div>
         <div className="od-topbar-meta">
           <div className="od-meta-item">
@@ -855,11 +1186,52 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
+      {/* ── TAGS ROW ── admin tags + the picker popup. Hidden when the
+           orderTags feature flag is OFF (admin can flip it at /admin/features). */}
+      {tagsEnabled && (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap',
+        marginBottom: '1rem', position: 'relative',
+      }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--slate)', textTransform: 'uppercase' }}>Tags</span>
+        {appliedTags.length === 0 && (
+          <span style={{ fontSize: '0.8rem', color: '#9ca3af', fontStyle: 'italic' }}>No tags applied.</span>
+        )}
+        {appliedTags.map(tag => (
+          <TagChip key={tag.id} tag={tag} size="md" onRemove={() => handleTagApply(tag.id, false)} />
+        ))}
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => setTagPickerOpen(v => !v)}
+            style={{
+              fontSize: '0.78rem', fontWeight: 600,
+              background: tagPickerOpen ? '#eef2ff' : 'transparent',
+              color: 'var(--blue)', border: '1px dashed #c7d2fe',
+              padding: '0.2rem 0.6rem', borderRadius: '999px', cursor: 'pointer',
+            }}
+          >
+            + Add tag
+          </button>
+          {tagPickerOpen && (
+            <TagPicker
+              applied={appliedTagIds}
+              catalog={tagCatalog.tags}
+              onApply={handleTagApply}
+              onCreate={handleTagCreate}
+              onDelete={handleTagDelete}
+              onClose={() => setTagPickerOpen(false)}
+            />
+          )}
+        </div>
+      </div>
+      )}
+
       {/* ── STATUS SECTION ── */}
       <div className="od-status-bar">
         <div className="od-status-left">
           <span className="od-status-label">Status</span>
-          <span className={`admin-status ${STATUS_COLORS[editing ? editData.status : order.status] ?? ''}`}>{STATUS_LABELS[editing ? editData.status : order.status] || (editing ? editData.status : order.status).replace('_', ' ')}</span>
+          <StatusBadge code={editing ? editData.status : order.status} />
         </div>
         <div className="od-status-right">
           <label className="od-status-label">Update status</label>
@@ -876,10 +1248,18 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <option value="ON_HOLD">On Hold</option>
             <option value="REJECTED">Rejected</option>
             <option value="REFUNDED">Refunded</option>
+            {customStatuses.length > 0 && (
+              <optgroup label="Custom">
+                {customStatuses.map(s => (
+                  <option key={s.code} value={s.code}>{s.label}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
           {order.status !== 'REFUNDED' && !editing && (
-            <button className="od-refund-btn" onClick={() => setShowRefundModal(true)}>
-              💸 Refund
+            <button className="od-refund-btn" onClick={() => setShowRefundModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              <Undo2 size={13} strokeWidth={2.25} />
+              <span>Refund</span>
             </button>
           )}
         </div>
@@ -889,7 +1269,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       {/* Refund info banner */}
       {order.status === 'REFUNDED' && (
         <div className="od-refund-banner">
-          <div className="od-refund-banner-title">💸 Refunded</div>
+          <div className="od-refund-banner-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Undo2 size={15} strokeWidth={2.25} />
+            <span>Refunded</span>
+          </div>
           <div className="od-refund-banner-details">
             <span>Amount: <strong>${(order.refundAmount ?? order.totalUSD).toFixed(2)}</strong>
               {order.refundAmount != null && order.refundAmount < order.totalUSD && ' (partial)'}
@@ -902,7 +1285,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* ── VISA DETAILS ── */}
       <div className="modal-section" style={{ maxWidth: '100%' }}>
-        <div className="modal-section-title">📋 Visa Details</div>
+        <div className="modal-section-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+          <ClipboardList size={14} strokeWidth={2} />
+          <span>Visa Details</span>
+        </div>
         <div className="od-visa-grid">
           <div className="modal-row">
             <span className="modal-row-label">Destination</span>
@@ -973,8 +1359,28 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
         {!editing ? (
           <>
-            <button className="od-edit-btn" onClick={startEditing}>✏️ Full Edit</button>
-            <button className="od-process-btn" onClick={async () => {
+            <button className="od-edit-btn" onClick={startEditing}><Pencil size={13} strokeWidth={2.25} /><span>Full Edit</span></button>
+            <button
+              className="od-process-btn"
+              disabled={!allDocsApproved}
+              title={allDocsApproved ? '' : 'Approve both documents above before running the bot.'}
+              style={!allDocsApproved ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              onClick={async () => {
+              // Pre-flight: refuse to launch if either document still needs
+              // admin approval. The bot script also guards independently,
+              // but checking here gives clearer UX and avoids a wasted
+              // process spawn.
+              if (!allDocsApproved) {
+                const pending: string[] = [];
+                if (!photoApproved)    pending.push('• Traveler photo (📸)');
+                if (!passportApproved) pending.push('• Passport bio page (📄)');
+                alert(
+                  'Cannot run bot — these documents still need your approval:\n\n'
+                  + pending.join('\n')
+                  + '\n\nReview each document above and click ✓ Approve next to it.'
+                );
+                return;
+              }
               const orderNum = formatOrderNum(order.orderNumber);
               try {
                 const res = await fetch('http://localhost:3001/process', {
@@ -988,21 +1394,46 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               } catch {
                 alert('Bot server not running.\n\nStart it in a terminal:\nnpx tsx scripts/bot-server.ts');
               }
-            }}>🤖 Process Application</button>
+            }}><Bot size={13} strokeWidth={2.25} /><span>Process Application</span></button>
+            <button
+              type="button"
+              title="Stop the running bot and close its browser window"
+              onClick={async () => {
+                if (!confirm('Stop the running bot? The browser window will close.')) return;
+                try {
+                  const res = await fetch('http://localhost:3001/stop', { method: 'POST' });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok || !data.success) alert(`Failed to stop bot${data.error ? `: ${data.error}` : ''}`);
+                } catch {
+                  alert('Bot server not running. Nothing to stop.');
+                }
+              }}
+              style={{
+                background: 'white', color: '#dc2626',
+                border: '1px solid #fecaca', padding: '0.5rem 0.85rem',
+                borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+              }}
+            >
+              <XIcon size={13} strokeWidth={2.5} />
+              <span>Cancel Bot</span>
+            </button>
             <button className={`od-flag-mode-btn${flagMode ? ' active' : ''}`} onClick={() => setFlagMode(!flagMode)}>
-              🚩 {flagMode ? 'Done Flagging' : 'Flag Errors'}
+              <Flag size={13} strokeWidth={2.25} />
+              <span>{flagMode ? 'Done Flagging' : 'Flag Errors'}</span>
             </button>
             {(flagMode || JSON.stringify(flaggedFields) !== (order.flaggedFields || '[]')) && (
-              <button className="od-save-btn" onClick={saveFlags} disabled={flagSaving} style={{ padding: '0.5rem 1rem' }}>
-                {flagSaving ? 'Saving...' : flagSaved ? '✓ Saved' : '💾 Save Flags'}
+              <button className="od-save-btn" onClick={saveFlags} disabled={flagSaving} style={{ padding: '0.5rem 1rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                {flagSaving ? <span>Saving...</span> : flagSaved ? (<><Check size={13} strokeWidth={2.5} /><span>Saved</span></>) : (<><Save size={13} strokeWidth={2.25} /><span>Save Flags</span></>)}
               </button>
             )}
           </>
         ) : (
           <div className="od-edit-actions">
             <button className="od-cancel-btn" onClick={cancelEditing}>Cancel</button>
-            <button className="od-save-btn" onClick={saveFullEdit} disabled={editSaving}>
-              {editSaving ? 'Saving...' : '💾 Save Changes'}
+            <button className="od-save-btn" onClick={saveFullEdit} disabled={editSaving} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+              {editSaving ? <span>Saving...</span> : <><Save size={13} strokeWidth={2.25} /><span>Save Changes</span></>}
             </button>
           </div>
         )}
@@ -1015,7 +1446,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           if (flags.length === 0) return null;
           return (
             <div className="od-bot-flags">
-              <div className="od-bot-flags-header">🤖 Bot Processing Flags ({flags.length})</div>
+              <div className="od-bot-flags-header" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Bot size={14} strokeWidth={2.25} />
+                <span>Bot Processing Flags ({flags.length})</span>
+              </div>
               <ul className="od-bot-flags-list">
                 {flags.map((f, i) => <li key={i}>{f}</li>)}
               </ul>
@@ -1028,7 +1462,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   });
                   setOrder({ ...order, botFlags: null });
                 } catch {}
-              }}>✓ Dismiss Flags</button>
+              }}><Check size={13} strokeWidth={2.5} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.25rem' }} />Dismiss Flags</button>
             </div>
           );
         } catch { return null; }
@@ -1041,9 +1475,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           {(!editing ? travelers : editTravelers).map((t, i) => (
             <div key={i} className="modal-section">
               <div className="modal-section-title" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                <span>👤 Traveler #{i + 1}{!editing && t.firstName ? ` — ${t.firstName} ${t.lastName}` : ''}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <User size={14} strokeWidth={2} />
+                  <span>Traveler #{i + 1}{!editing && t.firstName ? ` — ${t.firstName} ${t.lastName}` : ''}</span>
+                </span>
                 {editing && editTravelers.length > 1 && (
-                  <button type="button" className="od-edit-remove-btn" onClick={() => removeEditTraveler(i)}>✕ Remove Traveler</button>
+                  <button type="button" className="od-edit-remove-btn" onClick={() => removeEditTraveler(i)}><XIcon size={12} strokeWidth={2.5} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.25rem' }} />Remove Traveler</button>
                 )}
               </div>
 
@@ -1052,43 +1489,97 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* Uploaded Documents — shown at the top for quick visual verification */}
                   {(t.photoUrl || t.passportBioUrl) && (
                     <div className="ts-card ts-card-docs">
-                      <div className="ts-card-header"><span className="ts-card-icon">📎</span><span>Uploaded Documents</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><Paperclip size={14} strokeWidth={2} /></span><span>Uploaded Documents</span></div>
                       <div style={{display:'flex',gap:'1.5rem',flexWrap:'wrap',marginTop:'0.5rem'}}>
                       {t.photoUrl && (
-                        <div style={{textAlign:'center', border: flaggedFields.includes('photoUrl') ? '2px solid #dc2626' : 'none', borderRadius:'1rem', padding:'0.5rem'}}>
+                        <div style={{textAlign:'center', border: !photoApproved ? '2px solid #f59e0b' : flaggedFields.includes('photoUrl') ? '2px solid #dc2626' : '2px solid #86efac', borderRadius:'1rem', padding:'0.5rem'}}>
                           <a href={t.photoUrl} target="_blank" rel="noopener noreferrer">
                             <img src={t.photoUrl} alt="Traveler photo" style={{maxWidth:'140px',maxHeight:'140px',borderRadius:'0.75rem',border:'2px solid var(--cloud)',objectFit:'cover',cursor:'pointer'}} />
                           </a>
                           <div style={{fontSize:'0.75rem',color:'var(--slate)',marginTop:'0.25rem'}}>Traveler Photo</div>
-                          <div style={{display:'flex',gap:'0.35rem',justifyContent:'center',marginTop:'0.35rem'}}>
+                          {photoApproved ? (
+                            <div title={formatApproval(order.photoApprovedAt, order.photoApprovedBy) ?? ''} style={{fontSize:'0.68rem',fontWeight:600,color:'#166534',background:'#dcfce7',border:'1px solid #86efac',borderRadius:'0.4rem',padding:'0.15rem 0.4rem',marginTop:'0.3rem',display:'inline-block',maxWidth:'180px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                              {formatApproval(order.photoApprovedAt, order.photoApprovedBy)}
+                            </div>
+                          ) : (
+                            <div style={{fontSize:'0.7rem',fontWeight:700,color:'#92400e',background:'#fef3c7',border:'1px solid #fde68a',borderRadius:'0.4rem',padding:'0.18rem 0.45rem',marginTop:'0.3rem',display:'inline-flex',alignItems:'center',gap:'0.3rem'}}>
+                              <Camera size={12} strokeWidth={2.5} aria-hidden />
+                              Needs your approval
+                            </div>
+                          )}
+                          <div style={{display:'flex',gap:'0.35rem',justifyContent:'center',marginTop:'0.35rem',flexWrap:'wrap'}}>
                             <a href={t.photoUrl} download style={{fontSize:'0.75rem',fontWeight:600,color:'var(--blue)',textDecoration:'none',padding:'0.25rem 0.5rem',borderRadius:'0.5rem',border:'1px solid var(--cloud)',background:'white'}}>
                               ⬇
                             </a>
+                            <button
+                              type="button"
+                              onClick={() => setDocApproval('photo', !photoApproved)}
+                              title={photoApproved ? 'Revoke approval (e.g. you spotted an issue)' : 'Approve this photo to allow the bot to submit it'}
+                              style={{
+                                fontSize:'0.7rem', fontWeight:700,
+                                padding:'0.25rem 0.6rem', borderRadius:'0.5rem',
+                                border: '1px solid ' + (photoApproved ? '#86efac' : '#16a34a'),
+                                background: photoApproved ? 'white' : '#16a34a',
+                                color: photoApproved ? '#166534' : 'white',
+                                cursor: approvalSaving === 'photo' ? 'wait' : 'pointer',
+                                opacity: approvalSaving === 'photo' ? 0.6 : 1,
+                              }}
+                              disabled={approvalSaving === 'photo'}
+                            >
+                              {approvalSaving === 'photo' ? '…' : photoApproved ? 'Revoke' : '✓ Approve'}
+                            </button>
                             {(flagMode || flaggedFields.includes('photoUrl')) && (
-                              <button type="button" className={`flag-btn${flaggedFields.includes('photoUrl') ? ' active' : ''}`} onClick={() => toggleFlag('photoUrl')} style={{opacity: flaggedFields.includes('photoUrl') ? 1 : 0.4, fontSize:'0.85rem'}}>
-                                🚩
+                              <button type="button" className={`flag-btn${flaggedFields.includes('photoUrl') ? ' active' : ''}`} onClick={() => toggleFlag('photoUrl')} style={{opacity: flaggedFields.includes('photoUrl') ? 1 : 0.4}}>
+                                <Flag size={13} strokeWidth={2.25} />
                               </button>
                             )}
                           </div>
                         </div>
                       )}
                       {t.passportBioUrl && (
-                        <div style={{textAlign:'center', border: flaggedFields.includes('passportBioUrl') ? '2px solid #dc2626' : 'none', borderRadius:'1rem', padding:'0.5rem'}}>
+                        <div style={{textAlign:'center', border: !passportApproved ? '2px solid #f59e0b' : flaggedFields.includes('passportBioUrl') ? '2px solid #dc2626' : '2px solid #86efac', borderRadius:'1rem', padding:'0.5rem'}}>
                           <a href={t.passportBioUrl} target="_blank" rel="noopener noreferrer">
                             {t.passportBioUrl.endsWith('.pdf') ? (
-                              <div style={{width:'140px',height:'140px',background:'#f1f5f9',borderRadius:'0.75rem',border:'2px solid var(--cloud)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'2rem',cursor:'pointer'}}>📄</div>
+                              <div style={{width:'140px',height:'140px',background:'#f1f5f9',borderRadius:'0.75rem',border:'2px solid var(--cloud)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'var(--slate)'}}><FileText size={32} strokeWidth={1.75} /></div>
                             ) : (
                               <img src={t.passportBioUrl} alt="Passport bio" style={{maxWidth:'200px',maxHeight:'140px',borderRadius:'0.75rem',border:'2px solid var(--cloud)',objectFit:'cover',cursor:'pointer'}} />
                             )}
                           </a>
                           <div style={{fontSize:'0.75rem',color:'var(--slate)',marginTop:'0.25rem'}}>Passport Bio Page</div>
-                          <div style={{display:'flex',gap:'0.35rem',justifyContent:'center',marginTop:'0.35rem'}}>
+                          {passportApproved ? (
+                            <div title={formatApproval(order.passportApprovedAt, order.passportApprovedBy) ?? ''} style={{fontSize:'0.68rem',fontWeight:600,color:'#166534',background:'#dcfce7',border:'1px solid #86efac',borderRadius:'0.4rem',padding:'0.15rem 0.4rem',marginTop:'0.3rem',display:'inline-block',maxWidth:'200px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                              {formatApproval(order.passportApprovedAt, order.passportApprovedBy)}
+                            </div>
+                          ) : (
+                            <div style={{fontSize:'0.7rem',fontWeight:700,color:'#92400e',background:'#fef3c7',border:'1px solid #fde68a',borderRadius:'0.4rem',padding:'0.18rem 0.45rem',marginTop:'0.3rem',display:'inline-flex',alignItems:'center',gap:'0.3rem'}}>
+                              <FileText size={12} strokeWidth={2.5} aria-hidden />
+                              Needs your approval
+                            </div>
+                          )}
+                          <div style={{display:'flex',gap:'0.35rem',justifyContent:'center',marginTop:'0.35rem',flexWrap:'wrap'}}>
                             <a href={t.passportBioUrl} download style={{fontSize:'0.75rem',fontWeight:600,color:'var(--blue)',textDecoration:'none',padding:'0.25rem 0.5rem',borderRadius:'0.5rem',border:'1px solid var(--cloud)',background:'white'}}>
                               ⬇
                             </a>
+                            <button
+                              type="button"
+                              onClick={() => setDocApproval('passport', !passportApproved)}
+                              title={passportApproved ? 'Revoke approval (e.g. you spotted an issue)' : 'Approve this passport bio to allow the bot to submit it'}
+                              style={{
+                                fontSize:'0.7rem', fontWeight:700,
+                                padding:'0.25rem 0.6rem', borderRadius:'0.5rem',
+                                border: '1px solid ' + (passportApproved ? '#86efac' : '#16a34a'),
+                                background: passportApproved ? 'white' : '#16a34a',
+                                color: passportApproved ? '#166534' : 'white',
+                                cursor: approvalSaving === 'passport' ? 'wait' : 'pointer',
+                                opacity: approvalSaving === 'passport' ? 0.6 : 1,
+                              }}
+                              disabled={approvalSaving === 'passport'}
+                            >
+                              {approvalSaving === 'passport' ? '…' : passportApproved ? 'Revoke' : '✓ Approve'}
+                            </button>
                             {(flagMode || flaggedFields.includes('passportBioUrl')) && (
-                              <button type="button" className={`flag-btn${flaggedFields.includes('passportBioUrl') ? ' active' : ''}`} onClick={() => toggleFlag('passportBioUrl')} style={{opacity: flaggedFields.includes('passportBioUrl') ? 1 : 0.4, fontSize:'0.85rem'}}>
-                                🚩
+                              <button type="button" className={`flag-btn${flaggedFields.includes('passportBioUrl') ? ' active' : ''}`} onClick={() => toggleFlag('passportBioUrl')} style={{opacity: flaggedFields.includes('passportBioUrl') ? 1 : 0.4}}>
+                                <Flag size={13} strokeWidth={2.25} />
                               </button>
                             )}
                           </div>
@@ -1100,7 +1591,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* Personal */}
                   <div className="ts-card ts-card-personal">
-                    <div className="ts-card-header"><span className="ts-card-icon">🧍</span><span>Personal Details</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><User size={14} strokeWidth={2} /></span><span>Personal Details</span></div>
                     <div className="modal-rows">
                       <FlagRow field="firstName" label="Full name" value={`${t.firstName} ${t.lastName}`} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                       <FlagRow field="dob" label="Date of birth" value={t.dob} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
@@ -1114,7 +1605,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* Birth & Identity */}
                   <div className="ts-card ts-card-birth">
-                    <div className="ts-card-header"><span className="ts-card-icon">🌍</span><span>Birth & Identity</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><FileBadge size={14} strokeWidth={2} /></span><span>Birth & Identity</span></div>
                     <div className="modal-rows">
                       <FlagRow field="cityOfBirth" label="City of birth" value={t.cityOfBirth} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                       <FlagRow field="countryOfBirth" label="Country of birth" value={t.countryOfBirth} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
@@ -1131,7 +1622,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* Address */}
                   {(t.address || t.city || t.state || t.zip || t.residenceCountry) && (
                     <div className="ts-card ts-card-address">
-                      <div className="ts-card-header"><span className="ts-card-icon">🏠</span><span>Address</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><Home size={14} strokeWidth={2} /></span><span>Address</span></div>
                       <div className="modal-rows">
                         <FlagRow field="residenceCountry" label="Country of residence" value={t.residenceCountry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                         <FlagRow field="address" label="Home address" value={t.address} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
@@ -1143,7 +1634,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* Employment */}
                   {(t.employmentStatus || t.isEmployed || t.servedMilitary) && (
                     <div className="ts-card ts-card-employment">
-                      <div className="ts-card-header"><span className="ts-card-icon">💼</span><span>Employment</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><Briefcase size={14} strokeWidth={2} /></span><span>Employment</span></div>
                       <div className="modal-rows">
                         <FlagRow field="employmentStatus" label="Status" value={t.employmentStatus} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                         <FlagRow field="employerName" label="Employer" value={t.employerName} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
@@ -1153,10 +1644,31 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     </div>
                   )}
 
+                  {/* Business Meeting Details — only renders for BUSINESS_1Y
+                      orders whose sub-purpose is "Attend Technical/Business
+                      Meetings". Other business sub-purposes have different
+                      gov-form fields that will get their own card. */}
+                  {order.visaType === 'BUSINESS_1Y' && t.purposeOfVisit === 'Attend Technical/Business Meetings' && (t.applicantCompanyName || t.indianFirmName || t.purposeOfVisit) && (
+                    <div className="ts-card ts-card-business">
+                      <div className="ts-card-header"><span className="ts-card-icon"><Building2 size={14} strokeWidth={2} /></span><span>Business Meeting Details</span></div>
+                      <div className="modal-rows">
+                        <FlagRow field="purposeOfVisit"          label="Purpose of visit"           value={t.purposeOfVisit}          flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="applicantCompanyName"    label="Applicant's company"        value={t.applicantCompanyName}    flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="applicantCompanyAddress" label="Applicant's company addr"   value={t.applicantCompanyAddress} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="applicantCompanyPhone"   label="Applicant's company phone"  value={t.applicantCompanyPhone}   flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="applicantCompanyWebsite" label="Applicant's company web"    value={t.applicantCompanyWebsite} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="indianFirmName"          label="Indian firm"                value={t.indianFirmName}          flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="indianFirmAddress"       label="Indian firm address"        value={t.indianFirmAddress}       flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="indianFirmPhone"         label="Indian firm phone"          value={t.indianFirmPhone}         flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                        <FlagRow field="indianFirmWebsite"       label="Indian firm website"        value={t.indianFirmWebsite}       flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Family */}
                   {(t.fatherName || t.motherName || t.spouseName || t.knowParents) && (
                     <div className="ts-card ts-card-family">
-                      <div className="ts-card-header"><span className="ts-card-icon">👨‍👩‍👧</span><span>Family Details</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><UsersIcon size={14} strokeWidth={2} /></span><span>Family Details</span></div>
                       <div className="modal-rows">
                         <FlagRow field="fatherName" label="Father" value={t.fatherName ? `${t.fatherName}${t.fatherNationality ? ` (${t.fatherNationality})` : ''}` : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                         <FlagRow field="fatherPlaceOfBirth" label="Father's birthplace" value={(t.fatherPlaceOfBirth || t.fatherCountryOfBirth) ? [t.fatherPlaceOfBirth, t.fatherCountryOfBirth].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
@@ -1171,7 +1683,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* Passport */}
                   {(t.passportCountry || t.passportNumber) && (
                     <div className="ts-card ts-card-passport">
-                      <div className="ts-card-header"><span className="ts-card-icon">📕</span><span>Passport Details</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><BookOpen size={14} strokeWidth={2} /></span><span>Passport Details</span></div>
                       <div className="modal-rows">
                         <FlagRow field="passportCountry" label="Country" value={t.passportCountry} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                         <FlagRow field="passportNumber" label="Number" value={t.passportNumber} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className="modal-mono" />
@@ -1187,7 +1699,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* Trip Details */}
                   {(t.arrivalDate || t.arrivalPoint || (t.visitedCountries && t.visitedCountries.length > 0)) && (
                     <div className="ts-card ts-card-trip">
-                      <div className="ts-card-header"><span className="ts-card-icon">✈️</span><span>Trip Details</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><Plane size={14} strokeWidth={2} /></span><span>Trip Details</span></div>
                       <div className="modal-rows">
                         <FlagRow field="arrivalDate" label="Arrival date" value={t.arrivalDate} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                         <FlagRow field="arrivalPoint" label="Arrival point" value={t.arrivalPoint} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
@@ -1199,7 +1711,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* Travel & Accommodation */}
                   {(t.placesToVisit || t.bookedHotel || t.exitPort || t.visitedIndiaBefore) && (
                     <div className="ts-card ts-card-accom">
-                      <div className="ts-card-header"><span className="ts-card-icon">🏨</span><span>Travel & Accommodation</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><Hotel size={14} strokeWidth={2} /></span><span>Travel & Accommodation</span></div>
                       <div className="modal-rows">
                         <FlagRow field="placesToVisit" label="Places to visit" value={t.placesToVisit} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                         <FlagRow field="bookedHotel" label="Hotel booked" value={t.bookedHotel ? (t.bookedHotel === 'yes' ? `Yes — ${t.hotelName || ''}, ${t.hotelPlace || ''}` : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
@@ -1222,7 +1734,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* References */}
                   {(t.refNameIndia || t.refAddressHome) && (
                     <div className="ts-card ts-card-reference">
-                      <div className="ts-card-header"><span className="ts-card-icon">📇</span><span>References</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><Contact size={14} strokeWidth={2} /></span><span>References</span></div>
                       <div className="modal-rows">
                         <FlagRow field="refNameIndia" label="India reference" value={t.refNameIndia} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
                         <FlagRow field="refAddressIndia" label="India address" value={t.refAddressIndia ? [t.refAddressIndia, t.refStateIndia, t.refDistrictIndia].filter(Boolean).join(', ') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} />
@@ -1237,7 +1749,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* Security Questions */}
                   {(t.everArrested || t.everRefusedEntry || t.soughtAsylum || t.hasCriminalRecord) && (
                     <div className="ts-card ts-card-security">
-                      <div className="ts-card-header"><span className="ts-card-icon">🛡️</span><span>Security</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><Shield size={14} strokeWidth={2} /></span><span>Security</span></div>
                       <div className="modal-rows">
                         <FlagRow field="everArrested" label="Arrested/convicted" value={t.everArrested ? (t.everArrested === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.everArrested === 'yes' ? 'text-red-600 font-semibold' : ''} />
                         <FlagRow field="everRefusedEntry" label="Refused entry/deported" value={t.everRefusedEntry ? (t.everRefusedEntry === 'yes' ? 'Yes' : 'No') : undefined} flagged={flaggedFields} onToggle={toggleFlag} showFlags={flagMode} className={t.everRefusedEntry === 'yes' ? 'text-red-600 font-semibold' : ''} />
@@ -1250,16 +1762,39 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   {/* Application Progress */}
                   {t.finishStep && (
                     <div className="ts-card ts-card-progress">
-                      <div className="ts-card-header"><span className="ts-card-icon">📊</span><span>Application Progress</span></div>
+                      <div className="ts-card-header"><span className="ts-card-icon"><ClipboardList size={14} strokeWidth={2} /></span><span>Application Progress</span></div>
                       <div style={{fontSize:'0.85rem',color:'var(--ink)',padding:'0.25rem 0'}}>Step: <strong>{t.finishStep}</strong></div>
                     </div>
                   )}
+
+                  {/* Admin-defined custom sections (built-ins are shown via hardcoded cards above) */}
+                  {customAppSchema.sections
+                    .filter(sec => !sec.builtIn && !sec.hidden && sec.fields.length > 0)
+                    .map(sec => {
+                      const vals = (t as any).custom || {};
+                      const visibleFields = sec.fields.filter(f => !f.hidden);
+                      if (visibleFields.length === 0) return null;
+                      return (
+                        <div key={sec.key} className="ts-card">
+                          <div className="ts-card-header">
+                            <span className="ts-card-icon"><SectionIcon icon={sec.icon} emoji={sec.emoji} size={14} strokeWidth={2} /></span>
+                            <span>{sec.title}</span>
+                          </div>
+                          {visibleFields.map(f => (
+                            <div key={f.key} className="modal-row">
+                              <span className="modal-row-label">{f.label}</span>
+                              <span className="modal-row-value">{formatAdminCustomValue(vals[f.key])}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="ts-grid">
                   {/* Documents — upload/remove photo and passport bio (shown at top) */}
                   <div className="ts-card ts-card-docs">
-                    <div className="ts-card-header"><span className="ts-card-icon">📎</span><span>Documents</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><Paperclip size={14} strokeWidth={2} /></span><span>Documents</span></div>
                     <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginTop:'0.5rem'}}>
                       {/* Photo */}
                       <div style={{textAlign:'center', padding:'0.75rem', border:'1px solid var(--cloud)', borderRadius:'0.75rem'}}>
@@ -1340,7 +1875,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* Personal Details */}
                   <div className="ts-card ts-card-personal">
-                    <div className="ts-card-header"><span className="ts-card-icon">🧍</span><span>Personal Details</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><User size={14} strokeWidth={2} /></span><span>Personal Details</span></div>
                     <div className="ts-edit-fields">
                       <div className="ap-field"><label className="ap-field-label">First name</label><input className="od-edit-input" value={t.firstName} onChange={e => updateEditTraveler(i, 'firstName', e.target.value)} /></div>
                       <div className="ap-field"><label className="ap-field-label">Last name</label><input className="od-edit-input" value={t.lastName} onChange={e => updateEditTraveler(i, 'lastName', e.target.value)} /></div>
@@ -1355,13 +1890,20 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                         <select className="od-edit-input" value={t.maritalStatus ?? ''} onChange={e => updateEditTraveler(i, 'maritalStatus', e.target.value)}>
                           <option value="">—</option><option value="Married">Married</option><option value="Single">Single</option><option value="Divorced">Divorced</option><option value="Widowed">Widowed</option>
                         </select></div>
-                      <div className="ap-field"><label className="ap-field-label">Religion</label><input className="od-edit-input" value={t.religion ?? ''} onChange={e => updateEditTraveler(i, 'religion', e.target.value)} /></div>
+                      <div className="ap-field"><label className="ap-field-label">Religion</label>
+                        <select className="od-edit-input" value={t.religion ?? ''} onChange={e => updateEditTraveler(i, 'religion', e.target.value)}>
+                          <option value="">—</option>
+                          {INDIA_RELIGIONS.map(r => (
+                            <option key={r.value} value={r.label}>{r.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
 
                   {/* Birth & Identity */}
                   <div className="ts-card ts-card-birth">
-                    <div className="ts-card-header"><span className="ts-card-icon">🌍</span><span>Birth & Identity</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><FileBadge size={14} strokeWidth={2} /></span><span>Birth & Identity</span></div>
                     <div className="ts-edit-fields">
                       <div className="ap-field"><label className="ap-field-label">City of birth</label><input className="od-edit-input" value={t.cityOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'cityOfBirth', e.target.value)} /></div>
                       <div className="ap-field"><label className="ap-field-label">Country of birth</label><input className="od-edit-input" value={t.countryOfBirth ?? ''} onChange={e => updateEditTraveler(i, 'countryOfBirth', e.target.value)} /></div>
@@ -1390,7 +1932,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* Address */}
                   <div className="ts-card ts-card-address">
-                    <div className="ts-card-header"><span className="ts-card-icon">🏠</span><span>Address</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><Home size={14} strokeWidth={2} /></span><span>Address</span></div>
                     <div className="ts-edit-fields">
                       <div className="ap-field"><label className="ap-field-label">Country of residence</label><input className="od-edit-input" value={t.residenceCountry ?? ''} onChange={e => updateEditTraveler(i, 'residenceCountry', e.target.value)} /></div>
                       <div className="ap-field"><label className="ap-field-label">Address</label><input className="od-edit-input" value={t.address ?? ''} onChange={e => updateEditTraveler(i, 'address', e.target.value)} /></div>
@@ -1402,7 +1944,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* Employment */}
                   <div className="ts-card ts-card-employment">
-                    <div className="ts-card-header"><span className="ts-card-icon">💼</span><span>Employment</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><Briefcase size={14} strokeWidth={2} /></span><span>Employment</span></div>
                     <div className="ts-edit-fields">
                       <div className="ap-field"><label className="ap-field-label">Employment status</label>
                         <select className="od-edit-input" value={t.employmentStatus ?? ''} onChange={e => updateEditTraveler(i, 'employmentStatus', e.target.value)}>
@@ -1421,15 +1963,66 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     </div>
                   </div>
 
+                  {/* Business Meeting Details — only for BUSINESS_1Y +
+                      Attend Technical/Business Meetings sub-purpose.
+                      Edit-mode lets admin change the sub-purpose first, so
+                      we always show the purpose dropdown for business orders
+                      and reveal the rest of the fields only when the meetings
+                      sub-purpose is selected. */}
+                  {order.visaType === 'BUSINESS_1Y' && (
+                    <div className="ts-card ts-card-business">
+                      <div className="ts-card-header"><span className="ts-card-icon"><Building2 size={14} strokeWidth={2} /></span><span>Business Meeting Details</span></div>
+                      <div className="ts-edit-fields">
+                        <div className="ap-field"><label className="ap-field-label">Purpose of visit</label>
+                          <select className="od-edit-input" value={t.purposeOfVisit ?? ''} onChange={e => updateEditTraveler(i, 'purposeOfVisit', e.target.value)}>
+                            <option value="">—</option>
+                            <option value="Set Up Industrial/Business Venture">Set Up Industrial/Business Venture</option>
+                            <option value="Sale/Purchase/Trade">Sale/Purchase/Trade</option>
+                            <option value="Attend Technical/Business Meetings">Attend Technical/Business Meetings</option>
+                            <option value="Recruit Manpower">Recruit Manpower</option>
+                            <option value="Participation in Exhibitions/Trade Fairs">Participation in Exhibitions/Trade Fairs</option>
+                            <option value="Expert/Specialist for Ongoing Project">Expert/Specialist for Ongoing Project</option>
+                            <option value="Conducting Tours">Conducting Tours</option>
+                            <option value="Deliver Lectures (GIAN)">Deliver Lectures (GIAN)</option>
+                            <option value="Sports Related Activity">Sports Related Activity</option>
+                            <option value="Join Vessel">Join Vessel</option>
+                          </select>
+                        </div>
+                        {/* The 6 meetings-specific fields only show when the
+                            sub-purpose matches. Other sub-purposes have
+                            different gov-form fields and will get their own
+                            cards as we map them. */}
+                        {t.purposeOfVisit === 'Attend Technical/Business Meetings' ? (
+                          <>
+                            <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.5rem' }}>Applicant&apos;s Company</div>
+                            <div className="ap-field"><label className="ap-field-label">Name</label><input className="od-edit-input" value={t.applicantCompanyName ?? ''} onChange={e => updateEditTraveler(i, 'applicantCompanyName', stripDiacritics(e.target.value))} /></div>
+                            <div className="ap-field"><label className="ap-field-label">Address</label><input className="od-edit-input" value={t.applicantCompanyAddress ?? ''} onChange={e => updateEditTraveler(i, 'applicantCompanyAddress', stripDiacritics(e.target.value))} /></div>
+                            <div className="ap-field"><label className="ap-field-label">Phone number</label><input className="od-edit-input" value={t.applicantCompanyPhone ?? ''} onChange={e => updateEditTraveler(i, 'applicantCompanyPhone', stripDiacritics(e.target.value))} /></div>
+                            <div className="ap-field"><label className="ap-field-label">Website</label><input className="od-edit-input" value={t.applicantCompanyWebsite ?? ''} onChange={e => updateEditTraveler(i, 'applicantCompanyWebsite', stripDiacritics(e.target.value))} /></div>
+                            <div style={{ fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.5rem' }}>Indian Firm</div>
+                            <div className="ap-field"><label className="ap-field-label">Name</label><input className="od-edit-input" value={t.indianFirmName ?? ''} onChange={e => updateEditTraveler(i, 'indianFirmName', stripDiacritics(e.target.value))} /></div>
+                            <div className="ap-field"><label className="ap-field-label">Address</label><input className="od-edit-input" value={t.indianFirmAddress ?? ''} onChange={e => updateEditTraveler(i, 'indianFirmAddress', stripDiacritics(e.target.value))} /></div>
+                            <div className="ap-field"><label className="ap-field-label">Phone number</label><input className="od-edit-input" value={t.indianFirmPhone ?? ''} onChange={e => updateEditTraveler(i, 'indianFirmPhone', stripDiacritics(e.target.value))} /></div>
+                            <div className="ap-field"><label className="ap-field-label">Website</label><input className="od-edit-input" value={t.indianFirmWebsite ?? ''} onChange={e => updateEditTraveler(i, 'indianFirmWebsite', stripDiacritics(e.target.value))} /></div>
+                          </>
+                        ) : t.purposeOfVisit ? (
+                          <p style={{ color:'var(--slate)', fontSize:'0.82rem', marginTop:'0.5rem' }}>
+                            Sub-form for &quot;{t.purposeOfVisit}&quot; isn&apos;t built yet. Switch to &quot;Attend Technical/Business Meetings&quot; to edit the meetings-specific fields, or wait for that sub-purpose&apos;s mapping to be added.
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Family */}
                   <div className="ts-card ts-card-family">
-                    <div className="ts-card-header"><span className="ts-card-icon">👨‍👩‍👧</span><span>Family Details</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><UsersIcon size={14} strokeWidth={2} /></span><span>Family Details</span></div>
                     <div className="ts-edit-fields">
                       {/* Father */}
                       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.25rem'}}>
                         <span>Father</span>
                         {(t.fatherName || '').trim() !== '' ? (
-                          <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'father')}>✕ Remove</button>
+                          <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'father')}><XIcon size={12} strokeWidth={2.5} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.25rem' }} />Remove</button>
                         ) : (
                           <button type="button" className="od-edit-add-btn" onClick={() => updateEditTraveler(i, 'fatherName', ' ')}>+ Add</button>
                         )}
@@ -1444,7 +2037,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.75rem'}}>
                         <span>Mother</span>
                         {(t.motherName || '').trim() !== '' ? (
-                          <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'mother')}>✕ Remove</button>
+                          <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'mother')}><XIcon size={12} strokeWidth={2.5} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.25rem' }} />Remove</button>
                         ) : (
                           <button type="button" className="od-edit-add-btn" onClick={() => updateEditTraveler(i, 'motherName', ' ')}>+ Add</button>
                         )}
@@ -1459,7 +2052,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.75rem'}}>
                         <span>Spouse</span>
                         {(t.spouseName || '').trim() !== '' ? (
-                          <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'spouse')}>✕ Remove</button>
+                          <button type="button" className="od-edit-remove-btn" onClick={() => clearFamilyMember(i, 'spouse')}><XIcon size={12} strokeWidth={2.5} style={{ display: 'inline-block', verticalAlign: '-0.15em', marginRight: '0.25rem' }} />Remove</button>
                         ) : (
                           <button type="button" className="od-edit-add-btn" onClick={() => updateEditTraveler(i, 'spouseName', ' ')}>+ Add</button>
                         )}
@@ -1475,7 +2068,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* Passport */}
                   <div className="ts-card ts-card-passport">
-                    <div className="ts-card-header"><span className="ts-card-icon">📕</span><span>Passport Details</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><BookOpen size={14} strokeWidth={2} /></span><span>Passport Details</span></div>
                     <div className="ts-edit-fields">
                       <div className="ap-field"><label className="ap-field-label">Passport country</label><input className="od-edit-input" value={t.passportCountry ?? ''} onChange={e => updateEditTraveler(i, 'passportCountry', e.target.value)} /></div>
                       <div className="ap-field"><label className="ap-field-label">Passport number</label><input className="od-edit-input" value={t.passportNumber ?? ''} onChange={e => updateEditTraveler(i, 'passportNumber', e.target.value)} /></div>
@@ -1497,7 +2090,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* Trip Details */}
                   <div className="ts-card ts-card-trip">
-                    <div className="ts-card-header"><span className="ts-card-icon">✈️</span><span>Trip Details</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><Plane size={14} strokeWidth={2} /></span><span>Trip Details</span></div>
                     <div className="ts-edit-fields">
                       <div className="ap-field"><label className="ap-field-label">Arrival date</label><input className="od-edit-input" value={t.arrivalDate ?? ''} onChange={e => updateEditTraveler(i, 'arrivalDate', e.target.value)} /></div>
                       <div className="ap-field"><label className="ap-field-label">Arrival point</label><input className="od-edit-input" value={t.arrivalPoint ?? ''} onChange={e => updateEditTraveler(i, 'arrivalPoint', e.target.value)} /></div>
@@ -1510,7 +2103,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* Travel & Accommodation */}
                   <div className="ts-card ts-card-accom">
-                    <div className="ts-card-header"><span className="ts-card-icon">🏨</span><span>Travel & Accommodation</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><Hotel size={14} strokeWidth={2} /></span><span>Travel & Accommodation</span></div>
                     <div className="ts-edit-fields">
                       <div className="ap-field"><label className="ap-field-label">Places to visit</label><input className="od-edit-input" value={t.placesToVisit ?? ''} onChange={e => updateEditTraveler(i, 'placesToVisit', e.target.value)} /></div>
                       <div className="ap-field"><label className="ap-field-label">Booked hotel</label>
@@ -1537,7 +2130,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* References */}
                   <div className="ts-card ts-card-reference">
-                    <div className="ts-card-header"><span className="ts-card-icon">📇</span><span>References</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><Contact size={14} strokeWidth={2} /></span><span>References</span></div>
                     <div className="ts-edit-fields">
                       <div style={{fontSize:'0.78rem', fontWeight:600, color:'var(--slate)', textTransform:'uppercase', marginTop:'0.25rem'}}>India</div>
                       <div className="ap-field"><label className="ap-field-label">Reference name</label><input className="od-edit-input" value={t.refNameIndia ?? ''} onChange={e => updateEditTraveler(i, 'refNameIndia', e.target.value)} /></div>
@@ -1557,7 +2150,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
                   {/* Security */}
                   <div className="ts-card ts-card-security">
-                    <div className="ts-card-header"><span className="ts-card-icon">🛡️</span><span>Security</span></div>
+                    <div className="ts-card-header"><span className="ts-card-icon"><Shield size={14} strokeWidth={2} /></span><span>Security</span></div>
                     <div className="ts-edit-fields">
                       <div className="ap-field"><label className="ap-field-label">Arrested/convicted</label>
                         <select className="od-edit-input" value={t.everArrested ?? ''} onChange={e => updateEditTraveler(i, 'everArrested', e.target.value)}>
@@ -1577,6 +2170,59 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                         </select></div>
                     </div>
                   </div>
+
+                  {/* Admin-defined custom sections (editable) — built-ins are handled via hardcoded cards */}
+                  {customAppSchema.sections
+                    .filter(sec => !sec.builtIn && !sec.hidden && sec.fields.length > 0)
+                    .map(sec => {
+                      const vals = ((t as any).custom || {}) as Record<string, any>;
+                      const setCustomField = (fKey: string, v: any) => {
+                        const next = { ...vals, [fKey]: v };
+                        updateEditTraveler(i, 'custom' as any, next);
+                      };
+                      const visibleFields = sec.fields.filter(f => !f.hidden);
+                      if (visibleFields.length === 0) return null;
+                      return (
+                        <div key={sec.key} className="ts-card">
+                          <div className="ts-card-header">
+                            <span className="ts-card-icon"><SectionIcon icon={sec.icon} emoji={sec.emoji} size={14} strokeWidth={2} /></span>
+                            <span>{sec.title}</span>
+                          </div>
+                          {visibleFields.map(f => (
+                          <div key={f.key} className="ap-field">
+                            <label className="ap-field-label">{f.label}{f.required ? <span style={{ color: '#dc2626' }}> *</span> : null}</label>
+                            {f.type === 'textarea' ? (
+                              <textarea className="od-edit-input" rows={3} value={vals[f.key] ?? ''} onChange={e => setCustomField(f.key, e.target.value)} placeholder={f.placeholder} />
+                            ) : f.type === 'select' ? (
+                              <select className="od-edit-input" value={vals[f.key] ?? ''} onChange={e => setCustomField(f.key, e.target.value)}>
+                                <option value="">—</option>
+                                {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            ) : f.type === 'radio' ? (
+                              <select className="od-edit-input" value={vals[f.key] ?? ''} onChange={e => setCustomField(f.key, e.target.value)}>
+                                <option value="">—</option>
+                                {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                            ) : f.type === 'checkbox' ? (
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <input type="checkbox" checked={!!vals[f.key]} onChange={e => setCustomField(f.key, e.target.checked)} />
+                                <span style={{ fontSize: '0.85rem' }}>{vals[f.key] ? 'Yes' : 'No'}</span>
+                              </label>
+                            ) : (
+                              <input
+                                type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}
+                                className="od-edit-input"
+                                value={vals[f.key] ?? ''}
+                                onChange={e => setCustomField(f.key, e.target.value)}
+                                placeholder={f.placeholder}
+                              />
+                            )}
+                            {f.helpText && <p style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '0.25rem' }}>{f.helpText}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1589,6 +2235,13 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           )}
 
       </div>
+
+      {/* Bot Run History — always visible at the bottom of the order detail.
+          Shows per-field audit trail for every bot run, including expandable
+          option dumps when a select fails to find its target. */}
+      <div style={{ marginTop: '1.5rem' }}>
+        <BotRunPanel orderId={order.id} />
+      </div>
     </div>
     </div>
 
@@ -1596,7 +2249,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     {showRefundModal && order && (
       <div className="od-refund-overlay" onClick={() => setShowRefundModal(false)}>
         <div className="od-refund-modal" onClick={e => e.stopPropagation()}>
-          <h2 className="od-refund-modal-title">💸 Process Refund</h2>
+          <h2 className="od-refund-modal-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Undo2 size={18} strokeWidth={2.25} />
+            <span>Process Refund</span>
+          </h2>
           <p className="od-refund-modal-sub">Order #{formatOrderNum(order.orderNumber)} — Original: ${order.totalUSD.toFixed(2)}</p>
 
           <div className="od-refund-field">
@@ -1636,4 +2292,310 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     )}
     </div>
   );
+}
+
+// ── Format an admin-defined custom field value for read-view display ──
+function formatAdminCustomValue(v: unknown): string {
+  if (v === undefined || v === null || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  if (Array.isArray(v)) return v.join(', ') || '—';
+  return String(v);
+}
+
+// ── Bot Run History ──────────────────────────────────────────────────────
+//
+// Lists every time the Playwright bot ran against this order, plus a
+// per-field audit trail (which selector fired, what value was used, whether
+// it was admin override vs default, whether the action succeeded).
+
+interface BotRunSummary {
+  id: string;
+  orderId: string;
+  country: string;
+  status: string;
+  startedAt: string;
+  finishedAt: string | null;
+  errorMsg: string | null;
+  entryCount: number;
+  counts: { ok: number; failed: number; manual: number; skipped: number; admin: number };
+}
+
+interface BotRunEntryRow {
+  id: string;
+  stepKey: string;
+  fieldKey: string;
+  label: string;
+  action: string;
+  source: string;
+  value: string | null;
+  success: boolean;
+  errorMsg: string | null;
+  selector: string | null;
+  createdAt: string;
+}
+
+function BotRunPanel({ orderId }: { orderId: string }) {
+  const [runs, setRuns] = useState<BotRunSummary[] | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [entriesByRun, setEntriesByRun] = useState<Record<string, BotRunEntryRow[]>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/bot-runs?orderId=${encodeURIComponent(orderId)}&limit=10`);
+        if (res.ok) {
+          const d = await res.json();
+          setRuns(d.runs || []);
+        }
+      } catch {}
+      setLoading(false);
+    })();
+  }, [orderId]);
+
+  const loadEntries = async (runId: string) => {
+    if (entriesByRun[runId]) return;
+    try {
+      const res = await fetch(`/api/bot-runs/${runId}`);
+      if (res.ok) {
+        const d = await res.json();
+        setEntriesByRun(prev => ({ ...prev, [runId]: d.entries || [] }));
+      }
+    } catch {}
+  };
+
+  const toggleExpand = async (runId: string) => {
+    if (expanded === runId) { setExpanded(null); return; }
+    setExpanded(runId);
+    await loadEntries(runId);
+  };
+
+  const statusChip = (status: string) => {
+    const map: Record<string, { bg: string; fg: string; label: string }> = {
+      running:   { bg: '#dbeafe', fg: '#1e40af', label: 'RUNNING' },
+      completed: { bg: '#d1fae5', fg: '#065f46', label: 'COMPLETED' },
+      failed:    { bg: '#fee2e2', fg: '#991b1b', label: 'FAILED' },
+      cancelled: { bg: '#f3f4f6', fg: '#6b7280', label: 'CANCELLED' },
+    };
+    const c = map[status] || map.cancelled;
+    return (
+      <span style={{ background: c.bg, color: c.fg, padding: '0.1rem 0.45rem', borderRadius: '0.25rem', fontWeight: 700, fontSize: '0.68rem' }}>
+        {c.label}
+      </span>
+    );
+  };
+
+  const fmtTime = (iso: string | null) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const fmtDuration = (startedAt: string, finishedAt: string | null) => {
+    if (!finishedAt) return 'running…';
+    const diff = new Date(finishedAt).getTime() - new Date(startedAt).getTime();
+    if (diff < 60_000) return `${Math.round(diff / 1000)}s`;
+    return `${Math.round(diff / 60_000)}m ${Math.round((diff % 60_000) / 1000)}s`;
+  };
+
+  return (
+    <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '0.4rem', padding: '1rem 1.25rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Bot size={16} strokeWidth={2} />
+            <span>Bot Run History</span>
+          </div>
+          <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>Per-field audit trail for every bot run against this order.</div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: '1rem', textAlign: 'center', color: '#9ca3af', fontSize: '0.88rem' }}>Loading runs…</div>
+      ) : !runs || runs.length === 0 ? (
+        <div style={{ padding: '1.25rem', textAlign: 'center', color: '#9ca3af', background: '#f9fafb', border: '1px dashed #e5e7eb', borderRadius: '0.4rem', fontSize: '0.88rem' }}>
+          No bot runs yet for this order. Run <code>npx tsx scripts/process-visa.ts {runs ? runs[0]?.orderId ?? '…' : '…'}</code> or use the Process Application button.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          {runs.map(r => {
+            const isOpen = expanded === r.id;
+            return (
+              <div key={r.id} style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '0.35rem', overflow: 'hidden' }}>
+                <button
+                  onClick={() => toggleExpand(r.id)}
+                  style={{
+                    width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '0.6rem 0.85rem', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    {statusChip(r.status)}
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{fmtTime(r.startedAt)}</span>
+                    <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>· {fmtDuration(r.startedAt, r.finishedAt)} · {r.entryCount} fields</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.72rem' }}>
+                    {r.counts.ok > 0 && <span style={{ background: '#d1fae5', color: '#065f46', padding: '0.05rem 0.4rem', borderRadius: '0.2rem', fontWeight: 600 }}>{r.counts.ok} ok</span>}
+                    {r.counts.admin > 0 && <span style={{ background: '#dbeafe', color: '#1e40af', padding: '0.05rem 0.4rem', borderRadius: '0.2rem', fontWeight: 600 }}>{r.counts.admin} admin</span>}
+                    {r.counts.manual > 0 && <span style={{ background: '#fef3c7', color: '#92400e', padding: '0.05rem 0.4rem', borderRadius: '0.2rem', fontWeight: 600 }}>{r.counts.manual} manual</span>}
+                    {r.counts.skipped > 0 && <span style={{ background: '#f3f4f6', color: '#6b7280', padding: '0.05rem 0.4rem', borderRadius: '0.2rem', fontWeight: 600 }}>{r.counts.skipped} skip</span>}
+                    {r.counts.failed > 0 && <span style={{ background: '#fee2e2', color: '#991b1b', padding: '0.05rem 0.4rem', borderRadius: '0.2rem', fontWeight: 700 }}>{r.counts.failed} failed</span>}
+                    <span style={{ color: '#9ca3af', marginLeft: '0.2rem' }}>{isOpen ? '▾' : '▸'}</span>
+                  </div>
+                </button>
+                {isOpen && (
+                  <BotRunEntriesTable runId={r.id} entries={entriesByRun[r.id]} errorMsg={r.errorMsg} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Parse a bot_run_entry's value field as a select-failure dump.
+ * Returns the option list when the entry was a failed select with the
+ * `{tried, options}` payload our bot writes; otherwise null.
+ */
+function parseSelectDump(value: string | null): { tried: string; options: Array<{ value: string; text: string }> } | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed.tried === 'string' && Array.isArray(parsed.options)) {
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+
+function BotRunEntriesTable({ runId, entries, errorMsg }: { runId: string; entries: BotRunEntryRow[] | undefined; errorMsg: string | null }) {
+  // Track which row's option dump is expanded.
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+
+  if (!entries) {
+    return <div style={{ padding: '0.75rem 0.85rem', color: '#9ca3af', fontSize: '0.82rem' }}>Loading entries…</div>;
+  }
+  if (entries.length === 0) {
+    return <div style={{ padding: '0.75rem 0.85rem', color: '#9ca3af', fontSize: '0.82rem' }}>No entries logged for run <code>{runId}</code>.</div>;
+  }
+  // Group by step
+  const byStep: Record<string, BotRunEntryRow[]> = {};
+  for (const e of entries) (byStep[e.stepKey] = byStep[e.stepKey] || []).push(e);
+
+  return (
+    <div style={{ borderTop: '1px solid #e5e7eb', background: 'white', fontSize: '0.82rem' }}>
+      {errorMsg && (
+        <div style={{ padding: '0.6rem 0.85rem', background: '#fef2f2', color: '#991b1b', fontSize: '0.82rem', borderBottom: '1px solid #fecaca' }}>
+          <strong>Failure:</strong> {errorMsg}
+        </div>
+      )}
+      {Object.entries(byStep).map(([stepKey, rows]) => (
+        <div key={stepKey} style={{ borderBottom: '1px solid #f3f4f6' }}>
+          <div style={{ background: '#f9fafb', padding: '0.35rem 0.85rem', fontWeight: 700, color: '#6b7280', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+            {stepKey} · {rows.length} field{rows.length === 1 ? '' : 's'}
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+            <thead>
+              <tr style={{ background: 'white', borderBottom: '1px solid #f3f4f6' }}>
+                <th style={{ textAlign: 'left', padding: '0.35rem 0.85rem', fontWeight: 600, color: '#9ca3af' }}>Field</th>
+                <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', fontWeight: 600, color: '#9ca3af' }}>Action</th>
+                <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', fontWeight: 600, color: '#9ca3af' }}>Source</th>
+                <th style={{ textAlign: 'left', padding: '0.35rem 0.5rem', fontWeight: 600, color: '#9ca3af' }}>Value</th>
+                <th style={{ textAlign: 'left', padding: '0.35rem 0.85rem', fontWeight: 600, color: '#9ca3af' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.flatMap(e => {
+                const dump = !e.success ? parseSelectDump(e.value) : null;
+                const isExpanded = expandedRowId === e.id;
+                const main = (
+                  <tr key={e.id} style={{ borderBottom: '1px solid #f9fafb' }}>
+                    <td style={{ padding: '0.35rem 0.85rem' }}>
+                      <div style={{ fontWeight: 500 }}>{e.label}</div>
+                      {e.selector && <div style={{ fontSize: '0.7rem', color: '#9ca3af', fontFamily: 'ui-monospace, Menlo, monospace' }}>{e.selector}</div>}
+                    </td>
+                    <td style={{ padding: '0.35rem 0.5rem', color: '#6b7280', textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 600 }}>{e.action}</td>
+                    <td style={{ padding: '0.35rem 0.5rem' }}>
+                      <span style={sourceStyle(e.source)}>{e.source}</span>
+                    </td>
+                    <td style={{ padding: '0.35rem 0.5rem', color: '#374151', fontFamily: e.value ? 'ui-monospace, Menlo, monospace' : 'inherit', fontSize: '0.76rem', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={e.value || ''}>
+                      {dump
+                        ? <em style={{ color: '#9ca3af' }}>tried "{dump.tried}" — {dump.options.length} option{dump.options.length === 1 ? '' : 's'} on page</em>
+                        : (e.value ?? <span style={{ color: '#d1d5db' }}>—</span>)
+                      }
+                    </td>
+                    <td style={{ padding: '0.35rem 0.85rem' }}>
+                      {e.success ? (
+                        <span style={{ color: '#059669', fontSize: '0.72rem', fontWeight: 600 }}>OK</span>
+                      ) : dump ? (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedRowId(isExpanded ? null : e.id)}
+                          style={{ background: 'transparent', border: 'none', color: '#dc2626', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                          title={e.errorMsg || ''}
+                        >
+                          FAIL {isExpanded ? '▾' : '▸'}
+                        </button>
+                      ) : (
+                        <span title={e.errorMsg || ''} style={{ color: '#dc2626', fontSize: '0.72rem', fontWeight: 600 }}>
+                          FAIL {e.errorMsg ? `· ${e.errorMsg.slice(0, 40)}${e.errorMsg.length > 40 ? '…' : ''}` : ''}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+                if (!isExpanded || !dump) return [main];
+                // Expanded row — render the full option list inline so we can
+                // see exactly what the gov site offered for this field.
+                const detail = (
+                  <tr key={`${e.id}-detail`} style={{ background: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                    <td colSpan={5} style={{ padding: '0.6rem 0.85rem' }}>
+                      <div style={{ fontSize: '0.78rem', color: '#991b1b', marginBottom: '0.4rem' }}>
+                        Bot tried <code style={{ background: 'white', padding: '0.05rem 0.3rem', borderRadius: '0.2rem' }}>{dump.tried}</code> but <strong>{e.selector}</strong> only had these options:
+                      </div>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.76rem', background: 'white', border: '1px solid #fecaca' }}>
+                        <thead>
+                          <tr style={{ background: '#fafafa' }}>
+                            <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem', fontWeight: 600, color: '#6b7280', borderBottom: '1px solid #e5e7eb' }}>Option text</th>
+                            <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem', fontWeight: 600, color: '#6b7280', borderBottom: '1px solid #e5e7eb' }}>value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dump.options.map((o, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid #f9fafb' }}>
+                              <td style={{ padding: '0.25rem 0.5rem', fontFamily: 'ui-monospace, Menlo, monospace' }}>{o.text || <span style={{ color: '#d1d5db' }}>—</span>}</td>
+                              <td style={{ padding: '0.25rem 0.5rem', fontFamily: 'ui-monospace, Menlo, monospace', color: '#6b7280' }}>{o.value || <span style={{ color: '#d1d5db' }}>—</span>}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                );
+                return [main, detail];
+              })}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function sourceStyle(source: string): React.CSSProperties {
+  const map: Record<string, { bg: string; fg: string }> = {
+    admin:   { bg: '#dbeafe', fg: '#1e40af' },
+    default: { bg: '#f3f4f6', fg: '#6b7280' },
+    manual:  { bg: '#fef3c7', fg: '#92400e' },
+    skip:    { bg: '#f3f4f6', fg: '#9ca3af' },
+  };
+  const c = map[source] || map.default;
+  return {
+    background: c.bg, color: c.fg,
+    padding: '0.05rem 0.4rem', borderRadius: '0.2rem',
+    fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.02em',
+  };
 }

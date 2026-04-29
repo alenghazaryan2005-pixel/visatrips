@@ -41,19 +41,47 @@ const looksLikeRealText = (s: string): boolean => {
   return true;
 };
 
-/* ── Name validation ── */
+/**
+ * Convert accented/diacritic characters to their plain ASCII equivalents.
+ * "São Paulo" → "Sao Paulo", "María" → "Maria", "Müller" → "Muller".
+ *
+ * The India eVisa gov form only accepts ASCII letters in text fields, so
+ * we strip diacritics on every customer-facing text input. Uses NFD
+ * normalization which decomposes "ã" into "a" + U+0303 (combining tilde),
+ * then drops the combining mark.
+ */
+export function stripDiacritics(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/* ── Name validation ──
+ * Two gov-form constraints baked in:
+ *   1. ASCII letters only — no diacritics (São → Sao). NFD-stripped on input.
+ *   2. No special characters of any kind — no dashes (Jean-Luc), no
+ *      apostrophes (O'Connor), no digits. Letters and spaces only.
+ */
 export function validateName(value: string, label = 'Name'): string {
   const trimmed = value.trim();
   if (!trimmed) return `${label} is required`;
   if (trimmed.length < 2) return `${label} must be at least 2 characters`;
-  if (/^\d+$/.test(trimmed)) return `${label} cannot be all numbers`;
+  // ASCII letters + spaces only — keeps the gov form happy.
+  if (!/^[a-zA-Z ]+$/.test(trimmed)) return 'Enter letters and spaces only';
   if (!/[a-zA-Z]{2,}/.test(trimmed)) return `${label} must contain at least 2 letters`;
-  if (/\d/.test(trimmed)) return `${label} should not contain numbers`;
   if (isGibberish(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
   if (isKeyboardMash(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
-  if (/[!@#$%^&*()_+=\[\]{};:"\\|<>?/~`]/.test(trimmed)) return `${label} should not contain special characters`;
   if (!looksLikeRealText(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
   return '';
+}
+
+/**
+ * Strip every disallowed character from a name string. Use as an onChange
+ * filter on customer-facing name inputs:
+ *   - First, convert diacritics to plain ASCII (São → Sao)
+ *   - Then drop anything that isn't a letter or space
+ * The validation message is a fallback for paste/autofill cases.
+ */
+export function stripNameInput(value: string): string {
+  return stripDiacritics(value).replace(/[^a-zA-Z ]/g, '');
 }
 
 /* ── Email validation ── */

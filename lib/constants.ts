@@ -11,6 +11,91 @@ export const parseOrderNumber = (formatted: string): number => {
   return parseInt(formatted, 10);
 };
 
+/**
+ * India eVisa religion dropdown — single source of truth.
+ *
+ * The values here are the EXACT labels the India gov site uses in its religion
+ * <select>. Customer-facing UI shows the `label`, the stored value on traveler
+ * data is the `value`, and the bot writes the `value` directly into the gov
+ * select. This means the bot never has to guess at mappings.
+ *
+ * If the gov site adds/removes a religion, edit this list — the customer
+ * dropdown, admin edit field, and bot all pick up the change automatically.
+ */
+export const INDIA_RELIGIONS: Array<{ value: string; label: string }> = [
+  // `value` is the EXACT label used by the India eVisa gov site's <option text="...">.
+  // `label` is what we show to the customer in the apply/finish + admin dropdowns.
+  // Verified against the live form 2026-04 — see Bot Run History option dump.
+  { value: 'BAHAI',       label: "Baha'i" },
+  { value: 'BUDDHISM',    label: 'Buddhism' },
+  { value: 'CHRISTIAN',   label: 'Christianity' },
+  { value: 'HINDU',       label: 'Hinduism' },
+  { value: 'ISLAM',       label: 'Islam' },
+  { value: 'JAINISM',     label: 'Jainism' },
+  { value: 'JUDAISM',     label: 'Judaism' },
+  { value: 'PARSI',       label: 'Parsi' },
+  { value: 'SIKH',        label: 'Sikhism' },
+  { value: 'ZOROASTRIAN', label: 'Zoroastrian' },
+  { value: 'OTHERS',      label: 'Other' },
+];
+
+/** Quick lookup: customer-displayed label → gov-site value. */
+export const RELIGION_LABEL_TO_VALUE: Record<string, string> = Object.fromEntries(
+  INDIA_RELIGIONS.map(r => [r.label, r.value]),
+);
+
+/**
+ * Backward-compatible normaliser. Existing orders may have stored the *label*
+ * (e.g. "Christianity") rather than the gov value (`CHRISTIANS`); legacy
+ * orders may even have free-text variants like "Christian" or "Hindu".
+ * Returns the gov-site value if recognisable, otherwise returns the input
+ * uppercased so the bot's existing fuzzy matcher still gets a fair shot.
+ */
+export function normaliseReligion(input: string | null | undefined): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+  // Already a valid gov-site value
+  if (INDIA_RELIGIONS.some(r => r.value === trimmed.toUpperCase())) return trimmed.toUpperCase();
+  // Customer-facing label
+  const byLabel = RELIGION_LABEL_TO_VALUE[trimmed];
+  if (byLabel) return byLabel;
+  // Common synonyms / freeform inputs that pre-date the dropdown.
+  //
+  // Includes the OLD WRONG canonical values (CHRISTIANS, HINDUISM, PARSIS,
+  // SIKHISM) too — we shipped a previous version with those before we
+  // confirmed the gov site's actual labels, so any orders stored under the
+  // old canonical need to map forward to the new one.
+  const synonyms: Record<string, string> = {
+    // Legacy (old wrong canonical) → new canonical
+    'CHRISTIANS':     'CHRISTIAN',
+    'HINDUISM':       'HINDU',
+    'PARSIS':         'PARSI',
+    'SIKHISM':        'SIKH',
+    // Christian variants
+    'CATHOLIC':       'CHRISTIAN',
+    'PROTESTANT':     'CHRISTIAN',
+    'CHRISTIANITY':   'CHRISTIAN',
+    // Other faith synonyms
+    'MUSLIM':         'ISLAM',
+    'ISLAMIC':        'ISLAM',
+    'BUDDHIST':       'BUDDHISM',
+    'JAIN':           'JAINISM',
+    'JEWISH':         'JUDAISM',
+    'ZOROASTRIANISM': 'ZOROASTRIAN',
+    'BAHAI':          'BAHAI',
+    "BAHA'I":         'BAHAI',
+    'BAHÁʼÍ':         'BAHAI',
+    // Non-religious
+    'NO RELIGION':    'OTHERS',
+    'NONE':           'OTHERS',
+    'ATHEIST':        'OTHERS',
+    'AGNOSTIC':       'OTHERS',
+    'OTHER':          'OTHERS',
+  };
+  return synonyms[trimmed.toUpperCase()] ?? trimmed.toUpperCase();
+}
+
 export const VISA_LABELS: Record<string, string> = {
   TOURIST_30:  'Tourist – 30 days',
   TOURIST_1Y:  'Tourist – 1 year',
@@ -91,7 +176,7 @@ export const COUNTRY_FLAGS: Record<string, string> = {
   'France':         '🇫🇷',
   'Japan':          '🇯🇵',
   'China':          '🇨🇳',
-  'South Korea':    '🇰🇷',
+  'Republic of Korea': '🇰🇷',
   'Thailand':       '🇹🇭',
   'UAE':            '🇦🇪',
   'Saudi Arabia':   '🇸🇦',

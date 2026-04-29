@@ -7,10 +7,10 @@ node_modules/
 out/
 build/
 
-# env
+# env — keep ALL env files out of git (no .env, no .env.test, etc.)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # misc
 .DS_Store
@@ -27,3 +27,12 @@ prisma/*.db-journal
 # uploads
 public/uploads/
 .vercel
+
+# tests
+coverage/
+.next-test/
+test-results/
+playwright-report/
+
+# TypeScript incremental build cache
+*.tsbuildinfo

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
+import { BookOpenCheck, Camera, FileText, PlaneTakeoff, type LucideIcon } from 'lucide-react';
 
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -36,11 +37,27 @@ const VISA_OPTIONS = [
   { id: 'medical-60',  label: 'Medical eVisa – 60 days',  entries: 'Triple entry',   price: 25, tag: '' },
 ];
 
-const REQUIREMENTS = [
-  { icon: '📘', title: 'Valid Passport', desc: 'Your passport must be valid for at least 6 months from the date of arrival in India, with at least 2 blank pages available for visa stamps. Damaged or expired passports will not be accepted.' },
-  { icon: '📷', title: 'Digital Photo', desc: 'A recent front-facing photograph in JPEG format with a plain white or light background. Must be square dimensions (minimum 350x350px), with no glasses, hats, or shadows. Do not crop a passport photo.' },
-  { icon: '📄', title: 'Passport Bio Page', desc: 'A clear, high-quality scan of your passport data page (the page with your photo, name, and passport number). Must be in JPEG or PDF format with all four corners visible and all text clearly readable.' },
-  { icon: '✈️', title: 'Travel Details', desc: 'Your confirmed travel dates, port of arrival in India (airport or seaport), and expected departure port. You should also have your accommodation details and a reference contact in India ready.' },
+// Visa IDs that are NOT sold on the customer-facing apply page. The grid
+// of price cards is filtered by this list. Backend, schema, admin, and bot
+// wiring stay intact — re-enable a visa by removing it from this set.
+// Mirrors HIDDEN_VISA_IDS in app/apply/page.tsx.
+const HIDDEN_VISA_IDS = new Set<string>(['business-1y', 'medical-60']);
+// Visa-info entries we DO show on the page (so visitors can read about all
+// types) but whose detail panel renders an "we don't currently offer this"
+// notice instead of an Apply Now button. Match by the `name` field on each
+// entry in VISA_TYPES_INFO. Single source of truth for "shown but disabled".
+const UNAVAILABLE_INFO_NAMES = new Set<string>([
+  'India Business eVisa',
+  'India Medical eVisa',
+  'India e-Medical Attendant Visa',
+]);
+const VISIBLE_VISA_OPTIONS = VISA_OPTIONS.filter(v => !HIDDEN_VISA_IDS.has(v.id));
+
+const REQUIREMENTS: Array<{ Icon: LucideIcon; title: string; desc: string }> = [
+  { Icon: BookOpenCheck, title: 'Valid Passport',    desc: 'Your passport must be valid for at least 6 months from the date of arrival in India, with at least 2 blank pages available for visa stamps. Damaged or expired passports will not be accepted.' },
+  { Icon: Camera,        title: 'Digital Photo',     desc: 'A recent front-facing photograph in JPEG format with a plain white or light background. Must be square dimensions (minimum 350x350px), with no glasses, hats, or shadows. Do not crop a passport photo.' },
+  { Icon: FileText,      title: 'Passport Bio Page', desc: 'A clear, high-quality scan of your passport data page (the page with your photo, name, and passport number). Must be in JPEG or PDF format with all four corners visible and all text clearly readable.' },
+  { Icon: PlaneTakeoff,  title: 'Travel Details',    desc: 'Your confirmed travel dates, port of arrival in India (airport or seaport), and expected departure port. You should also have your accommodation details and a reference contact in India ready.' },
 ];
 
 const STEPS = [
@@ -105,6 +122,7 @@ const VISA_TYPES_INFO = [
     ],
   },
 ];
+
 
 export default function IndiaPage() {
   const [activeVisaType, setActiveVisaType] = useState(0);
@@ -193,7 +211,9 @@ export default function IndiaPage() {
             <div className="india-req-grid">
               {REQUIREMENTS.map(r => (
                 <div key={r.title} className="india-req-card">
-                  <span className="india-req-icon">{r.icon}</span>
+                  <span className="india-req-icon" aria-hidden>
+                    <r.Icon size={28} strokeWidth={1.75} />
+                  </span>
                   <h3 className="india-req-name">{r.title}</h3>
                   <p className="india-req-desc">{r.desc}</p>
                 </div>
@@ -208,7 +228,7 @@ export default function IndiaPage() {
             <div className="section-eyebrow">Visa Types</div>
             <h2 className="india-section-title">Choose your India eVisa</h2>
             <div className="india-visa-grid">
-              {VISA_OPTIONS.map(v => (
+              {VISIBLE_VISA_OPTIONS.map(v => (
                 <div key={v.id} className="india-visa-card">
                   {v.tag && <span className="india-visa-tag">{v.tag}</span>}
                   <h3 className="india-visa-name">{v.label}</h3>
@@ -253,7 +273,13 @@ export default function IndiaPage() {
                       <strong>{d.label}:</strong> {d.text}
                     </p>
                   ))}
-                  <a href="/apply" className="india-cta-btn" style={{ marginTop: '1.5rem', display: 'inline-block' }}>Apply now →</a>
+                  {UNAVAILABLE_INFO_NAMES.has(VISA_TYPES_INFO[activeVisaType].name) ? (
+                    <p className="india-visatypes-detail india-visatypes-unavailable">
+                      We currently do not provide this service.
+                    </p>
+                  ) : (
+                    <a href="/apply" className="india-cta-btn" style={{ marginTop: '1.5rem', display: 'inline-block' }}>Apply now →</a>
+                  )}
                 </div>
               </div>
             </AnimatedSection>

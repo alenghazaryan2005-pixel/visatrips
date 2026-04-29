@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { AdminSidebar } from '@/components/AdminSidebar';
 
 interface ErrorLog {
   id: string;
@@ -113,20 +114,7 @@ export default function ErrorLogsPage() {
 
   return (
     <div className="admin-shell">
-      <aside className="admin-sidebar">
-        <div className="admin-sidebar-logo">
-          <Link href="/" className="logo" style={{ color: 'white', fontSize: '1rem' }}>VisaTrips<sup style={{ color: 'var(--blue2)' }}>®</sup></Link>
-          <span className="admin-sidebar-badge">Admin</span>
-        </div>
-        <nav className="admin-nav">
-          <div className="admin-nav-section-label">Admin Panel</div>
-          <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }}>📋 Orders</Link>
-          <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>
-          <Link href="/admin/crm" className="admin-nav-item" style={{ textDecoration: 'none' }}>💬 Emails</Link>
-          <Link href="/admin/errors" className="admin-nav-item active" style={{ textDecoration: 'none' }}>⚠️ Error Logs</Link>
-        </nav>
-        <button className="admin-logout-btn" onClick={async () => { await fetch('/api/admin/logout', { method: 'POST' }); window.location.href = '/admin'; }}>← Sign Out</button>
-      </aside>
+      <AdminSidebar active="errors" />
       <div className="admin-main" style={{ maxWidth: '100%' }}>
         <div style={{ padding: '1.5rem', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>

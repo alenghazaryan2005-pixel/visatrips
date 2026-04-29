@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { AdminSidebar } from '@/components/AdminSidebar';
 
 interface Ticket {
   id: string;
@@ -39,7 +40,6 @@ const PRIORITY_STYLES: Record<string, { bg: string; color: string; label: string
 };
 
 export default function CrmPage() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
@@ -222,27 +222,7 @@ export default function CrmPage() {
 
   return (
     <div className="admin-shell">
-      <aside className={`admin-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
-        <div className="admin-sidebar-logo">
-          <Link href="/" className="logo" style={{ color: 'white', fontSize: '1rem' }}>
-            {sidebarCollapsed ? 'V' : <>VisaTrips<sup style={{ color: 'var(--blue2)' }}>®</sup></>}
-          </Link>
-          {!sidebarCollapsed && <span className="admin-sidebar-badge">Admin</span>}
-        </div>
-        <nav className="admin-nav">
-          {!sidebarCollapsed && <div className="admin-nav-section-label">Admin Panel</div>}
-          <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '📋' : '📋 Orders'}</Link>
-          {!sidebarCollapsed && <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>}
-          <Link href="/admin/crm" className="admin-nav-item active" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '💬' : '💬 Emails'}</Link>
-          <Link href="/admin/crm/canned" className="admin-nav-item" style={{ textDecoration: 'none', paddingLeft: sidebarCollapsed ? undefined : '2rem', fontSize: '0.82rem' }}>{sidebarCollapsed ? '📝' : '📝 Canned Responses'}</Link>
-        </nav>
-        <button className="sidebar-toggle" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
-          {sidebarCollapsed ? '→' : '← Collapse'}
-        </button>
-        <button className="admin-logout-btn" onClick={async () => { await fetch('/api/admin/logout', { method: 'POST' }); window.location.href = '/admin'; }}>
-          {sidebarCollapsed ? '←' : '← Sign Out'}
-        </button>
-      </aside>
+      <AdminSidebar active="emails" />
       <div className="admin-main" style={{ maxWidth: '100%' }}>
 
         {/* Header */}

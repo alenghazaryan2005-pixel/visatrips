@@ -12,6 +12,7 @@ import {
   autoClosedEmail,
 } from '@/lib/email/templates';
 import { formatOrderNum, VISA_LABELS } from '@/lib/constants';
+import { renderStructured, interpolate, StructuredEmail } from '@/lib/email/renderer';
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin();
@@ -111,8 +112,50 @@ export async function POST(req: NextRequest) {
             });
             break;
           default:
-            results.push({ type: t, sent: false, error: 'Unknown email type' });
-            continue;
+            // Custom template lookup — accepts either "custom:<id>" or a bare code.
+            {
+              const isIdRef = t.startsWith('custom:');
+              const custom = isIdRef
+                ? await prisma.customEmailTemplate.findUnique({ where: { id: t.slice('custom:'.length) } })
+                : await prisma.customEmailTemplate.findFirst({ where: { code: t, country: 'INDIA' } });
+              if (!custom) {
+                results.push({ type: t, sent: false, error: 'Unknown email type' });
+                continue;
+              }
+              if (!custom.enabled) {
+                results.push({ type: t, sent: false, error: 'Template is disabled' });
+                continue;
+              }
+              const vars: Record<string, any> = {
+                name,
+                orderNumber: orderNum,
+                destination: order.destination,
+                visaType: VISA_LABELS[order.visaType] || order.visaType,
+                total: order.totalUSD,
+                travelers: travelerCount,
+                status: order.status,
+                applicationId: order.applicationId || '',
+                specialistNotes: order.specialistNotes || '',
+              };
+              let html = '';
+              if (custom.html) {
+                html = interpolate(custom.html, vars);
+              } else if (custom.structured) {
+                try {
+                  const parsed = JSON.parse(custom.structured) as StructuredEmail;
+                  html = renderStructured(parsed, vars);
+                } catch (err: any) {
+                  results.push({ type: t, sent: false, error: 'Invalid template: ' + (err?.message || 'parse error') });
+                  continue;
+                }
+              } else {
+                results.push({ type: t, sent: false, error: 'Template has no body' });
+                continue;
+              }
+              const subject = interpolate(custom.subject, vars);
+              template = { subject, html };
+              break;
+            }
         }
 
         await sendEmail(email, template);

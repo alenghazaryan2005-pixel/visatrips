@@ -5,6 +5,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
 import { formatOrderNum, VISA_LABELS, STATUS_COLORS } from '@/lib/constants';
+import {
+  SPEED_ORDER,
+  computeUpgradeDiff,
+  extractPricingFromSettings,
+  isUpgrade,
+  type ProcessingSpeed,
+} from '@/lib/processingSpeeds';
 
 interface Order {
   id: string;
@@ -88,6 +95,21 @@ const SPEED_LABELS: Record<string, string> = {
   super: 'Super Rush',
 };
 
+const SPEED_BLURBS: Record<string, string> = {
+  standard:  'Processed in 3–5 business days.',
+  rush:      'Processed in 1–2 business days.',
+  super:     'Processed within 24 hours when possible.',
+};
+
+/** Status codes where the customer can self-serve an upgrade. SUBMITTED is
+ *  included because a customer who realises they need it faster can pay the
+ *  difference and the admin team can still prioritise / follow up with the
+ *  Indian government on their behalf — even though the application is no
+ *  longer in our queue. */
+const UPGRADABLE_STATUSES = new Set([
+  'UNFINISHED', 'PENDING', 'PROCESSING', 'UNDER_REVIEW', 'NEEDS_CORRECTION', 'SUBMITTED',
+]);
+
 interface OrderSummary {
   id: string;
   orderNumber: number;
@@ -142,9 +164,68 @@ export default function StatusPage() {
 
   const [reuploadingDoc, setReuploadingDoc] = useState('');
 
+  /* ── Speed-upgrade flow ───────────────────────────────────────────────
+   * `pricing` is fetched once on mount from /api/settings — same source
+   * the apply-checkout uses, so the customer is quoted the same surcharge
+   * they'd have paid if they'd picked the faster speed up front. */
+  const [pricing, setPricing] = useState<{ surcharges: Record<ProcessingSpeed, number>; txPct: number } | null>(null);
+  const [upgrading, setUpgrading] = useState<ProcessingSpeed | ''>('');
+  const [upgradeError, setUpgradeError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/settings').then(r => r.json()).then(d => {
+      setPricing(extractPricingFromSettings(d.settings || {}));
+    }).catch(() => setPricing({ surcharges: { standard: 0, rush: 20, super: 60 }, txPct: 8 }));
+  }, []);
+
   const handleLogout = async () => {
     await fetch('/api/customer/logout', { method: 'POST' });
     router.push('/login');
+  };
+
+  /** Build the upgrade options visible for the order (only faster speeds). */
+  const upgradeOptions = (() => {
+    if (!order || !pricing) return [];
+    const current = (order.processingSpeed ?? 'standard') as ProcessingSpeed;
+    if (!UPGRADABLE_STATUSES.has(order.status)) return [];
+    if (order.evisaUrl) return [];
+    return SPEED_ORDER
+      .filter(s => isUpgrade(current, s))
+      .map(target => {
+        const diff = computeUpgradeDiff({
+          current, target,
+          surcharges: pricing.surcharges,
+          travelers: travelers.length || 1,
+          txPct: pricing.txPct,
+        });
+        return { target, diff };
+      });
+  })();
+
+  const handleUpgrade = async (target: ProcessingSpeed) => {
+    if (!order || upgrading) return;
+    if (!confirm(`Upgrade to ${target === 'rush' ? 'Rush' : 'Super Rush'} processing? This will add to your order total.`)) return;
+    setUpgrading(target);
+    setUpgradeError('');
+    try {
+      const res = await fetch(`/api/orders/${order.id}/upgrade-speed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetSpeed: target }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setUpgradeError(data.error || 'Upgrade failed.');
+        return;
+      }
+      // Apply server-truth values; reload travelers in case anything else changed.
+      setOrder(data.order);
+      try { setTravelers(JSON.parse(data.order.travelers)); } catch {}
+    } catch (err: any) {
+      setUpgradeError(err?.message || 'Upgrade failed.');
+    } finally {
+      setUpgrading('');
+    }
   };
 
   // Parse flagged fields to check for document flags
@@ -347,17 +428,50 @@ export default function StatusPage() {
           </div>
         )}
 
-        {/* CTA */}
+        {/* CTA — three distinct states (each gets its own message + colour):
+            • NEEDS_CORRECTION → handled above by the red banner; nothing here
+            • evisaUrl set     → handled above by the eVisa card; nothing here
+            • SUBMITTED        → blue "Awaiting your eVisa" — the application
+                                 is at the Indian government, no upgrade card
+                                 below since it's already in their queue
+            • PROCESSING / UNDER_REVIEW / COMPLETED / APPROVED → green
+                                 "Application is Processing!" — we're still
+                                 doing pre-submission work; upgrade card
+                                 appears below this one
+            • Anything else (UNFINISHED, etc.) → blue "Continue your
+                                 application" with a Finish button */}
         {(() => {
-          const isProcessing = order.status === 'PROCESSING' || order.status === 'SUBMITTED' || order.status === 'COMPLETED' || order.status === 'UNDER_REVIEW' || order.status === 'APPROVED' || travelers.some(t => t.finishStep === 'complete');
-          return order.evisaUrl ? null : order.status === 'NEEDS_CORRECTION' ? null : isProcessing ? (
-            <div className="customer-status-cta" style={{ background: '#16a34a' }}>
-              <div>
-                <h3 className="customer-status-cta-title">Your Application is Processing!</h3>
-                <p className="customer-status-cta-text">We are reviewing your visa application. You will be notified of any updates.</p>
+          if (order.evisaUrl) return null;
+          if (order.status === 'NEEDS_CORRECTION') return null;
+
+          if (order.status === 'SUBMITTED') {
+            return (
+              <div className="customer-status-cta" style={{ background: '#2563eb' }}>
+                <div>
+                  <h3 className="customer-status-cta-title">📬 We&apos;re waiting for your eVisa to arrive!</h3>
+                  <p className="customer-status-cta-text">Your application has been submitted to the Indian government. eVisas typically arrive within 1–3 business days — we&apos;ll email you the moment yours is approved.</p>
+                </div>
               </div>
-            </div>
-          ) : (
+            );
+          }
+
+          const isProcessing = order.status === 'PROCESSING'
+            || order.status === 'UNDER_REVIEW'
+            || order.status === 'COMPLETED'
+            || order.status === 'APPROVED'
+            || travelers.some(t => t.finishStep === 'complete');
+          if (isProcessing) {
+            return (
+              <div className="customer-status-cta" style={{ background: '#16a34a' }}>
+                <div>
+                  <h3 className="customer-status-cta-title">Your Application is Processing!</h3>
+                  <p className="customer-status-cta-text">We are reviewing your visa application. You will be notified of any updates.</p>
+                </div>
+              </div>
+            );
+          }
+
+          return (
             <div className="customer-status-cta">
               <div>
                 <h3 className="customer-status-cta-title">Continue your application</h3>
@@ -369,6 +483,70 @@ export default function StatusPage() {
             </div>
           );
         })()}
+
+        {/* Upgrade Processing Speed */}
+        {upgradeOptions.length > 0 && (
+          <div className="customer-status-card customer-upgrade-card">
+            <h2 className="customer-status-section-title">⚡ Need it faster?</h2>
+            <p style={{ fontSize: '0.88rem', color: 'var(--slate)', marginBottom: '1rem' }}>
+              You picked <strong>{SPEED_LABELS[order.processingSpeed] ?? order.processingSpeed}</strong> at checkout.
+              {' '}{SPEED_BLURBS[order.processingSpeed] ?? ''}{' '}
+              You can upgrade to a faster service below — the difference will be added to your order.
+            </p>
+            {upgradeError && (
+              <div style={{
+                background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.5rem',
+                padding: '0.6rem 0.85rem', marginBottom: '0.75rem',
+                color: '#991b1b', fontSize: '0.85rem',
+              }}>⚠️ {upgradeError}</div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {upgradeOptions.map(({ target, diff }) => (
+                <div key={target} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  gap: '1rem', flexWrap: 'wrap',
+                  padding: '0.75rem 0.95rem',
+                  border: '1px solid var(--cloud)', borderRadius: '0.65rem',
+                  background: 'white',
+                }}>
+                  <div style={{ flex: 1, minWidth: '180px' }}>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--ink)' }}>
+                      {SPEED_LABELS[target]}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--slate)', marginTop: '0.15rem' }}>
+                      {SPEED_BLURBS[target]}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--blue)' }}>
+                        +${diff.total.toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--slate)' }}>
+                        {travelers.length} traveler{travelers.length === 1 ? '' : 's'} · incl. fees
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleUpgrade(target)}
+                      disabled={upgrading !== ''}
+                      style={{
+                        background: upgrading === target ? '#94a3b8' : 'var(--blue)',
+                        color: 'white', border: 'none', borderRadius: '0.5rem',
+                        padding: '0.55rem 1.1rem', fontSize: '0.9rem', fontWeight: 600,
+                        cursor: upgrading ? 'wait' : 'pointer',
+                        opacity: upgrading && upgrading !== target ? 0.5 : 1,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {upgrading === target ? 'Upgrading…' : `Upgrade →`}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Order Summary */}
         <div className="customer-status-card">

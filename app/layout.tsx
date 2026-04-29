@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Sora, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
+import { ThemeStyleInjector } from '@/components/ThemeStyleInjector';
+import { ThemeWatcher } from '@/components/ThemeWatcher';
 
 const sora = Sora({
   subsets: ['latin'],
@@ -33,8 +35,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&display=swap"
           rel="stylesheet"
         />
+        {/* Active theme — overrides brand tokens declared in globals.css. */}
+        <ThemeStyleInjector />
       </head>
-      <body className={`${sora.variable} ${jakarta.variable}`}>{children}</body>
+      <body className={`${sora.variable} ${jakarta.variable}`}>
+        {/* Live theme push — subscribes to /api/theme/stream and re-applies
+            :root colors when an admin saves a new palette. */}
+        <ThemeWatcher />
+        {children}
+      </body>
     </html>
   );
 }

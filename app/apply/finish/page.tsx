@@ -4,7 +4,10 @@ import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
-import { validateName, validatePhone, validateAddress, validateCityState, validateZip, validateRequired } from '@/lib/validation';
+import { validateName, stripNameInput, validatePhone, validateAddress, validateCityState, validateZip, validateRequired, stripDiacritics } from '@/lib/validation';
+import { INDIA_RELIGIONS } from '@/lib/constants';
+import type { ApplicationSchema, CustomSection, CustomField } from '@/lib/applicationSchema';
+import { SectionIcon } from '@/lib/sectionIcons';
 
 /* ── Custom Dropdown ── */
 function CustomDropdown({ options, value, onChange, placeholder }: { options: string[]; value: string; onChange: (v: string) => void; placeholder: string }) {
@@ -139,8 +142,8 @@ const COUNTRIES = [
   'Lithuania','Luxembourg','Madagascar','Malaysia','Maldives','Mali','Malta','Mexico','Moldova','Monaco',
   'Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nepal','Netherlands','New Zealand','Nicaragua',
   'Niger','Nigeria','North Korea','North Macedonia','Norway','Oman','Pakistan','Palestine','Panama','Paraguay',
-  'Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda','Saudi Arabia','Senegal','Serbia',
-  'Singapore','Slovakia','Slovenia','Somalia','South Africa','South Korea','Spain','Sri Lanka','Sudan','Sweden',
+  'Peru','Philippines','Poland','Portugal','Qatar','Republic of Korea','Romania','Russia','Rwanda','Saudi Arabia','Senegal','Serbia',
+  'Singapore','Slovakia','Slovenia','Somalia','South Africa','Spain','Sri Lanka','Sudan','Sweden',
   'Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Togo','Trinidad and Tobago','Tunisia',
   'Turkey','Turkmenistan','Uganda','Ukraine','United Arab Emirates','United Kingdom','United States','Uruguay',
   'Uzbekistan','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe',
@@ -148,7 +151,7 @@ const COUNTRIES = [
 
 const COUNTRY_CODE_MAP: Record<string, string> = {
   US:'United States',GB:'United Kingdom',CA:'Canada',AU:'Australia',DE:'Germany',FR:'France',
-  IT:'Italy',ES:'Spain',NL:'Netherlands',JP:'Japan',KR:'South Korea',SG:'Singapore',
+  IT:'Italy',ES:'Spain',NL:'Netherlands',JP:'Japan',KR:'Republic of Korea',SG:'Singapore',
   AE:'United Arab Emirates',BR:'Brazil',MX:'Mexico',ZA:'South Africa',NG:'Nigeria',KE:'Kenya',
   TR:'Turkey',PH:'Philippines',ID:'Indonesia',MY:'Malaysia',TH:'Thailand',VN:'Vietnam',
   EG:'Egypt',MA:'Morocco',PT:'Portugal',PL:'Poland',SE:'Sweden',CH:'Switzerland',
@@ -160,7 +163,7 @@ const DAYS   = Array.from({ length: 31 }, (_,i) => String(i+1));
 const ARR_YEARS = Array.from({ length: 5 }, (_,i) => String(new Date().getFullYear()+i));
 
 /* ── Sub-step views ── */
-type FinishStep = 'overview' | 'trip' | 'personal' | 'address' | 'employment' | 'family' | 'photo-guide' | 'photo-upload' | 'passport-bio-guide' | 'passport-bio-upload' | 'additional' | 'verify' | 'complete';
+type FinishStep = 'overview' | 'trip' | 'personal' | 'address' | 'employment' | 'business' | 'family' | 'photo-guide' | 'photo-upload' | 'passport-bio-guide' | 'passport-bio-upload' | 'additional' | 'verify' | 'complete';
 
 function CheckIcon() {
   return <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>;
@@ -173,6 +176,10 @@ function FinishContent() {
   const [travelers, setTravelers] = useState<Traveler[]>([]);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<FinishStep>('overview');
+
+  /* Admin-defined custom sections (from /admin/settings/india → Application tab) */
+  const [customSchema, setCustomSchema] = useState<ApplicationSchema>({ country: 'INDIA', sections: [] });
+  const [customValues, setCustomValues] = useState<Record<string, any>>({});
 
   /* Trip details state */
   const [arrMonth, setArrMonth] = useState('');
@@ -215,6 +222,18 @@ function FinishContent() {
   const [employerZip, setEmployerZip] = useState('');
   const [studentProvider, setStudentProvider] = useState(''); // 'father' | 'spouse'
   const [servedMilitary, setServedMilitary] = useState('');
+
+  /* Business-visa-only state (rendered only when order.visaType is BUSINESS_1Y).
+   * stripDiacritics on input so accented characters get sanitized — the gov
+   * form rejects them. */
+  const [applicantCompanyName,    setApplicantCompanyName]    = useState('');
+  const [applicantCompanyAddress, setApplicantCompanyAddress] = useState('');
+  const [applicantCompanyPhone,   setApplicantCompanyPhone]   = useState('');
+  const [applicantCompanyWebsite, setApplicantCompanyWebsite] = useState('');
+  const [indianFirmName,    setIndianFirmName]    = useState('');
+  const [indianFirmAddress, setIndianFirmAddress] = useState('');
+  const [indianFirmPhone,   setIndianFirmPhone]   = useState('');
+  const [indianFirmWebsite, setIndianFirmWebsite] = useState('');
 
   /* Family state */
   const [knowParents, setKnowParents] = useState(''); // 'both' | 'mother' | 'father' | 'none'
@@ -312,6 +331,9 @@ function FinishContent() {
           const t = parsed[0];
           if (!t) return;
 
+          // Restore any previously-entered custom field values
+          if (t.custom && typeof t.custom === 'object') setCustomValues({ ...t.custom });
+
           // Restore passport-derived defaults
           if (t.passportCountry) {
             const countryName = COUNTRY_CODE_MAP[t.passportCountry] || t.passportCountry;
@@ -362,6 +384,15 @@ function FinishContent() {
           if (t.employerZip) setEmployerZip(t.employerZip);
           if (t.studentProvider) setStudentProvider(t.studentProvider);
           if (t.servedMilitary) setServedMilitary(t.servedMilitary);
+          // Business visa fields
+          if (t.applicantCompanyName)    setApplicantCompanyName(t.applicantCompanyName);
+          if (t.applicantCompanyAddress) setApplicantCompanyAddress(t.applicantCompanyAddress);
+          if (t.applicantCompanyPhone)   setApplicantCompanyPhone(t.applicantCompanyPhone);
+          if (t.applicantCompanyWebsite) setApplicantCompanyWebsite(t.applicantCompanyWebsite);
+          if (t.indianFirmName)    setIndianFirmName(t.indianFirmName);
+          if (t.indianFirmAddress) setIndianFirmAddress(t.indianFirmAddress);
+          if (t.indianFirmPhone)   setIndianFirmPhone(t.indianFirmPhone);
+          if (t.indianFirmWebsite) setIndianFirmWebsite(t.indianFirmWebsite);
 
           // Restore family
           if (t.knowParents) setKnowParents(t.knowParents);
@@ -431,6 +462,16 @@ function FinishContent() {
       .finally(() => setLoading(false));
   }, [orderId]);
 
+  /* Load admin-defined custom application schema (country-scoped). */
+  useEffect(() => {
+    if (!order) return;
+    const country = (order.destination || 'India').toUpperCase();
+    fetch(`/api/settings/application-schema?country=${encodeURIComponent(country)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data && Array.isArray(data.sections)) setCustomSchema(data); })
+      .catch(() => {});
+  }, [order]);
+
   /* Upload a file and return the URL */
   const uploadFile = async (file: File, type: 'photo' | 'passport'): Promise<string> => {
     if (!orderId) return '';
@@ -487,6 +528,15 @@ function FinishContent() {
         employerZip: employerZip || t.employerZip,
         studentProvider: studentProvider || t.studentProvider,
         servedMilitary: servedMilitary || t.servedMilitary,
+        // Business visa
+        applicantCompanyName:    applicantCompanyName    || t.applicantCompanyName,
+        applicantCompanyAddress: applicantCompanyAddress || t.applicantCompanyAddress,
+        applicantCompanyPhone:   applicantCompanyPhone   || t.applicantCompanyPhone,
+        applicantCompanyWebsite: applicantCompanyWebsite || t.applicantCompanyWebsite,
+        indianFirmName:    indianFirmName    || t.indianFirmName,
+        indianFirmAddress: indianFirmAddress || t.indianFirmAddress,
+        indianFirmPhone:   indianFirmPhone   || t.indianFirmPhone,
+        indianFirmWebsite: indianFirmWebsite || t.indianFirmWebsite,
         // Family
         knowParents: knowParents || t.knowParents,
         fatherName: fatherName || t.fatherName,
@@ -548,6 +598,8 @@ function FinishContent() {
         // Upload URLs
         photoUrl: photoUrl || t.photoUrl,
         passportBioUrl: passportBioUrl || t.passportBioUrl,
+        // Admin-defined custom fields (merge preserves any previously-saved values)
+        custom: { ...(t.custom || {}), ...customValues },
         // Progress tracking
         finishStep: nextStep,
       };
@@ -590,6 +642,18 @@ function FinishContent() {
   const visaLabel = order.visaType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
   const isComplete = step === 'complete' || step === 'verify';
+
+  // Routing for the conditional business step:
+  // The 6-field "business meetings details" sub-form is shown ONLY for
+  // BUSINESS_1Y visas with sub-purpose "Attend Technical/Business Meetings".
+  // Other business sub-purposes (Recruit Manpower, Set Up Industrial/Business
+  // Venture, etc.) have different gov-form fields and will get their own
+  // dedicated steps as we map them.
+  const businessPurpose = travelers[0]?.purposeOfVisit;
+  const isBusinessMeetings = order.visaType === 'BUSINESS_1Y'
+    && businessPurpose === 'Attend Technical/Business Meetings';
+  const stepAfterEmployment: FinishStep = isBusinessMeetings ? 'business' : 'family';
+  const stepBeforeFamily: FinishStep    = isBusinessMeetings ? 'business' : 'employment';
   const tripDone = isComplete || (step !== 'overview' && step !== 'trip');
   const tripActive = step === 'trip';
   const personalActive = step === 'personal';
@@ -932,7 +996,7 @@ function FinishContent() {
             {/* City / Place of birth */}
             <div className="finish-form-group">
               <label className="finish-form-label">City / Place of birth</label>
-              <input className={`finish-form-input${cityBirthErr ? ' error' : ''}${flagClass('cityOfBirth')}`} value={cityOfBirth} onChange={e => { setCityOfBirth(e.target.value); clearFlag('cityOfBirth'); }} placeholder="Enter city or town" />
+              <input className={`finish-form-input${cityBirthErr ? ' error' : ''}${flagClass('cityOfBirth')}`} value={cityOfBirth} onChange={e => { setCityOfBirth(stripDiacritics(e.target.value)); clearFlag('cityOfBirth'); }} placeholder="Enter city or town" />
               {cityBirthErr && <span className="finish-form-error">{cityBirthErr}</span>}
               <FlagHint field="cityOfBirth" />
             </div>
@@ -948,7 +1012,7 @@ function FinishContent() {
             <div className="finish-form-group">
               <label className="finish-form-label">Religion</label>
               <CustomDropdown
-                options={['Buddhism', 'Christianity', 'Hinduism', 'Islam', 'Judaism', 'Sikhism', 'Other', 'No religion']}
+                options={INDIA_RELIGIONS.map(r => r.label)}
                 value={religion}
                 onChange={setReligion}
                 placeholder="Select religion"
@@ -958,7 +1022,7 @@ function FinishContent() {
             {/* Visible Qualification Marks */}
             <div className="finish-form-group">
               <label className="finish-form-label">Visible identification marks</label>
-              <input className="finish-form-input" value={visibleMarks} onChange={e => setVisibleMarks(e.target.value)} placeholder="e.g. Mole on left cheek, scar on right arm" />
+              <input className="finish-form-input" value={visibleMarks} onChange={e => setVisibleMarks(stripDiacritics(e.target.value))} placeholder="e.g. Mole on left cheek, scar on right arm" />
               <p className="finish-form-hint">Mole, scar, etc. Leave blank if there are none.</p>
             </div>
 
@@ -1106,7 +1170,7 @@ function FinishContent() {
                 className={`finish-form-input${addrErr ? ' error' : ''}`}
                 type="text"
                 value={homeAddress}
-                onChange={e => { setHomeAddress(e.target.value); clearFlag('address'); }}
+                onChange={e => { setHomeAddress(stripDiacritics(e.target.value)); clearFlag('address'); }}
                 placeholder="Enter your home address"
               />
               {addrErr ? <span className="finish-form-error">{addrErr}</span> : <span className="finish-form-hint">The address must be in the country where you live.</span>}
@@ -1120,7 +1184,7 @@ function FinishContent() {
                 className={`finish-form-input${cityErr ? ' error' : ''}`}
                 type="text"
                 value={homeCity}
-                onChange={e => setHomeCity(e.target.value)}
+                onChange={e => setHomeCity(stripDiacritics(e.target.value))}
                 placeholder="Enter city or town"
               />
               {cityErr && <span className="finish-form-error">{cityErr}</span>}
@@ -1133,7 +1197,7 @@ function FinishContent() {
                 className={`finish-form-input${stateErr ? ' error' : ''}`}
                 type="text"
                 value={homeState}
-                onChange={e => setHomeState(e.target.value)}
+                onChange={e => setHomeState(stripDiacritics(e.target.value))}
                 placeholder="Enter state or province"
               />
               {stateErr && <span className="finish-form-error">{stateErr}</span>}
@@ -1226,25 +1290,25 @@ function FinishContent() {
               <>
                 <div className="finish-form-group">
                   <label className="finish-form-label">{employerLabel}</label>
-                  <input className={`finish-form-input${empNameErr ? ' error' : ''}`} type="text" value={employerName} onChange={e => setEmployerName(e.target.value)} placeholder="" />
+                  <input className={`finish-form-input${empNameErr ? ' error' : ''}`} type="text" value={employerName} onChange={e => setEmployerName(stripNameInput(e.target.value))} placeholder="" />
                   {empNameErr ? <span className="finish-form-error">{empNameErr}</span> : <span className="finish-form-hint">Use letters A to Z only. No special characters.</span>}
                 </div>
 
                 <div className="finish-form-group">
                   <label className="finish-form-label">Employer address</label>
-                  <input className={`finish-form-input${empAddrErr ? ' error' : ''}`} type="text" value={employerAddress} onChange={e => setEmployerAddress(e.target.value)} placeholder="1234 Sesame St. Ste. 100, Springtown, IL 55555" />
+                  <input className={`finish-form-input${empAddrErr ? ' error' : ''}`} type="text" value={employerAddress} onChange={e => setEmployerAddress(stripDiacritics(e.target.value))} placeholder="1234 Sesame St. Ste. 100, Springtown, IL 55555" />
                   {empAddrErr && <span className="finish-form-error">{empAddrErr}</span>}
                 </div>
 
                 <div className="finish-form-group">
                   <label className="finish-form-label">City or town</label>
-                  <input className={`finish-form-input${empCityErr ? ' error' : ''}`} type="text" value={employerCity} onChange={e => setEmployerCity(e.target.value)} placeholder="" />
+                  <input className={`finish-form-input${empCityErr ? ' error' : ''}`} type="text" value={employerCity} onChange={e => setEmployerCity(stripDiacritics(e.target.value))} placeholder="" />
                   {empCityErr && <span className="finish-form-error">{empCityErr}</span>}
                 </div>
 
                 <div className="finish-form-group">
                   <label className="finish-form-label">State or province</label>
-                  <input className={`finish-form-input${empStateErr ? ' error' : ''}`} type="text" value={employerState} onChange={e => setEmployerState(e.target.value)} placeholder="" />
+                  <input className={`finish-form-input${empStateErr ? ' error' : ''}`} type="text" value={employerState} onChange={e => setEmployerState(stripDiacritics(e.target.value))} placeholder="" />
                   {empStateErr && <span className="finish-form-error">{empStateErr}</span>}
                 </div>
 
@@ -1285,7 +1349,83 @@ function FinishContent() {
               <button className="finish-back-btn" onClick={() => setStep('address')}>
                 ← Back
               </button>
-              <button className={`finish-next-btn${canProceedEmp ? ' ready' : ''}`} disabled={!canProceedEmp} onClick={() => saveProgress('family')}>
+              <button className={`finish-next-btn${canProceedEmp ? ' ready' : ''}`} disabled={!canProceedEmp} onClick={() => saveProgress(stepAfterEmployment)}>
+                Next
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  /* ── Business Visa Step (only when visa is BUSINESS_1Y) ─────────────────
+   * Inserted between Employment and Family. The gov form's Step 4 surfaces
+   * these fields when the visa purpose is "e-Business — Meetings". All are
+   * required at gov-form submit time. We keep address and phone as separate
+   * fields here for cleaner UX; the bot recombines them into a single
+   * "Address & Phone" string when filling the gov form (which uses one cell). */
+  if (step === 'business') {
+    const allBizFilled =
+      applicantCompanyName.trim() && applicantCompanyAddress.trim() && applicantCompanyPhone.trim() && applicantCompanyWebsite.trim() &&
+      indianFirmName.trim() && indianFirmAddress.trim() && indianFirmPhone.trim() && indianFirmWebsite.trim();
+    const canProceedBiz = !!allBizFilled;
+
+    return (
+      <div className="finish-page">
+        {sidebar}
+        <main className="finish-main">
+          <div className="finish-main-inner">
+            <h1 className="finish-heading">{travelers[0]?.firstName} {travelers[0]?.lastName}</h1>
+            <CorrectionBanner />
+            <p className="finish-subheading">— Business Visa Details</p>
+            <p className="finish-form-hint" style={{ marginBottom: '1.5rem' }}>
+              Required for business visa applicants. Both your company and the Indian firm you&apos;re visiting must be filled in — the Indian government rejects business visa submissions with empty company details.
+            </p>
+
+            {/* Applicant's Company */}
+            <h3 className="finish-form-label" style={{ fontSize: '0.95rem', marginTop: '0.5rem', marginBottom: '0.5rem' }}>Your Company (Applicant&apos;s Company)</h3>
+            <div className="finish-form-group">
+              <label className="finish-form-label">Name</label>
+              <input className="finish-form-input" value={applicantCompanyName} onChange={e => setApplicantCompanyName(stripDiacritics(e.target.value))} placeholder="e.g. Acme Industries Inc." />
+            </div>
+            <div className="finish-form-group">
+              <label className="finish-form-label">Address</label>
+              <input className="finish-form-input" value={applicantCompanyAddress} onChange={e => setApplicantCompanyAddress(stripDiacritics(e.target.value))} placeholder="123 Main St, Springfield, IL 12345" />
+            </div>
+            <div className="finish-form-group">
+              <label className="finish-form-label">Phone number</label>
+              <input className="finish-form-input" value={applicantCompanyPhone} onChange={e => setApplicantCompanyPhone(stripDiacritics(e.target.value))} placeholder="+1 555 555 5555" />
+            </div>
+            <div className="finish-form-group">
+              <label className="finish-form-label">Website</label>
+              <input className="finish-form-input" value={applicantCompanyWebsite} onChange={e => setApplicantCompanyWebsite(stripDiacritics(e.target.value))} placeholder="https://acme.example.com" />
+            </div>
+
+            {/* Indian Firm */}
+            <h3 className="finish-form-label" style={{ fontSize: '0.95rem', marginTop: '1.5rem', marginBottom: '0.5rem' }}>Indian Firm You&apos;re Visiting</h3>
+            <div className="finish-form-group">
+              <label className="finish-form-label">Name</label>
+              <input className="finish-form-input" value={indianFirmName} onChange={e => setIndianFirmName(stripDiacritics(e.target.value))} placeholder="e.g. Tata Consultancy Services" />
+            </div>
+            <div className="finish-form-group">
+              <label className="finish-form-label">Address</label>
+              <input className="finish-form-input" value={indianFirmAddress} onChange={e => setIndianFirmAddress(stripDiacritics(e.target.value))} placeholder="9 Nirmal Bldg, Mumbai 400021" />
+            </div>
+            <div className="finish-form-group">
+              <label className="finish-form-label">Phone number</label>
+              <input className="finish-form-input" value={indianFirmPhone} onChange={e => setIndianFirmPhone(stripDiacritics(e.target.value))} placeholder="+91 22 1234 5678" />
+            </div>
+            <div className="finish-form-group">
+              <label className="finish-form-label">Website</label>
+              <input className="finish-form-input" value={indianFirmWebsite} onChange={e => setIndianFirmWebsite(stripDiacritics(e.target.value))} placeholder="https://example.in" />
+            </div>
+
+            <div className="finish-nav">
+              <button className="finish-back-btn" onClick={() => setStep('employment')}>
+                ← Back
+              </button>
+              <button className={`finish-next-btn${canProceedBiz ? ' ready' : ''}`} disabled={!canProceedBiz} onClick={() => saveProgress('family')}>
                 Next
               </button>
             </div>
@@ -1342,7 +1482,7 @@ function FinishContent() {
               <>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Father&apos;s first and last name</label>
-                  <input className={`finish-form-input${fatherNameErr ? ' error' : ''}`} type="text" value={fatherName} onChange={e => { setFatherName(e.target.value); clearFlag('fatherName'); }} placeholder="" />
+                  <input className={`finish-form-input${fatherNameErr ? ' error' : ''}`} type="text" value={fatherName} onChange={e => { setFatherName(stripNameInput(e.target.value)); clearFlag('fatherName'); }} placeholder="" />
                   {fatherNameErr && <span className="finish-form-error">{fatherNameErr}</span>}
                   <FlagHint field="fatherName" />
                 </div>
@@ -1352,7 +1492,7 @@ function FinishContent() {
                 </div>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Father&apos;s place of birth</label>
-                  <input className="finish-form-input" value={fatherPlaceOfBirth} onChange={e => setFatherPlaceOfBirth(e.target.value)} placeholder="Enter city or town" />
+                  <input className="finish-form-input" value={fatherPlaceOfBirth} onChange={e => setFatherPlaceOfBirth(stripDiacritics(e.target.value))} placeholder="Enter city or town" />
                 </div>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Father&apos;s country of birth</label>
@@ -1366,7 +1506,7 @@ function FinishContent() {
               <>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Mother&apos;s first and last name</label>
-                  <input className={`finish-form-input${motherNameErr ? ' error' : ''}`} type="text" value={motherName} onChange={e => { setMotherName(e.target.value); clearFlag('motherName'); }} placeholder="" />
+                  <input className={`finish-form-input${motherNameErr ? ' error' : ''}`} type="text" value={motherName} onChange={e => { setMotherName(stripNameInput(e.target.value)); clearFlag('motherName'); }} placeholder="" />
                   {motherNameErr && <span className="finish-form-error">{motherNameErr}</span>}
                   <FlagHint field="motherName" />
                 </div>
@@ -1376,7 +1516,7 @@ function FinishContent() {
                 </div>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Mother&apos;s place of birth</label>
-                  <input className="finish-form-input" value={motherPlaceOfBirth} onChange={e => setMotherPlaceOfBirth(e.target.value)} placeholder="Enter city or town" />
+                  <input className="finish-form-input" value={motherPlaceOfBirth} onChange={e => setMotherPlaceOfBirth(stripDiacritics(e.target.value))} placeholder="Enter city or town" />
                 </div>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Mother&apos;s country of birth</label>
@@ -1390,7 +1530,7 @@ function FinishContent() {
               <>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Spouse&apos;s first and last name</label>
-                  <input className={`finish-form-input${spouseNameErr ? ' error' : ''}`} type="text" value={spouseName} onChange={e => { setSpouseName(e.target.value); clearFlag('spouseName'); }} placeholder="" />
+                  <input className={`finish-form-input${spouseNameErr ? ' error' : ''}`} type="text" value={spouseName} onChange={e => { setSpouseName(stripNameInput(e.target.value)); clearFlag('spouseName'); }} placeholder="" />
                   {spouseNameErr && <span className="finish-form-error">{spouseNameErr}</span>}
                   <FlagHint field="spouseName" />
                 </div>
@@ -1407,7 +1547,7 @@ function FinishContent() {
 
                 <div className="finish-form-group">
                   <label className="finish-form-label">Spouse&apos;s place of birth</label>
-                  <input className="finish-form-input" value={spousePlaceOfBirth} onChange={e => setSpousePlaceOfBirth(e.target.value)} placeholder="Enter city or town" />
+                  <input className="finish-form-input" value={spousePlaceOfBirth} onChange={e => setSpousePlaceOfBirth(stripDiacritics(e.target.value))} placeholder="Enter city or town" />
                 </div>
                 <div className="finish-form-group">
                   <label className="finish-form-label">Spouse&apos;s country of birth</label>
@@ -1422,7 +1562,7 @@ function FinishContent() {
             )}
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('employment')}>
+              <button className="finish-back-btn" onClick={() => setStep(stepBeforeFamily)}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedFamily ? ' ready' : ''}`} disabled={!canProceedFamily} onClick={() => saveProgress('photo-guide')}>
@@ -1703,11 +1843,17 @@ function FinishContent() {
 
   /* ── Additional Details Step ── */
   if (step === 'additional') {
-    const canProceedAdditional = hasOtherPassport &&
+    // Gate: every required custom field (in a visible custom, non-builtin section) must have a non-empty value.
+    const customOk = customSchema.sections
+      .filter(sec => !sec.builtIn && !sec.hidden)
+      .every(sec =>
+        sec.fields.every(f => f.hidden || !f.required || isFilled(customValues[f.key]))
+      );
+    const canProceedAdditional = !!(hasOtherPassport &&
       placesToVisit && bookedHotel && exitPort && visitedIndiaBefore && visaRefusedBefore &&
       refNameIndia && refAddressIndia && refStateIndia && refPhoneIndia &&
       refNameHome && refAddressHome && refStateHome && refPhoneHome &&
-      everArrested && everRefusedEntry && soughtAsylum;
+      everArrested && everRefusedEntry && soughtAsylum && customOk);
 
     return (
       <div className="finish-page">
@@ -1750,7 +1896,7 @@ function FinishContent() {
 
             <div className="finish-form-group">
               <label className="finish-form-label">Place of issue</label>
-              <input className="finish-form-input" value={passportPlaceOfIssue} onChange={e => setPassportPlaceOfIssue(e.target.value)} placeholder="e.g. New York" />
+              <input className="finish-form-input" value={passportPlaceOfIssue} onChange={e => setPassportPlaceOfIssue(stripDiacritics(e.target.value))} placeholder="e.g. New York" />
             </div>
             <div className="finish-form-group">
               <label className="finish-form-label">Country of issue</label>
@@ -1778,7 +1924,7 @@ function FinishContent() {
                   </div>
                   <div className="finish-form-group" style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Place of issue</label>
-                    <input className="finish-form-input" value={otherPassportPlaceOfIssue} onChange={e => setOtherPassportPlaceOfIssue(e.target.value)} placeholder="Enter place" />
+                    <input className="finish-form-input" value={otherPassportPlaceOfIssue} onChange={e => setOtherPassportPlaceOfIssue(stripDiacritics(e.target.value))} placeholder="Enter place" />
                   </div>
                 </div>
               )}
@@ -1789,7 +1935,7 @@ function FinishContent() {
 
             <div className={`finish-form-group${flagClass('placesToVisit')}`}>
               <label className="finish-form-label">Places you will visit</label>
-              <input className={`finish-form-input${flagClass('placesToVisit')}`} value={placesToVisit} onChange={e => { setPlacesToVisit(e.target.value); clearFlag('placesToVisit'); }} placeholder="e.g. Delhi, Mumbai, Agra" />
+              <input className={`finish-form-input${flagClass('placesToVisit')}`} value={placesToVisit} onChange={e => { setPlacesToVisit(stripDiacritics(e.target.value)); clearFlag('placesToVisit'); }} placeholder="e.g. Delhi, Mumbai, Agra" />
               <FlagHint field="placesToVisit" />
             </div>
             <div className={`finish-form-group${flagClass('bookedHotel')}`}>
@@ -1806,20 +1952,20 @@ function FinishContent() {
                 <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div className="finish-form-group" style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Name of Hotel/Resort</label>
-                    <input className="finish-form-input" value={hotelName} onChange={e => setHotelName(e.target.value)} placeholder="Enter hotel name" />
+                    <input className="finish-form-input" value={hotelName} onChange={e => setHotelName(stripDiacritics(e.target.value))} placeholder="Enter hotel name" />
                   </div>
                   <div className="finish-form-group" style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Place of Hotel/Resort</label>
-                    <input className="finish-form-input" value={hotelPlace} onChange={e => setHotelPlace(e.target.value)} placeholder="Enter city/area" />
+                    <input className="finish-form-input" value={hotelPlace} onChange={e => setHotelPlace(stripDiacritics(e.target.value))} placeholder="Enter city/area" />
                   </div>
                   <div className={`finish-form-group${flagClass('tourOperatorName')}`} style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Name of tour operator (if any)</label>
-                    <input className={`finish-form-input${flagClass('tourOperatorName')}`} value={tourOperatorName} onChange={e => { setTourOperatorName(e.target.value); clearFlag('tourOperatorName'); }} placeholder="Enter name or N/A" />
+                    <input className={`finish-form-input${flagClass('tourOperatorName')}`} value={tourOperatorName} onChange={e => { setTourOperatorName(stripDiacritics(e.target.value)); clearFlag('tourOperatorName'); }} placeholder="Enter name or N/A" />
                     <FlagHint field="tourOperatorName" />
                   </div>
                   <div className={`finish-form-group${flagClass('tourOperatorAddress')}`} style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Address of tour operator</label>
-                    <input className={`finish-form-input${flagClass('tourOperatorAddress')}`} value={tourOperatorAddress} onChange={e => { setTourOperatorAddress(e.target.value); clearFlag('tourOperatorAddress'); }} placeholder="Enter address or N/A" />
+                    <input className={`finish-form-input${flagClass('tourOperatorAddress')}`} value={tourOperatorAddress} onChange={e => { setTourOperatorAddress(stripDiacritics(e.target.value)); clearFlag('tourOperatorAddress'); }} placeholder="Enter address or N/A" />
                     <FlagHint field="tourOperatorAddress" />
                   </div>
                 </div>
@@ -1845,11 +1991,11 @@ function FinishContent() {
                 <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div className="finish-form-group" style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Address during last visit</label>
-                    <input className="finish-form-input" value={prevIndiaAddress} onChange={e => setPrevIndiaAddress(e.target.value)} placeholder="Enter address in India" />
+                    <input className="finish-form-input" value={prevIndiaAddress} onChange={e => setPrevIndiaAddress(stripDiacritics(e.target.value))} placeholder="Enter address in India" />
                   </div>
                   <div className="finish-form-group" style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Cities previously visited</label>
-                    <input className="finish-form-input" value={prevIndiaCities} onChange={e => setPrevIndiaCities(e.target.value)} placeholder="e.g. Delhi, Mumbai, Agra" />
+                    <input className="finish-form-input" value={prevIndiaCities} onChange={e => setPrevIndiaCities(stripDiacritics(e.target.value))} placeholder="e.g. Delhi, Mumbai, Agra" />
                   </div>
                   <div className="finish-form-group" style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Last Indian Visa number</label>
@@ -1861,7 +2007,7 @@ function FinishContent() {
                   </div>
                   <div className="finish-form-group" style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Place of issue</label>
-                    <input className="finish-form-input" value={prevIndiaVisaPlace} onChange={e => setPrevIndiaVisaPlace(e.target.value)} placeholder="Enter place of issue" />
+                    <input className="finish-form-input" value={prevIndiaVisaPlace} onChange={e => setPrevIndiaVisaPlace(stripDiacritics(e.target.value))} placeholder="Enter place of issue" />
                   </div>
                   <div className="finish-form-group" style={{ marginBottom: 0 }}>
                     <label className="finish-form-label">Date of issue</label>
@@ -1890,12 +2036,12 @@ function FinishContent() {
 
             <div className={`finish-form-group${flagClass('refNameIndia')}`}>
               <label className="finish-form-label">Reference name</label>
-              <input className={`finish-form-input${flagClass('refNameIndia')}`} value={refNameIndia} onChange={e => { setRefNameIndia(e.target.value); clearFlag('refNameIndia'); }} placeholder="Name of friend, relative, or hotel" />
+              <input className={`finish-form-input${flagClass('refNameIndia')}`} value={refNameIndia} onChange={e => { setRefNameIndia(stripDiacritics(e.target.value)); clearFlag('refNameIndia'); }} placeholder="Name of friend, relative, or hotel" />
               <FlagHint field="refNameIndia" />
             </div>
             <div className={`finish-form-group${flagClass('refAddressIndia')}`}>
               <label className="finish-form-label">Reference address</label>
-              <input className={`finish-form-input${flagClass('refAddressIndia')}`} value={refAddressIndia} onChange={e => { setRefAddressIndia(e.target.value); clearFlag('refAddressIndia'); }} placeholder="Full address" />
+              <input className={`finish-form-input${flagClass('refAddressIndia')}`} value={refAddressIndia} onChange={e => { setRefAddressIndia(stripDiacritics(e.target.value)); clearFlag('refAddressIndia'); }} placeholder="Full address" />
               <FlagHint field="refAddressIndia" />
             </div>
             <div className={`finish-form-group${flagClass('refStateIndia')}`}>
@@ -1913,7 +2059,7 @@ function FinishContent() {
                   placeholder="Select district"
                 />
               ) : (
-                <input className={`finish-form-input${flagClass('refDistrictIndia')}`} value={refDistrictIndia} onChange={e => { setRefDistrictIndia(e.target.value); clearFlag('refDistrictIndia'); }} placeholder="Enter district" />
+                <input className={`finish-form-input${flagClass('refDistrictIndia')}`} value={refDistrictIndia} onChange={e => { setRefDistrictIndia(stripDiacritics(e.target.value)); clearFlag('refDistrictIndia'); }} placeholder="Enter district" />
               )}
               <FlagHint field="refDistrictIndia" />
             </div>
@@ -1929,22 +2075,22 @@ function FinishContent() {
 
             <div className={`finish-form-group${flagClass('refNameHome')}`}>
               <label className="finish-form-label">Reference name</label>
-              <input className={`finish-form-input${flagClass('refNameHome')}`} value={refNameHome} onChange={e => { setRefNameHome(e.target.value); clearFlag('refNameHome'); }} placeholder="Name of friend or relative" />
+              <input className={`finish-form-input${flagClass('refNameHome')}`} value={refNameHome} onChange={e => { setRefNameHome(stripDiacritics(e.target.value)); clearFlag('refNameHome'); }} placeholder="Name of friend or relative" />
               <FlagHint field="refNameHome" />
             </div>
             <div className={`finish-form-group${flagClass('refAddressHome')}`}>
               <label className="finish-form-label">Address</label>
-              <input className={`finish-form-input${flagClass('refAddressHome')}`} value={refAddressHome} onChange={e => { setRefAddressHome(e.target.value); clearFlag('refAddressHome'); }} placeholder="Full address" />
+              <input className={`finish-form-input${flagClass('refAddressHome')}`} value={refAddressHome} onChange={e => { setRefAddressHome(stripDiacritics(e.target.value)); clearFlag('refAddressHome'); }} placeholder="Full address" />
               <FlagHint field="refAddressHome" />
             </div>
             <div className={`finish-form-group${flagClass('refStateHome')}`}>
               <label className="finish-form-label">State / Province</label>
-              <input className={`finish-form-input${flagClass('refStateHome')}`} value={refStateHome} onChange={e => { setRefStateHome(e.target.value); clearFlag('refStateHome'); }} placeholder="Enter state or province" />
+              <input className={`finish-form-input${flagClass('refStateHome')}`} value={refStateHome} onChange={e => { setRefStateHome(stripDiacritics(e.target.value)); clearFlag('refStateHome'); }} placeholder="Enter state or province" />
               <FlagHint field="refStateHome" />
             </div>
             <div className={`finish-form-group${flagClass('refDistrictHome')}`}>
               <label className="finish-form-label">ZIP or postcode</label>
-              <input className={`finish-form-input${flagClass('refDistrictHome')}`} value={refDistrictHome} onChange={e => { setRefDistrictHome(e.target.value); clearFlag('refDistrictHome'); }} placeholder="Enter ZIP or postcode" />
+              <input className={`finish-form-input${flagClass('refDistrictHome')}`} value={refDistrictHome} onChange={e => { setRefDistrictHome(stripDiacritics(e.target.value)); clearFlag('refDistrictHome'); }} placeholder="Enter ZIP or postcode" />
               <FlagHint field="refDistrictHome" />
             </div>
             <div className={`finish-form-group${flagClass('refPhoneHome')}`}>
@@ -1992,6 +2138,18 @@ function FinishContent() {
               </div>
               <FlagHint field="soughtAsylum" />
             </div>
+
+            {/* Admin-defined custom sections — built-in sections are rendered by hardcoded inputs above */}
+            {customSchema.sections
+              .filter(sec => !sec.builtIn && !sec.hidden && sec.fields.length > 0)
+              .map(sec => (
+                <CustomSectionRenderer
+                  key={sec.key}
+                  section={sec}
+                  values={customValues}
+                  setValue={(k, v) => setCustomValues(prev => ({ ...prev, [k]: v }))}
+                />
+              ))}
 
             <div className="finish-nav">
               <button className="finish-back-btn" onClick={() => setStep('passport-bio-upload')}>
@@ -2093,6 +2251,15 @@ function FinishContent() {
         ['Refused entry/deported', everRefusedEntry || '—'],
         ['Sought asylum', soughtAsylum || '—'],
       ]},
+      // Admin-defined custom sections (built-in sections are already shown via the hardcoded items above)
+      ...customSchema.sections
+        .filter(sec => !sec.builtIn && !sec.hidden && sec.fields.length > 0)
+        .map(sec => ({
+          title: sec.title,
+          items: sec.fields
+            .filter(f => !f.hidden)
+            .map(f => [f.label, formatCustomValue(customValues[f.key])] as [string, string]),
+        })),
     ];
 
     const handleFinalSubmit = async () => {
@@ -2188,5 +2355,153 @@ export default function FinishPage() {
         <FinishContent />
       </Suspense>
     </>
+  );
+}
+
+// ── Custom field helpers ─────────────────────────────────────────────────
+
+function isFilled(v: unknown): boolean {
+  if (v === undefined || v === null) return false;
+  if (typeof v === 'string') return v.trim().length > 0;
+  if (typeof v === 'boolean') return true; // checkbox: both true and false are valid answers
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+}
+
+function formatCustomValue(v: unknown): string {
+  if (v === undefined || v === null || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  if (Array.isArray(v)) return v.join(', ') || '—';
+  return String(v);
+}
+
+function CustomSectionRenderer({ section, values, setValue }: {
+  section: CustomSection;
+  values: Record<string, any>;
+  setValue: (key: string, value: any) => void;
+}) {
+  if (section.fields.length === 0) return null;
+  return (
+    <>
+      <h2 className="finish-section-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+        <SectionIcon icon={section.icon} emoji={section.emoji} size={18} strokeWidth={2} />
+        <span>{section.title}</span>
+      </h2>
+      {section.description && (
+        <p style={{ fontSize: '0.88rem', color: '#6b7280', marginTop: '-0.5rem', marginBottom: '0.75rem' }}>
+          {section.description}
+        </p>
+      )}
+      {section.fields.map(f => (
+        <CustomFieldRenderer
+          key={f.key}
+          field={f}
+          value={values[f.key]}
+          onChange={v => setValue(f.key, v)}
+        />
+      ))}
+    </>
+  );
+}
+
+function CustomFieldRenderer({ field, value, onChange }: {
+  field: CustomField;
+  value: any;
+  onChange: (v: any) => void;
+}) {
+  const reqMark = field.required ? <span style={{ color: '#dc2626' }}> *</span> : null;
+  const help = field.helpText ? (
+    <p style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '0.25rem' }}>{field.helpText}</p>
+  ) : null;
+
+  // Textarea
+  if (field.type === 'textarea') {
+    return (
+      <div className="finish-form-group">
+        <label className="finish-form-label">{field.label}{reqMark}</label>
+        <textarea
+          className="finish-form-input"
+          rows={4}
+          value={value ?? ''}
+          placeholder={field.placeholder}
+          onChange={e => onChange(e.target.value)}
+        />
+        {help}
+      </div>
+    );
+  }
+
+  // Select
+  if (field.type === 'select') {
+    return (
+      <div className="finish-form-group">
+        <label className="finish-form-label">{field.label}{reqMark}</label>
+        <select
+          className="finish-form-input"
+          value={value ?? ''}
+          onChange={e => onChange(e.target.value)}
+        >
+          <option value="">— Select —</option>
+          {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+        {help}
+      </div>
+    );
+  }
+
+  // Radio
+  if (field.type === 'radio') {
+    return (
+      <div className="finish-form-group">
+        <label className="finish-form-label">{field.label}{reqMark}</label>
+        <div className="finish-radio-group">
+          {(field.options || []).map(o => (
+            <button
+              key={o}
+              type="button"
+              className={`finish-radio-btn${value === o ? ' selected' : ''}`}
+              onClick={() => onChange(o)}
+            >
+              <span className={`finish-radio-circle${value === o ? ' active' : ''}`} />
+              {o}
+            </button>
+          ))}
+        </div>
+        {help}
+      </div>
+    );
+  }
+
+  // Checkbox
+  if (field.type === 'checkbox') {
+    return (
+      <div className="finish-form-group">
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={!!value}
+            onChange={e => onChange(e.target.checked)}
+            style={{ width: 18, height: 18 }}
+          />
+          <span className="finish-form-label" style={{ margin: 0 }}>{field.label}{reqMark}</span>
+        </label>
+        {help}
+      </div>
+    );
+  }
+
+  // Default: text / email / tel / date / number
+  return (
+    <div className="finish-form-group">
+      <label className="finish-form-label">{field.label}{reqMark}</label>
+      <input
+        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'text'}
+        className="finish-form-input"
+        value={value ?? ''}
+        placeholder={field.placeholder}
+        onChange={e => onChange(e.target.value)}
+      />
+      {help}
+    </div>
   );
 }

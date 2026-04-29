@@ -4,7 +4,8 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
-import { validateName, validateEmail, validateAddress, validateCityState, validateZip, validatePassportNumber } from '@/lib/validation';
+import { validateName, stripNameInput, validateEmail, validateAddress, validateCityState, validateZip, validatePassportNumber } from '@/lib/validation';
+import { ApplySchemaProvider, useApplySchema } from '@/lib/applySchemaClient';
 
 const PASSPORT_COUNTRIES = [
   { code: 'US', flag: '🇺🇸', name: 'United States' },
@@ -17,7 +18,7 @@ const PASSPORT_COUNTRIES = [
   { code: 'ES', flag: '🇪🇸', name: 'Spain' },
   { code: 'NL', flag: '🇳🇱', name: 'Netherlands' },
   { code: 'JP', flag: '🇯🇵', name: 'Japan' },
-  { code: 'KR', flag: '🇰🇷', name: 'South Korea' },
+  { code: 'KR', flag: '🇰🇷', name: 'Republic of Korea' },
   { code: 'SG', flag: '🇸🇬', name: 'Singapore' },
   { code: 'AE', flag: '🇦🇪', name: 'UAE' },
   { code: 'BR', flag: '🇧🇷', name: 'Brazil' },
@@ -49,6 +50,12 @@ const VISA_OPTIONS = [
   { id: 'business-1y', label: 'India Business eVisa – 1 year, Multiple entry', validity: '1 year after arrival',   entries: 'Multiple entry', maxStay: '180 days per visit', price: 80, tag: '' },
   { id: 'medical-60',  label: 'India Medical eVisa – 60 days, Triple entry',   validity: '60 days after arrival',  entries: 'Triple entry',   maxStay: '60 days in total',   price: 25, tag: '' },
 ];
+
+// Visa IDs that are NOT shown on the customer-facing apply page. Code, schema,
+// admin views and bot wiring for these stay intact — we just hide them from
+// new applications. To re-enable a visa type, remove its id from this list.
+const HIDDEN_VISA_IDS = new Set<string>(['business-1y', 'medical-60']);
+const VISIBLE_VISA_OPTIONS = VISA_OPTIONS.filter(v => !HIDDEN_VISA_IDS.has(v.id));
 
 const PURPOSE_OPTIONS: Record<string, string[]> = {
   'business-1y': ['Set Up Industrial/Business Venture','Sale/Purchase/Trade','Attend Technical/Business Meetings','Recruit Manpower','Participation in Exhibitions/Trade Fairs','Expert/Specialist for Ongoing Project','Conducting Tours','Deliver Lectures (GIAN)','Sports Related Activity','Join Vessel'],
@@ -84,9 +91,53 @@ function ProgressBar({ current }: { current: number }) {
 }
 
 /* ── Shared Summary ── */
-function SummaryCard({ visaId, travelers }: { visaId:string; travelers:number }) {
+interface ProcessingOption { id: string; label: string; surcharge: number; }
+
+function SummaryCard({
+  visaId,
+  travelers,
+  processingSurcharge = 0,
+  showPrice = false,
+  processingOptions,
+  selectedProcessing,
+  onProcessingChange,
+}: {
+  visaId: string;
+  travelers: number;
+  processingSurcharge?: number;
+  showPrice?: boolean;
+  processingOptions?: ProcessingOption[];
+  selectedProcessing?: string;
+  onProcessingChange?: (id: string) => void;
+}) {
   const visa  = VISA_OPTIONS.find(v => v.id === visaId)!;
-  const total = visa.price * travelers;
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [govFee, setGovFee] = useState<number>(10);
+  const [txPct, setTxPct] = useState<number>(8);
+  useEffect(() => {
+    const visaIdToCode: Record<string, string> = {
+      'tourist-30': 'TOURIST_30', 'tourist-1y': 'TOURIST_1Y', 'tourist-5y': 'TOURIST_5Y',
+      'business-1y': 'BUSINESS_1Y', 'medical-60': 'MEDICAL_60',
+    };
+    const code = visaIdToCode[visaId] || visaId.toUpperCase().replace('-', '_');
+    fetch('/api/settings').then(r => r.json()).then(d => {
+      const s = d.settings || {};
+      const key = `pricing.visa.${code}`;
+      if (s[key] != null) setLivePrice(Number(s[key]));
+      if (s['pricing.fees.government'] != null) setGovFee(Number(s['pricing.fees.government']));
+      if (s['pricing.fees.transactionPercent'] != null) setTxPct(Number(s['pricing.fees.transactionPercent']));
+    }).catch(() => {});
+  }, [visaId]);
+
+  const effectivePrice = livePrice ?? visa.price;
+  const visaLine       = effectivePrice * travelers;
+  const processingLine = processingSurcharge * travelers;
+  const govLine        = govFee * travelers;
+  const subtotal       = visaLine + processingLine + govLine;
+  const txFee          = subtotal * (txPct / 100);
+  const total          = subtotal + txFee;
+  const fmt = (n: number) => n.toFixed(2).replace(/\.00$/, '');
+
   return (
     <div className="apply-summary-col">
       <div className="apply-summary-card">
@@ -104,12 +155,67 @@ function SummaryCard({ visaId, travelers }: { visaId:string; travelers:number })
           <div className="apply-summary-row"><span className="apply-summary-icon">🗓️</span><div><div className="apply-summary-row-label">Max stay</div><div className="apply-summary-row-value">{visa.maxStay}</div></div></div>
           <div className="apply-summary-row"><span className="apply-summary-icon">👤</span><div><div className="apply-summary-row-label">Travelers</div><div className="apply-summary-row-value">{travelers} {travelers===1?'person':'people'}</div></div></div>
         </div>
-        <div className="apply-summary-divider" />
-        <div className="apply-summary-price-row">
-          <span className="apply-summary-price-label">Total</span>
-          <span className="apply-summary-price">${total} <span className="apply-summary-price-note">USD</span></span>
-        </div>
-        <div className="apply-summary-note">Government fees included · No hidden charges</div>
+        {showPrice ? (
+          <>
+            {processingOptions && processingOptions.length > 0 && onProcessingChange && (
+              <>
+                <div className="apply-summary-divider" />
+                <div className="apply-summary-processing">
+                  <div className="apply-summary-processing-label">Processing time</div>
+                  <div className="processing-options">
+                    {processingOptions.map(opt => (
+                      <label
+                        key={opt.id}
+                        className={`processing-option${selectedProcessing === opt.id ? ' selected' : ''}`}
+                        onClick={() => onProcessingChange(opt.id)}
+                      >
+                        <div className="processing-option-radio">
+                          <span className={`processing-radio-dot${selectedProcessing === opt.id ? ' active' : ''}`} />
+                        </div>
+                        <div className="processing-option-info">
+                          <span className="processing-option-label">{opt.label}</span>
+                        </div>
+                        <span className="processing-option-price">
+                          {opt.surcharge === 0 ? 'Included' : `+$${opt.surcharge}`}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+            <div className="apply-summary-divider" />
+            {/* Line-item breakdown */}
+            <div className="apply-summary-breakdown">
+              <div className="apply-summary-breakdown-row">
+                <span>Visa fee <span className="apply-summary-breakdown-sub">({travelers} × ${fmt(effectivePrice)})</span></span>
+                <span>${fmt(visaLine)}</span>
+              </div>
+              <div className="apply-summary-breakdown-row">
+                <span>Processing surcharge <span className="apply-summary-breakdown-sub">({travelers} × ${fmt(processingSurcharge)})</span></span>
+                <span>${fmt(processingLine)}</span>
+              </div>
+              {govFee > 0 && (
+                <div className="apply-summary-breakdown-row">
+                  <span>Government fee <span className="apply-summary-breakdown-sub">({travelers} × ${fmt(govFee)})</span></span>
+                  <span>${fmt(govLine)}</span>
+                </div>
+              )}
+              {txPct > 0 && (
+                <div className="apply-summary-breakdown-row">
+                  <span>Transaction fee <span className="apply-summary-breakdown-sub">({txPct}%)</span></span>
+                  <span>${fmt(txFee)}</span>
+                </div>
+              )}
+            </div>
+            <div className="apply-summary-divider" />
+            <div className="apply-summary-price-row">
+              <span className="apply-summary-price-label">Total</span>
+              <span className="apply-summary-price">${fmt(total)} <span className="apply-summary-price-note">USD</span></span>
+            </div>
+            <div className="apply-summary-note">Includes government fees & taxes · No hidden charges</div>
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -164,7 +270,7 @@ function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravele
         <div className="apply-field">
           <label className="apply-label">Applying for</label>
           <div className="apply-visa-list">
-            {VISA_OPTIONS.map(v=>(
+            {VISIBLE_VISA_OPTIONS.map(v=>(
               <label key={v.id} className={`apply-visa-option${visaId===v.id?' selected':''}`}>
                 <input type="radio" name="visa" value={v.id} checked={visaId===v.id} onChange={()=>setVisaId(v.id)} className="sr-only"/>
                 <span className="apply-visa-radio"/>
@@ -210,6 +316,7 @@ function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravele
 /* ── Address Validation ── */
 /* ── Step 2 ── */
 function TravelerCard({ index, data, onChange, expanded, onToggle }: any) {
+  const { getLabel } = useApplySchema();
   return (
     <div className="traveler-card">
       <div className="traveler-card-header" onClick={onToggle}>
@@ -221,37 +328,37 @@ function TravelerCard({ index, data, onChange, expanded, onToggle }: any) {
       </div>
       {expanded&&(
         <div className="traveler-card-body">
-          <div className="ap-field"><label className="ap-field-label">First &amp; middle name</label>
-            <input className={`ap-input${data.firstName&&validateName(data.firstName,'First name')?' ap-input-error':''}`} placeholder="John William" value={data.firstName} onChange={e=>onChange('firstName',e.target.value)}/>
+          <div className="ap-field"><label className="ap-field-label">{getLabel('personal', 'firstName', 'First & middle name')}</label>
+            <input className={`ap-input${data.firstName&&validateName(data.firstName,'First name')?' ap-input-error':''}`} placeholder="John William" value={data.firstName} onChange={e=>onChange('firstName',stripNameInput(e.target.value))}/>
             {data.firstName&&validateName(data.firstName,'First name')&&<p className="ap-field-error">{validateName(data.firstName,'First name')}</p>}</div>
-          <div className="ap-field"><label className="ap-field-label">Last name</label>
-            <input className={`ap-input${data.lastName&&validateName(data.lastName,'Last name')?' ap-input-error':''}`} placeholder="Smith" value={data.lastName} onChange={e=>onChange('lastName',e.target.value)}/>
+          <div className="ap-field"><label className="ap-field-label">{getLabel('personal', 'lastName', 'Last name')}</label>
+            <input className={`ap-input${data.lastName&&validateName(data.lastName,'Last name')?' ap-input-error':''}`} placeholder="Smith" value={data.lastName} onChange={e=>onChange('lastName',stripNameInput(e.target.value))}/>
             {data.lastName&&validateName(data.lastName,'Last name')&&<p className="ap-field-error">{validateName(data.lastName,'Last name')}</p>}</div>
-          <div className="ap-field"><label className="ap-field-label">Date of birth</label>
+          <div className="ap-field"><label className="ap-field-label">{getLabel('personal', 'dob', 'Date of birth')}</label>
             <div className="ap-dob-row">
               <select className="ap-select" value={data.month} onChange={e=>onChange('month',e.target.value)}><option value="">Month</option>{MONTHS.map(m=><option key={m} value={m}>{m}</option>)}</select>
               <select className="ap-select" value={data.day}   onChange={e=>onChange('day',e.target.value)}><option value="">Day</option>{DAYS.map(d=><option key={d} value={d}>{d}</option>)}</select>
               <select className="ap-select" value={data.year}  onChange={e=>onChange('year',e.target.value)}><option value="">Year</option>{YEARS.map(y=><option key={y} value={y}>{y}</option>)}</select>
             </div></div>
-          <div className="ap-field"><label className="ap-field-label">Email address</label>
+          <div className="ap-field"><label className="ap-field-label">{getLabel('personal', 'email', 'Email address')}</label>
             <input className={`ap-input${data.email&&validateEmail(data.email)?' ap-input-error':''}`} type="email" placeholder="johnsmith@gmail.com" value={data.email} onChange={e=>onChange('email',e.target.value)}/>
             {data.email&&validateEmail(data.email)?<p className="ap-field-error">{validateEmail(data.email)}</p>:<p className="ap-field-hint">Your India eVisa will be sent to this email address</p>}</div>
 
           <div className="ap-section-divider"/>
           <div className="ap-section-title">Address Details</div>
-          <div className="ap-field"><label className="ap-field-label">Home address</label>
+          <div className="ap-field"><label className="ap-field-label">{getLabel('address', 'address', 'Home address')}</label>
             <p className="ap-field-hint" style={{marginTop:'-0.25rem',marginBottom:'0.35rem'}}>Your current, permanent residence</p>
             <input className={`ap-input${data.address&&validateAddress(data.address,'Home address')?' ap-input-error':''}`} placeholder="123 Main Street, Apt 4B" value={data.address} onChange={e=>onChange('address',e.target.value)}/>
             {data.address&&validateAddress(data.address,'Home address')&&<p className="ap-field-error">{validateAddress(data.address,'Home address')}</p>}</div>
           <div className="ap-row-2">
-            <div className="ap-field"><label className="ap-field-label">City or town</label>
+            <div className="ap-field"><label className="ap-field-label">{getLabel('address', 'city', 'City or town')}</label>
               <input className={`ap-input${data.city&&validateCityState(data.city,'City')?' ap-input-error':''}`} placeholder="New York" value={data.city} onChange={e=>onChange('city',e.target.value)}/>
               {data.city&&validateCityState(data.city,'City')&&<p className="ap-field-error">{validateCityState(data.city,'City')}</p>}</div>
-            <div className="ap-field"><label className="ap-field-label">State or province</label>
+            <div className="ap-field"><label className="ap-field-label">{getLabel('address', 'state', 'State or province')}</label>
               <input className={`ap-input${data.state&&validateCityState(data.state,'State')?' ap-input-error':''}`} placeholder="New York" value={data.state} onChange={e=>onChange('state',e.target.value)}/>
               {data.state&&validateCityState(data.state,'State')&&<p className="ap-field-error">{validateCityState(data.state,'State')}</p>}</div>
           </div>
-          <div className="ap-field" style={{maxWidth:'12rem'}}><label className="ap-field-label">ZIP or postcode</label>
+          <div className="ap-field" style={{maxWidth:'12rem'}}><label className="ap-field-label">{getLabel('address', 'zip', 'ZIP or postcode')}</label>
             <input className={`ap-input${data.zip&&validateZip(data.zip)?' ap-input-error':''}`} placeholder="10001" value={data.zip} onChange={e=>onChange('zip',e.target.value)}/>
             {data.zip&&validateZip(data.zip)&&<p className="ap-field-error">{validateZip(data.zip)}</p>}</div>
 
@@ -378,6 +485,7 @@ function Step2({ travelers, visaId, onBack, onNext }: any) {
 
 /* ── Step 2b ── */
 function PassportCard({ index, travelerName, data, onChange, expanded, onToggle, expiryError }: any) {
+  const { getLabel } = useApplySchema();
   return (
     <div className="traveler-card">
       <div className="traveler-card-header" onClick={onToggle}>
@@ -390,34 +498,34 @@ function PassportCard({ index, travelerName, data, onChange, expanded, onToggle,
       </div>
       {expanded&&(
         <div className="traveler-card-body">
-          <div className="ap-field"><label className="ap-field-label">Passport</label>
+          <div className="ap-field"><label className="ap-field-label">{getLabel('passport', 'passportCountry', 'Passport')}</label>
             <PassportDropdown value={data.country} onChange={(v:string)=>onChange('country',v)} disabled={data.skipForNow}/></div>
           <label className="ap-checkbox-label">
             <input type="checkbox" className="ap-checkbox" checked={data.skipForNow} onChange={e=>onChange('skipForNow',e.target.checked)}/>
             <span>Add passport details later</span>
           </label>
           <div className="ap-field" style={{opacity:data.skipForNow?0.45:1,pointerEvents:data.skipForNow?'none':'auto'}}>
-            <label className="ap-field-label">Passport number</label>
+            <label className="ap-field-label">{getLabel('passport', 'passportNumber', 'Passport number')}</label>
             <input className={`ap-input${data.number&&validatePassportNumber(data.number)?' ap-input-error':''}`} placeholder="P9876543" value={data.number} disabled={data.skipForNow}
               onChange={e=>onChange('number',e.target.value)}/>
             {data.number&&validatePassportNumber(data.number)&&<p className="ap-field-error">{validatePassportNumber(data.number)}</p>}</div>
           <div className="ap-field" style={{opacity:data.skipForNow?0.45:1,pointerEvents:data.skipForNow?'none':'auto'}}>
-            <label className="ap-field-label">Place of issue</label>
+            <label className="ap-field-label">{getLabel('passport', 'passportPlaceOfIssue', 'Place of issue')}</label>
             <input className="ap-input" placeholder="e.g. New York" value={data.placeOfIssue} disabled={data.skipForNow}
               onChange={e=>onChange('placeOfIssue',e.target.value)}/></div>
           <div className="ap-field" style={{opacity:data.skipForNow?0.45:1,pointerEvents:data.skipForNow?'none':'auto'}}>
-            <label className="ap-field-label">Country of issue</label>
+            <label className="ap-field-label">{getLabel('passport', 'passportCountryOfIssue', 'Country of issue')}</label>
             <input className="ap-input" placeholder="e.g. United States" value={data.countryOfIssue} disabled={data.skipForNow}
               onChange={e=>onChange('countryOfIssue',e.target.value)}/></div>
           <div className="ap-field" style={{opacity:data.skipForNow?0.45:1,pointerEvents:data.skipForNow?'none':'auto'}}>
-            <label className="ap-field-label">Passport issue date</label>
+            <label className="ap-field-label">{getLabel('passport', 'passportIssued', 'Passport issue date')}</label>
             <div className="ap-dob-row">
               <select className="ap-select" value={data.issMonth} disabled={data.skipForNow} onChange={e=>onChange('issMonth',e.target.value)}><option value="">Month</option>{MONTHS.map(m=><option key={m} value={m}>{m}</option>)}</select>
               <select className="ap-select" value={data.issDay}   disabled={data.skipForNow} onChange={e=>onChange('issDay',e.target.value)}><option value="">Day</option>{DAYS.map(d=><option key={d} value={d}>{d}</option>)}</select>
               <select className="ap-select" value={data.issYear}  disabled={data.skipForNow} onChange={e=>onChange('issYear',e.target.value)}><option value="">Year</option>{ISS_YEARS.map(y=><option key={y} value={y}>{y}</option>)}</select>
             </div></div>
           <div className="ap-field" style={{opacity:data.skipForNow?0.45:1,pointerEvents:data.skipForNow?'none':'auto'}}>
-            <label className="ap-field-label">Passport expiration date</label>
+            <label className="ap-field-label">{getLabel('passport', 'passportExpiry', 'Passport expiration date')}</label>
             <div className="ap-dob-row">
               <select className="ap-select" value={data.expMonth} disabled={data.skipForNow} onChange={e=>onChange('expMonth',e.target.value)}><option value="">Month</option>{MONTHS.map(m=><option key={m} value={m}>{m}</option>)}</select>
               <select className="ap-select" value={data.expDay}   disabled={data.skipForNow} onChange={e=>onChange('expDay',e.target.value)}><option value="">Day</option>{DAYS.map(d=><option key={d} value={d}>{d}</option>)}</select>
@@ -484,16 +592,49 @@ function Step2b({ travelers, travelerNames, travelerData, visaId, onBack, onNext
 function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, onBack }: { visaId:string; travelers:number; travelerData:any[]; passportData:PassportInfo[]; purposeOfVisit:string; onBack:()=>void }) {
   const router = useRouter();
   const visa  = VISA_OPTIONS.find(v=>v.id===visaId)!;
+
+  // Fetch live pricing from settings (falls back to hard-coded VISA_OPTIONS if offline)
+  const [livePrices, setLivePrices] = useState<Record<string, number> | null>(null);
+  const [liveSurcharges, setLiveSurcharges] = useState<Record<string, number> | null>(null);
+  const [govFee, setGovFee] = useState<number>(10);
+  const [txPct, setTxPct] = useState<number>(8);
+  useEffect(() => {
+    fetch('/api/settings').then(r => r.json()).then(d => {
+      const s = d.settings || {};
+      const prices: Record<string, number> = {};
+      const surch: Record<string, number> = {};
+      for (const k of Object.keys(s)) {
+        if (k.startsWith('pricing.visa.')) prices[k.replace('pricing.visa.', '')] = Number(s[k]);
+        if (k.startsWith('pricing.processing.')) surch[k.replace('pricing.processing.', '')] = Number(s[k]);
+      }
+      setLivePrices(prices);
+      setLiveSurcharges(surch);
+      if (s['pricing.fees.government'] != null) setGovFee(Number(s['pricing.fees.government']));
+      if (s['pricing.fees.transactionPercent'] != null) setTxPct(Number(s['pricing.fees.transactionPercent']));
+    }).catch(() => {});
+  }, []);
+
+  // Map lowercase visa IDs to uppercase setting codes
+  const visaIdToCode: Record<string, string> = {
+    'tourist-30': 'TOURIST_30', 'tourist-1y': 'TOURIST_1Y', 'tourist-5y': 'TOURIST_5Y',
+    'business-1y': 'BUSINESS_1Y', 'medical-60': 'MEDICAL_60',
+  };
+  const visaCode = visaIdToCode[visaId] || visaId.toUpperCase().replace('-', '_');
+  const livePrice = livePrices?.[visaCode];
+  const effectivePrice = typeof livePrice === 'number' ? livePrice : visa.price;
+
   const PROCESSING_OPTIONS = [
-    { id: 'standard', label: 'Standard', surcharge: 0 },
-    { id: 'rush',     label: 'Rush',     surcharge: 20 },
-    { id: 'super',    label: 'Super Rush', surcharge: 60 },
+    { id: 'standard', label: 'Standard', surcharge: liveSurcharges?.standard ?? 0 },
+    { id: 'rush',     label: 'Rush',     surcharge: liveSurcharges?.rush ?? 20 },
+    { id: 'super',    label: 'Super Rush', surcharge: liveSurcharges?.super ?? 60 },
   ];
 
   const [processing, setProcessing] = useState('standard');
   const surcharge = PROCESSING_OPTIONS.find(p=>p.id===processing)!.surcharge;
-  const baseTotal = visa.price * travelers;
-  const total     = baseTotal + surcharge;
+  // Breakdown: (visa + surcharge + govFee) × travelers + transactionFee × subtotal
+  const subtotal = (effectivePrice + surcharge + govFee) * travelers;
+  const txFee    = subtotal * (txPct / 100);
+  const total    = +(subtotal + txFee).toFixed(2);
 
   const [cardName,   setCardName]   = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -581,7 +722,7 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
 
         <div className="checkout-order-strip">
           <span className="checkout-order-label">🇮🇳 India eVisa — {travelers} {travelers===1?'traveler':'travelers'}</span>
-          <span className="checkout-order-price">${total} USD</span>
+          <span className="checkout-order-price">${total.toFixed(2)} USD</span>
         </div>
 
         <div className="ap-field">
@@ -631,29 +772,19 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
         <div className="apply-step2-actions">
           <button className="apply-back-btn" onClick={onBack}>← Previous</button>
           <button className={`apply-submit${canSubmit?' active':''}`} disabled={!canSubmit||loading} onClick={handleSubmit}>
-            {loading?'Submitting...':(canSubmit?`Pay $${total} USD →`:'Complete payment details')}
+            {loading?'Submitting...':(canSubmit?`Pay $${total.toFixed(2)} USD →`:'Complete payment details')}
           </button>
         </div>
       </div>
-      <div className="apply-summary-col">
-        <div className="checkout-section" style={{marginBottom:'1rem'}}>
-          <div className="checkout-section-title">Choose a processing time</div>
-          <div className="processing-options">
-            {PROCESSING_OPTIONS.map(opt => (
-              <label key={opt.id} className={`processing-option${processing===opt.id?' selected':''}`} onClick={()=>setProcessing(opt.id)}>
-                <div className="processing-option-radio">
-                  <span className={`processing-radio-dot${processing===opt.id?' active':''}`}/>
-                </div>
-                <div className="processing-option-info">
-                  <span className="processing-option-label">{opt.label}</span>
-                </div>
-                <span className="processing-option-price">{opt.surcharge===0?'Included':`+$${opt.surcharge}`}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <SummaryCard visaId={visaId} travelers={travelers}/>
-      </div>
+      <SummaryCard
+        visaId={visaId}
+        travelers={travelers}
+        processingSurcharge={surcharge}
+        showPrice
+        processingOptions={PROCESSING_OPTIONS}
+        selectedProcessing={processing}
+        onProcessingChange={setProcessing}
+      />
     </div>
   );
 }
@@ -725,7 +856,9 @@ function ApplyForm() {
 export default function ApplyPage() {
   return (
     <Suspense fallback={<div style={{paddingTop:'120px',textAlign:'center'}}>Loading...</div>}>
-      <ApplyForm/>
+      <ApplySchemaProvider country="INDIA">
+        <ApplyForm/>
+      </ApplySchemaProvider>
     </Suspense>
   );
 }

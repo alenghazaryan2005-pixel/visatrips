@@ -256,6 +256,34 @@ export function finishReminderEmail(data: {
   };
 }
 
+/**
+ * Abandoned-application reminder — nudges pre-payment drop-offs back to /apply.
+ *
+ * Session data lives in sessionStorage (per-tab, ephemeral) so we can't deep-link
+ * them back to their exact step. The CTA just drops them at /apply where they
+ * start over — low friction since abandoned users usually quit early anyway.
+ */
+export function abandonedReminderEmail(data: {
+  name: string;
+  destination?: string | null;
+  reminderIndex: number; // 1, 2, or 3 — useful for admins reading the source
+}) {
+  const dest = data.destination ? ` ${data.destination}` : '';
+  return {
+    subject: `Still interested in your${dest} visa?`,
+    html: wrap(`
+      <h1 style="font-size:24px; margin-bottom:8px;">We saved your spot!</h1>
+      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name || 'there'}, you started a${dest} visa application with VisaTrips but didn't finish. It only takes a few minutes to pick up where you left off.</p>
+
+      <div style="text-align:center; margin:32px 0;">
+        <a href="${SITE_URL}/apply" style="${buttonStyle}">Finish My Application</a>
+      </div>
+
+      <p style="font-size:13px; color:#94A3B8;">If you're no longer interested, you can safely ignore this email — we'll stop reminding you after a few attempts.</p>
+    `),
+  };
+}
+
 /** Application submitted — sent once we have an Application ID from the gov site */
 export function applicationSubmittedEmail(data: {
   name: string;

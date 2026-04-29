@@ -177,7 +177,7 @@ const DUMMY_ORDERS = [
       lastName: 'Kim',
       email: 'david.kim@example.com',
       phoneNumber: '13105559988',
-      countryOfBirth: 'South Korea',
+      countryOfBirth: 'Republic of Korea',
       cityOfBirth: 'Seoul',
     })],
     applicationId: 'B421V02C9X11',

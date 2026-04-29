@@ -22,7 +22,7 @@ const PASSPORT_COUNTRIES = [
   { code: 'ZA', flag: '🇿🇦', name: 'South Africa' },
   { code: 'AE', flag: '🇦🇪', name: 'UAE' },
   { code: 'SG', flag: '🇸🇬', name: 'Singapore' },
-  { code: 'KR', flag: '🇰🇷', name: 'South Korea' },
+  { code: 'KR', flag: '🇰🇷', name: 'Republic of Korea' },
   { code: 'IT', flag: '🇮🇹', name: 'Italy' },
   { code: 'ES', flag: '🇪🇸', name: 'Spain' },
   { code: 'NL', flag: '🇳🇱', name: 'Netherlands' },
