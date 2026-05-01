@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAdminSession } from '@/lib/auth';
+import { requireOwner, isErrorResponse } from '@/lib/auth';
 import {
   orderConfirmationEmail,
   correctionNeededEmail,
@@ -48,8 +48,8 @@ function renderStructuredSample(code: string, vars: Record<string, any>) {
  * exactly what's being sent and what to customize.
  */
 export async function GET() {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireOwner();
+  if (isErrorResponse(auth)) return auth;
 
   const templates = [
     {

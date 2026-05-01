@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminSession } from '@/lib/auth';
+import { requireAdmin, isErrorResponse } from '@/lib/auth';
 import {
   generateUserPresetId,
   isBuiltInPresetId,
@@ -16,12 +16,14 @@ const MAX_NAME_LEN = 60;
 const MAX_DESC_LEN = 240;
 
 /**
- * POST /api/theme/presets — create a new user preset (admin only).
+ * POST /api/theme/presets — create a new user preset for the calling admin.
+ * Per-user, so any logged-in admin can save their own presets.
  * Body: { name: string, description?: string, colors: ThemeColors }
  */
 export async function POST(req: NextRequest) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAdmin();
+  if (isErrorResponse(auth)) return auth;
+  const admin = auth;
 
   try {
     const body = await req.json();
@@ -35,14 +37,14 @@ export async function POST(req: NextRequest) {
       : undefined;
     const colors = validateThemeStrict(body?.colors);
 
-    const existing = await getUserPresets();
+    const existing = await getUserPresets(admin.email);
     if (existing.length >= MAX_PRESETS) {
       return NextResponse.json(
         { error: `Limit of ${MAX_PRESETS} user presets reached. Delete one to make room.` },
         { status: 400 },
       );
     }
-    // Reject duplicate names (case-insensitive) so the dropdown stays unambiguous.
+    // Reject duplicate names within THIS admin's presets (case-insensitive).
     if (existing.some(p => p.name.toLowerCase() === name.toLowerCase())) {
       return NextResponse.json(
         { error: `A preset named "${name}" already exists.` },
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
       createdBy: admin.name,
     };
     const next = [...existing, newPreset];
-    await saveUserPresets(next, admin.name);
+    await saveUserPresets(admin.email, next, admin.name);
     return NextResponse.json({ ok: true, preset: newPreset, presets: next });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Failed to create preset' }, { status: 400 });
@@ -68,12 +70,14 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * DELETE /api/theme/presets?id=<id> — remove a user preset (admin only).
- * Built-in presets cannot be deleted.
+ * DELETE /api/theme/presets?id=<id> — remove one of THIS admin's presets.
+ * Built-in presets cannot be deleted; presets belonging to other admins
+ * are invisible to this caller (different per-user keys).
  */
 export async function DELETE(req: NextRequest) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAdmin();
+  if (isErrorResponse(auth)) return auth;
+  const admin = auth;
 
   try {
     const { searchParams } = new URL(req.url);
@@ -83,12 +87,12 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Built-in presets cannot be deleted.' }, { status: 400 });
     }
 
-    const existing = await getUserPresets();
+    const existing = await getUserPresets(admin.email);
     const next = existing.filter(p => p.id !== id);
     if (next.length === existing.length) {
       return NextResponse.json({ error: 'Preset not found.' }, { status: 404 });
     }
-    await saveUserPresets(next, admin.name);
+    await saveUserPresets(admin.email, next, admin.name);
     return NextResponse.json({ ok: true, presets: next });
   } catch (err: any) {
     return NextResponse.json({ error: err?.message || 'Failed to delete preset' }, { status: 500 });

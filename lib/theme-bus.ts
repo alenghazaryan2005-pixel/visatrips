@@ -1,16 +1,20 @@
 /**
  * In-process pub/sub for live theme changes — used by the SSE endpoint at
- * /api/theme/stream to push updates to every connected page the moment an
- * admin saves a new palette.
+ * /api/theme/stream to push updates only to the matching admin's open tabs.
+ *
+ * Themes are per-user, so events are scoped by email: a save by Alice only
+ * pushes to Alice's subscribed tabs, never to Bob's. Subscribers register
+ * with their email; emit takes an email + colors and only fires callbacks
+ * registered under the same email.
  *
  * The emitter is stashed on `globalThis` so it survives Next.js hot reloads
  * in dev (otherwise every reload would orphan the existing subscribers).
  *
  * SCALE NOTE: this is single-process. If we ever run multiple Next.js
- * instances behind a load balancer (e.g. multi-region serverless), saves
- * routed to instance A won't notify subscribers on instance B. To scale
- * across instances, swap this for Redis pub/sub or similar. For a single
- * Vercel deployment / single Node process, in-process is fine.
+ * instances behind a load balancer, saves routed to instance A won't notify
+ * subscribers on instance B. Swap for Redis pub/sub (key channels by email)
+ * when that becomes relevant. For a single Vercel deployment / Node process,
+ * in-process is fine.
  */
 
 import { EventEmitter } from 'events';
@@ -30,29 +34,31 @@ function getEmitter(): EventEmitter {
   return g[KEY]!;
 }
 
-const EVENT = 'theme:changed';
+const eventName = (email: string): string => `theme:changed:${email.toLowerCase()}`;
 
-/** Broadcast a theme change to every active subscriber. */
-export function emitThemeChanged(colors: ThemeColors): void {
-  getEmitter().emit(EVENT, colors);
+/** Broadcast a theme change to subscribers registered under the given email. */
+export function emitThemeChanged(email: string, colors: ThemeColors): void {
+  getEmitter().emit(eventName(email), colors);
 }
 
 /**
- * Subscribe to theme changes. Returns an unsubscribe function — callers MUST
- * call it on connection close to avoid leaking listeners.
+ * Subscribe to a specific admin's theme changes. Returns an unsubscribe
+ * function — callers MUST call it on connection close to avoid leaking
+ * listeners.
  */
-export function subscribeThemeChanged(cb: (colors: ThemeColors) => void): () => void {
+export function subscribeThemeChanged(email: string, cb: (colors: ThemeColors) => void): () => void {
   const e = getEmitter();
-  e.on(EVENT, cb);
-  return () => { e.off(EVENT, cb); };
+  const event = eventName(email);
+  e.on(event, cb);
+  return () => { e.off(event, cb); };
 }
 
-/** For tests — number of currently registered subscribers. */
-export function _subscriberCount(): number {
-  return getEmitter().listenerCount(EVENT);
+/** For tests — number of currently registered subscribers for a given email. */
+export function _subscriberCount(email: string): number {
+  return getEmitter().listenerCount(eventName(email));
 }
 
-/** For tests — clear all subscribers. */
+/** For tests — clear all subscribers across every email channel. */
 export function _resetBus(): void {
-  getEmitter().removeAllListeners(EVENT);
+  getEmitter().removeAllListeners();
 }

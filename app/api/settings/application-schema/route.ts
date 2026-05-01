@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAdminSession } from '@/lib/auth';
+import { requireOwner, isErrorResponse } from '@/lib/auth';
 import {
   schemaSettingKey,
   mergeWithDefaults,
@@ -141,8 +141,10 @@ export async function GET(req: NextRequest) {
  * Admin only.
  */
 export async function PUT(req: NextRequest) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Owner-only — application schema affects every customer's apply form.
+  const auth = await requireOwner();
+  if (isErrorResponse(auth)) return auth;
+  const admin = auth;
   try {
     const body = await req.json();
     const country = (body.country || 'INDIA').toUpperCase();

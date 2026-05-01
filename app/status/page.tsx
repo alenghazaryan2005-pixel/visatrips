@@ -12,6 +12,11 @@ import {
   isUpgrade,
   type ProcessingSpeed,
 } from '@/lib/processingSpeeds';
+// Lucide icons — same vocabulary as the admin panel (see app/admin/orders/[id]/page.tsx)
+// so the customer-facing status page reads as part of the same product family.
+import {
+  AlertTriangle, Upload, FileText, CheckCircle, Shield, Zap, Download,
+} from 'lucide-react';
 
 interface Order {
   id: string;
@@ -29,6 +34,7 @@ interface Order {
   evisaUrl: string | null;
   flaggedFields: string | null;
   specialistNotes: string | null;
+  rejectionProtection: boolean;
 }
 
 interface Traveler {
@@ -172,9 +178,21 @@ export default function StatusPage() {
   const [upgrading, setUpgrading] = useState<ProcessingSpeed | ''>('');
   const [upgradeError, setUpgradeError] = useState('');
 
+  /* ── Rejection-protection opt-in ──────────────────────────────────────
+   * Customer can add the protection plan after the fact if they declined
+   * at checkout. Mirrors the speed-upgrade UX — same status gating, same
+   * inline error band, same "live price from settings" approach. */
+  const [protectionPrice, setProtectionPrice] = useState<number>(50);
+  const [addingProtection, setAddingProtection] = useState(false);
+  const [protectionError, setProtectionError] = useState('');
+
   useEffect(() => {
     fetch('/api/settings').then(r => r.json()).then(d => {
-      setPricing(extractPricingFromSettings(d.settings || {}));
+      const s = d.settings || {};
+      setPricing(extractPricingFromSettings(s));
+      if (s['pricing.addons.rejectionProtection'] != null) {
+        setProtectionPrice(Number(s['pricing.addons.rejectionProtection']));
+      }
     }).catch(() => setPricing({ surcharges: { standard: 0, rush: 20, super: 60 }, txPct: 8 }));
   }, []);
 
@@ -225,6 +243,31 @@ export default function StatusPage() {
       setUpgradeError(err?.message || 'Upgrade failed.');
     } finally {
       setUpgrading('');
+    }
+  };
+
+  const handleAddRejectionProtection = async () => {
+    if (!order || addingProtection) return;
+    if (!confirm(`Add Rejection Protection Plan for $${protectionPrice.toFixed(2)}? This will be added to your order total.`)) return;
+    setAddingProtection(true);
+    setProtectionError('');
+    try {
+      const res = await fetch(`/api/orders/${order.id}/add-rejection-protection`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setProtectionError(data.error || 'Failed to add protection.');
+        return;
+      }
+      setOrder(data.order);
+      try { setTravelers(JSON.parse(data.order.travelers)); } catch {}
+    } catch (err: any) {
+      setProtectionError(err?.message || 'Failed to add protection.');
+    } finally {
+      setAddingProtection(false);
     }
   };
 
@@ -361,7 +404,9 @@ export default function StatusPage() {
         {order.status === 'NEEDS_CORRECTION' && (
           <div className="customer-correction-banner">
             <div className="customer-correction-header">
-              <span className="customer-correction-icon">⚠️</span>
+              <span className="customer-correction-icon" aria-hidden>
+                <AlertTriangle size={22} strokeWidth={1.85} />
+              </span>
               <h3 className="customer-correction-title">There are errors on your application. Please double-check your info.</h3>
             </div>
             {order.specialistNotes && (
@@ -380,14 +425,26 @@ export default function StatusPage() {
         {/* Document Re-upload */}
         {flaggedDocs.length > 0 && order.status === 'NEEDS_CORRECTION' && (
           <div className="customer-reupload-section">
-            <h3 className="customer-reupload-title">📄 Please re-upload the following documents</h3>
+            <h3 className="customer-reupload-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+              <FileText size={18} strokeWidth={1.85} aria-hidden />
+              Please re-upload the following documents
+            </h3>
             {flaggedDocs.includes('photoUrl') && (
               <div className="customer-reupload-item">
                 <div className="customer-reupload-label">Traveler&apos;s Photo</div>
                 <p className="customer-reupload-hint">Upload a clear, front-facing photo. No passport photos.</p>
                 <input id="reupload-photo" type="file" accept="image/*" style={{display:'none'}} onChange={e => handleDocReupload(e, 'photo', 'photoUrl')} />
-                <button className="customer-reupload-btn" onClick={() => document.getElementById('reupload-photo')?.click()}>
-                  {reuploadingDoc === 'photo' ? 'Uploading...' : '📤 Upload New Photo'}
+                <button
+                  className="customer-reupload-btn"
+                  onClick={() => document.getElementById('reupload-photo')?.click()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
+                >
+                  {reuploadingDoc === 'photo' ? 'Uploading...' : (
+                    <>
+                      <Upload size={16} strokeWidth={1.85} aria-hidden />
+                      Upload New Photo
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -396,8 +453,17 @@ export default function StatusPage() {
                 <div className="customer-reupload-label">Passport Bio Page</div>
                 <p className="customer-reupload-hint">Upload a clear scan of your passport data page.</p>
                 <input id="reupload-passport" type="file" accept="image/*,.pdf" style={{display:'none'}} onChange={e => handleDocReupload(e, 'passport', 'passportBioUrl')} />
-                <button className="customer-reupload-btn" onClick={() => document.getElementById('reupload-passport')?.click()}>
-                  {reuploadingDoc === 'passport' ? 'Uploading...' : '📤 Upload New Passport Scan'}
+                <button
+                  className="customer-reupload-btn"
+                  onClick={() => document.getElementById('reupload-passport')?.click()}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}
+                >
+                  {reuploadingDoc === 'passport' ? 'Uploading...' : (
+                    <>
+                      <Upload size={16} strokeWidth={1.85} aria-hidden />
+                      Upload New Passport Scan
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -408,7 +474,9 @@ export default function StatusPage() {
         {order.evisaUrl && (
           <div className="customer-evisa-card">
             <div className="customer-evisa-header">
-              <span className="customer-evisa-icon">✅</span>
+              <span className="customer-evisa-icon" aria-hidden>
+                <CheckCircle size={28} strokeWidth={1.85} />
+              </span>
               <div>
                 <h3 className="customer-evisa-title">Your E-Visa is Ready!</h3>
                 <p className="customer-evisa-sub">Your electronic visa has been approved. Download it below and print a copy for your trip.</p>
@@ -416,13 +484,24 @@ export default function StatusPage() {
             </div>
             <div className="customer-evisa-content">
               {order.evisaUrl.endsWith('.pdf') ? (
-                <div className="customer-evisa-pdf">📄 E-Visa Document (PDF)</div>
+                <div className="customer-evisa-pdf" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileText size={20} strokeWidth={1.85} aria-hidden />
+                  E-Visa Document (PDF)
+                </div>
               ) : (
                 <img src={order.evisaUrl} alt="Your E-Visa" className="customer-evisa-img" />
               )}
               <div className="customer-evisa-actions">
                 <a href={order.evisaUrl} target="_blank" rel="noopener noreferrer" className="customer-evisa-view">View E-Visa</a>
-                <a href={order.evisaUrl} download className="customer-evisa-download">⬇ Download E-Visa</a>
+                <a
+                  href={order.evisaUrl}
+                  download
+                  className="customer-evisa-download"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Download size={16} strokeWidth={1.85} aria-hidden />
+                  Download E-Visa
+                </a>
               </div>
             </div>
           </div>
@@ -484,10 +563,102 @@ export default function StatusPage() {
           );
         })()}
 
+        {/* Rejection Protection Plan opt-in — only when the order doesn't
+            already have it and is still in the active-processing window. */}
+        {order && !order.rejectionProtection && !order.evisaUrl
+          && order.status !== 'SUBMITTED'
+          && UPGRADABLE_STATUSES.has(order.status) && (
+          <div className="customer-status-card customer-upgrade-card">
+            <h2 className="customer-status-section-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Shield size={20} strokeWidth={1.85} aria-hidden />
+              Rejection Protection Plan
+            </h2>
+            <p style={{ fontSize: '0.88rem', color: 'var(--slate)', marginBottom: '1rem' }}>
+              You didn't add this at checkout. If you change your mind, you can opt in
+              now — if your visa application is rejected for reasons within our
+              control, we'll refund what you paid for the visa.
+            </p>
+            {protectionError && (
+              <div style={{
+                background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.5rem',
+                padding: '0.6rem 0.85rem', marginBottom: '0.75rem',
+                color: '#991b1b', fontSize: '0.85rem',
+                display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+              }}>
+                <AlertTriangle size={16} strokeWidth={1.85} aria-hidden />
+                {protectionError}
+              </div>
+            )}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: '1rem', flexWrap: 'wrap',
+              padding: '0.75rem 0.95rem',
+              border: '1px solid var(--cloud)', borderRadius: '0.65rem',
+              background: 'white',
+            }}>
+              <div style={{ flex: 1, minWidth: '180px' }}>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--ink)' }}>
+                  Add to my order
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--slate)', marginTop: '0.15rem' }}>
+                  One-time fee, applied once per order — not per traveler.
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--blue)' }}>
+                    +${protectionPrice.toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--slate)' }}>flat fee</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddRejectionProtection}
+                  disabled={addingProtection}
+                  style={{
+                    background: addingProtection ? '#94a3b8' : 'var(--blue)',
+                    color: 'white', border: 'none', borderRadius: '0.5rem',
+                    padding: '0.55rem 1.1rem', fontSize: '0.9rem', fontWeight: 600,
+                    cursor: addingProtection ? 'wait' : 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {addingProtection ? 'Adding…' : 'Add protection →'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* "Already protected" confirmation row — shown when the order has
+            rejectionProtection enabled, so the customer can see that the
+            add-on is in effect and there's nothing to do. */}
+        {order?.rejectionProtection && (
+          <div className="customer-status-card" style={{
+            background: 'rgba(108,138,255,0.05)',
+            border: '1px solid var(--blue2, #c7d2fe)',
+          }}>
+            <h2 className="customer-status-section-title" style={{
+              marginBottom: '0.4rem',
+              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            }}>
+              <Shield size={20} strokeWidth={1.85} aria-hidden />
+              Rejection Protection Plan
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--slate)', margin: 0 }}>
+              You're protected. If your application is rejected for reasons within
+              our control, we'll refund what you paid for the visa.
+            </p>
+          </div>
+        )}
+
         {/* Upgrade Processing Speed */}
         {upgradeOptions.length > 0 && (
           <div className="customer-status-card customer-upgrade-card">
-            <h2 className="customer-status-section-title">⚡ Need it faster?</h2>
+            <h2 className="customer-status-section-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Zap size={20} strokeWidth={1.85} aria-hidden />
+              Need it faster?
+            </h2>
             <p style={{ fontSize: '0.88rem', color: 'var(--slate)', marginBottom: '1rem' }}>
               You picked <strong>{SPEED_LABELS[order.processingSpeed] ?? order.processingSpeed}</strong> at checkout.
               {' '}{SPEED_BLURBS[order.processingSpeed] ?? ''}{' '}
@@ -498,7 +669,11 @@ export default function StatusPage() {
                 background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.5rem',
                 padding: '0.6rem 0.85rem', marginBottom: '0.75rem',
                 color: '#991b1b', fontSize: '0.85rem',
-              }}>⚠️ {upgradeError}</div>
+                display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+              }}>
+                <AlertTriangle size={16} strokeWidth={1.85} aria-hidden />
+                {upgradeError}
+              </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
               {upgradeOptions.map(({ target, diff }) => (

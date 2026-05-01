@@ -101,6 +101,8 @@ function SummaryCard({
   processingOptions,
   selectedProcessing,
   onProcessingChange,
+  rejectionProtection = false,
+  rejectionPrice = 0,
 }: {
   visaId: string;
   travelers: number;
@@ -109,6 +111,12 @@ function SummaryCard({
   processingOptions?: ProcessingOption[];
   selectedProcessing?: string;
   onProcessingChange?: (id: string) => void;
+  /** Rejection Protection Plan opt-in — controlled by Step3's checkbox.
+   *  When true, the add-on price is folded into the breakdown and total. */
+  rejectionProtection?: boolean;
+  /** Live price for the add-on, fetched in Step3 from
+   *  `pricing.addons.rejectionProtection`. */
+  rejectionPrice?: number;
 }) {
   const visa  = VISA_OPTIONS.find(v => v.id === visaId)!;
   const [livePrice, setLivePrice] = useState<number | null>(null);
@@ -133,7 +141,11 @@ function SummaryCard({
   const visaLine       = effectivePrice * travelers;
   const processingLine = processingSurcharge * travelers;
   const govLine        = govFee * travelers;
-  const subtotal       = visaLine + processingLine + govLine;
+  // Add-on is once per order (NOT × travelers). Include in subtotal so
+  // the transaction fee covers it too — at checkout the gateway processes
+  // the full cart in one charge.
+  const addonLine      = rejectionProtection ? rejectionPrice : 0;
+  const subtotal       = visaLine + processingLine + govLine + addonLine;
   const txFee          = subtotal * (txPct / 100);
   const total          = subtotal + txFee;
   const fmt = (n: number) => n.toFixed(2).replace(/\.00$/, '');
@@ -199,6 +211,12 @@ function SummaryCard({
                 <div className="apply-summary-breakdown-row">
                   <span>Government fee <span className="apply-summary-breakdown-sub">({travelers} × ${fmt(govFee)})</span></span>
                   <span>${fmt(govLine)}</span>
+                </div>
+              )}
+              {rejectionProtection && rejectionPrice > 0 && (
+                <div className="apply-summary-breakdown-row">
+                  <span>Rejection Protection Plan <span className="apply-summary-breakdown-sub">(once per order)</span></span>
+                  <span>${fmt(addonLine)}</span>
                 </div>
               )}
               {txPct > 0 && (
@@ -598,6 +616,10 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
   const [liveSurcharges, setLiveSurcharges] = useState<Record<string, number> | null>(null);
   const [govFee, setGovFee] = useState<number>(10);
   const [txPct, setTxPct] = useState<number>(8);
+  // Rejection Protection Plan add-on — price fetched from settings; default
+  // 50 if the API is unavailable. The opt-in checkbox state lives below
+  // alongside the other form fields.
+  const [rejectionPrice, setRejectionPrice] = useState<number>(50);
   useEffect(() => {
     fetch('/api/settings').then(r => r.json()).then(d => {
       const s = d.settings || {};
@@ -611,6 +633,7 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
       setLiveSurcharges(surch);
       if (s['pricing.fees.government'] != null) setGovFee(Number(s['pricing.fees.government']));
       if (s['pricing.fees.transactionPercent'] != null) setTxPct(Number(s['pricing.fees.transactionPercent']));
+      if (s['pricing.addons.rejectionProtection'] != null) setRejectionPrice(Number(s['pricing.addons.rejectionProtection']));
     }).catch(() => {});
   }, []);
 
@@ -630,11 +653,15 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
   ];
 
   const [processing, setProcessing] = useState('standard');
+  const [rejectionProtection, setRejectionProtection] = useState(false);
   const surcharge = PROCESSING_OPTIONS.find(p=>p.id===processing)!.surcharge;
-  // Breakdown: (visa + surcharge + govFee) × travelers + transactionFee × subtotal
-  const subtotal = (effectivePrice + surcharge + govFee) * travelers;
-  const txFee    = subtotal * (txPct / 100);
-  const total    = +(subtotal + txFee).toFixed(2);
+  // Breakdown: (visa + surcharge + govFee) × travelers + once-per-order
+  // add-ons + transactionFee × subtotal. Add-on is included in subtotal so
+  // the gateway transaction fee covers it at checkout.
+  const addonLine = rejectionProtection ? rejectionPrice : 0;
+  const subtotal  = (effectivePrice + surcharge + govFee) * travelers + addonLine;
+  const txFee     = subtotal * (txPct / 100);
+  const total     = +(subtotal + txFee).toFixed(2);
 
   const [cardName,   setCardName]   = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -669,6 +696,7 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
           visaType: visaId.toUpperCase().replace(/-/g, '_'),
           totalUSD: total,
           processingSpeed: processing,
+          rejectionProtection,
           billingEmail: email,
           cardLast4: cardNumber.replace(/\s/g, '').slice(-4),
           travelers: JSON.stringify(travelerData.map((t, i) => {
@@ -758,6 +786,49 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
           </div>
         </div>
 
+        {/* Rejection Protection Plan — flat-fee opt-in. Renders only when
+            an admin has set a non-negative price (effectively always; price 0
+            still shows it as a $0 add-on). */}
+        {rejectionPrice >= 0 && (
+          <label
+            className="ap-checkbox-label"
+            style={{
+              marginBottom: '1rem',
+              alignItems: 'flex-start',
+              padding: '0.85rem 1rem',
+              border: '1px solid #e5e7eb',
+              borderRadius: '0.75rem',
+              background: rejectionProtection ? 'rgba(108,138,255,0.06)' : '#fafafa',
+              borderColor: rejectionProtection ? 'var(--blue)' : '#e5e7eb',
+              transition: 'background 0.15s, border-color 0.15s',
+            }}
+          >
+            <input
+              type="checkbox"
+              className="ap-checkbox"
+              checked={rejectionProtection}
+              onChange={e => setRejectionProtection(e.target.checked)}
+              style={{ marginTop: '0.15rem' }}
+            />
+            <span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
+                Add Rejection Protection Plan
+                <span style={{
+                  fontSize: '0.75rem', fontWeight: 700,
+                  background: 'var(--blue)', color: 'white',
+                  padding: '0.1rem 0.45rem', borderRadius: '999px',
+                }}>
+                  +${rejectionPrice.toFixed(2)}
+                </span>
+              </span>
+              <span style={{ display: 'block', fontSize: '0.78rem', color: '#6b7280', marginTop: '0.2rem', fontWeight: 400 }}>
+                If your visa application is rejected for reasons within our control,
+                we'll refund what you paid for the visa. One-time, per order.
+              </span>
+            </span>
+          </label>
+        )}
+
         <label className="ap-checkbox-label" style={{marginBottom:'1.5rem'}}>
           <input type="checkbox" className="ap-checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)}/>
           <span>I agree to the <Link href="/terms" className="checkout-link">Terms of Service</Link> and <Link href="/privacy" className="checkout-link">Privacy Policy</Link></span>
@@ -784,6 +855,8 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
         processingOptions={PROCESSING_OPTIONS}
         selectedProcessing={processing}
         onProcessingChange={setProcessing}
+        rejectionProtection={rejectionProtection}
+        rejectionPrice={rejectionPrice}
       />
     </div>
   );

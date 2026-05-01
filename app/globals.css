@@ -28,17 +28,30 @@
   }
 }
 
-/* ── Brand tokens ────────────────────────────────────────────────────────── */
+/* ── Brand tokens ──────────────────────────────────────────────────────────
+ * The full set of admin-themable tokens (override at /admin/theme). Defaults
+ * declared here are the fallback when no Setting row exists. The admin
+ * inline <style> from app/admin/layout.tsx overrides any of these on admin
+ * pages only — customer-facing pages always use these defaults. */
 :root {
-  --ink:   #1E293B;
-  --sky:   #F8FAFF;
-  --navy:  #1A2B5E;
-  --blue:  #6C8AFF;
-  --blue2: #93ADFF;
-  --slate: #475569;
-  --cloud: #EDF1F8;
-  --mist:  #F2F5FC;
-  --white: #FDFEFF;
+  /* Brand & text */
+  --ink:     #1E293B;
+  --slate:   #475569;
+  --blue:    #6C8AFF;
+  --blue2:   #93ADFF;
+  --navy:    #1A2B5E;
+  /* Surfaces */
+  --sky:     #F8FAFF;
+  --white:   #FDFEFF;
+  --cloud:   #EDF1F8;
+  --mist:    #F2F5FC;
+  /* Admin chrome */
+  --sidebar: #1E293B;  /* matches --ink by default; admins can decouple */
+  /* Status / semantic */
+  --success: #16A34A;
+  --warning: #D97706;
+  --danger:  #DC2626;
+  --info:    #0284C7;
 }
 
 /* ── Base ────────────────────────────────────────────────────────────────── */
@@ -348,7 +361,27 @@ a:focus-visible, button:focus-visible {
   box-shadow: 0 8px 28px rgba(79,110,247,0.1);
   transform: translateY(-4px);
 }
-.trust-icon { @apply text-2xl mb-4; }
+/* Lucide-icon chip — same look as `.india-req-icon` so the brand
+ * vocabulary stays consistent between the landing-page trust cells
+ * and the India page's "What you'll need" cards. */
+.trust-icon {
+  @apply inline-flex items-center justify-center mb-4;
+  width: 48px;
+  height: 48px;
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, var(--mist), var(--cloud));
+  color: var(--blue);
+  border: 1px solid var(--cloud);
+  transition: transform 0.3s, color 0.2s, background 0.2s, border-color 0.2s;
+}
+.trust-cell:hover .trust-icon {
+  /* Subtle pop on hover. Trust cells live in a 2×2 grid, so a scale
+   * reads better than the India page's translateX nudge. */
+  transform: scale(1.06);
+  color: white;
+  background: linear-gradient(135deg, var(--blue), var(--blue2));
+  border-color: var(--blue);
+}
 .trust-cell-title {
   font-family: var(--font-sora), sans-serif;
   @apply font-semibold text-[0.92rem] mb-2;
@@ -2783,7 +2816,7 @@ footer nav a:hover { color: var(--white); }
 /* Sidebar */
 .admin-sidebar {
   @apply flex flex-col w-56 flex-shrink-0 px-4 py-6 gap-6;
-  background: var(--ink);
+  background: var(--sidebar);
   min-height: 100vh;
   height: 100vh;
   position: sticky;
@@ -2853,12 +2886,37 @@ footer nav a:hover { color: var(--white); }
   background: rgba(79,110,247,0.15);
   color: var(--blue2);
 }
-.admin-logout-btn {
-  font-family: var(--font-sora), sans-serif;
-  @apply text-[0.72rem] font-semibold bg-transparent border-none cursor-pointer text-left px-2.5 py-2 rounded-md transition-colors;
-  color: rgba(221,228,245,0.3);
+/* Footer block at the bottom of the sidebar — identity + sign-out. */
+.admin-sidebar-footer {
+  @apply flex flex-col gap-2 pt-3;
+  border-top: 1px solid rgba(255,255,255,0.08);
 }
-.admin-logout-btn:hover { color: rgba(221,228,245,0.7); }
+.admin-sidebar-identity {
+  @apply flex flex-col px-2.5;
+}
+.admin-sidebar-identity-name {
+  font-family: var(--font-jakarta), sans-serif;
+  @apply text-[0.82rem] font-semibold;
+  color: rgba(221,228,245,0.95);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.admin-sidebar-identity-role {
+  font-family: var(--font-jakarta), sans-serif;
+  @apply text-[0.7rem] mt-0.5;
+  color: rgba(221,228,245,0.55);
+}
+.admin-logout-btn {
+  font-family: var(--font-jakarta), sans-serif;
+  @apply inline-flex items-center gap-2 text-[0.82rem] font-semibold cursor-pointer px-2.5 py-2 rounded-md transition-colors;
+  background: rgba(255,255,255,0.06);
+  color: rgba(221,228,245,0.9);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.admin-logout-btn:hover {
+  background: rgba(220,38,38,0.18);
+  color: #fecaca;
+  border-color: rgba(220,38,38,0.4);
+}
 
 /* Main */
 .admin-main {
@@ -2906,7 +2964,7 @@ footer nav a:hover { color: var(--white); }
   color: var(--ink);
 }
 .admin-stat-pending  { color: var(--ink); }
-.admin-stat-approved { color: #16a34a; }
+.admin-stat-approved { color: var(--success); }
 
 /* Filters */
 .admin-filters {
@@ -3014,14 +3072,18 @@ footer nav a:hover { color: var(--white); }
   @apply inline-flex items-center text-[0.7rem] font-semibold uppercase tracking-wide px-2 py-0.5 rounded whitespace-nowrap;
   letter-spacing: 0.02em;
 }
-.status-pending  { background: rgba(217,119,6,0.1);  color: #d97706; }
-.status-review   { background: rgba(79,110,247,0.1);  color: var(--blue); }
-.status-submitted { background: rgba(14,165,233,0.1); color: #0284c7; }
-.status-approved { background: rgba(22,163,74,0.1);   color: #16a34a; }
-.status-rejected { background: rgba(220,38,38,0.1);   color: #dc2626; }
-.status-refunded { background: rgba(139,92,246,0.1);  color: #7c3aed; }
-.status-onhold   { background: rgba(245,158,11,0.1);  color: #b45309; }
-.status-correction { background: rgba(220,38,38,0.1); color: #dc2626; }
+/* Status badge backgrounds use color-mix to derive a tinted version of the
+ * foreground colour (~12% opacity). This keeps the bg/fg pair in sync with
+ * a single token — admins only need to pick the foreground colour at
+ * /admin/theme and the badge background updates automatically. */
+.status-pending    { background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning); }
+.status-review     { background: color-mix(in oklab, var(--blue)    12%, transparent); color: var(--blue); }
+.status-submitted  { background: color-mix(in oklab, var(--info)    12%, transparent); color: var(--info); }
+.status-approved   { background: color-mix(in oklab, var(--success) 12%, transparent); color: var(--success); }
+.status-rejected   { background: color-mix(in oklab, var(--danger)  12%, transparent); color: var(--danger); }
+.status-refunded   { background: rgba(139,92,246,0.1);  color: #7c3aed; } /* Refunded keeps purple — not in the themable palette */
+.status-onhold     { background: color-mix(in oklab, var(--warning) 12%, transparent); color: var(--warning); }
+.status-correction { background: color-mix(in oklab, var(--danger)  12%, transparent); color: var(--danger); }
 /* Admin-defined custom statuses — colors come from inline style set on the element. */
 .admin-status-custom { /* background + color supplied via inline style */ }
 
@@ -3217,7 +3279,26 @@ footer nav a:hover { color: var(--white); }
 }
 .contact-details { @apply flex flex-col gap-5; }
 .contact-detail-item { @apply flex items-start gap-4; }
-.contact-detail-icon { @apply text-2xl leading-none mt-0.5 flex-shrink-0; }
+/* Lucide-icon chip — matches `.india-req-icon` / `.trust-icon` so the
+ * contact panel uses the same brand vocabulary. Slightly smaller (40×40
+ * instead of 48×48) since these sit inline with two lines of text and
+ * the bigger chip would dominate. */
+.contact-detail-icon {
+  @apply inline-flex items-center justify-center flex-shrink-0;
+  width: 40px;
+  height: 40px;
+  border-radius: 0.7rem;
+  background: linear-gradient(135deg, var(--mist), var(--cloud));
+  color: var(--blue);
+  border: 1px solid var(--cloud);
+  transition: transform 0.25s, color 0.2s, background 0.2s, border-color 0.2s;
+}
+.contact-detail-item:hover .contact-detail-icon {
+  transform: scale(1.06);
+  color: white;
+  background: linear-gradient(135deg, var(--blue), var(--blue2));
+  border-color: var(--blue);
+}
 .contact-detail-label {
   font-family: var(--font-sora), sans-serif;
   @apply text-[0.7rem] font-bold tracking-[0.12em] uppercase mb-1;
@@ -3264,7 +3345,18 @@ a.contact-detail-value:hover { color: var(--blue); }
 .contact-success {
   @apply flex flex-col items-center text-center gap-5 py-8;
 }
-.contact-success-icon { @apply text-5xl; }
+/* Lucide check — replaces the ✅ emoji. The brand-blue stroke + a
+ * faint blue halo behind it matches the rest of the landing-page
+ * aesthetic without being a generic green checkmark. */
+.contact-success-icon {
+  @apply inline-flex items-center justify-center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--mist), var(--cloud));
+  color: var(--blue);
+  border: 1px solid var(--cloud);
+}
 .contact-success-title {
   font-family: 'DM Serif Display', serif;
   @apply text-[2rem] font-normal;
@@ -3636,16 +3728,50 @@ a.contact-detail-value:hover { color: var(--blue); }
 .canned-card-folder { @apply text-[0.7rem] font-semibold px-2 py-0.5 rounded-full; background: var(--sky); color: var(--blue); }
 .canned-card-preview { @apply text-[0.82rem]; color: var(--slate); }
 
+/* Canned-response edit form — centered modal overlay. The backdrop
+ * (`.canned-edit-panel`) covers the viewport and dims the page; the
+ * inner card (`.canned-edit-panel-inner`) is the actual form, sized so
+ * it fits comfortably on most screens and scrolls internally if the
+ * content gets long. Click-outside closes — the inner card stops
+ * propagation. */
 .canned-edit-panel {
-  width: 380px;
-  @apply shrink-0 rounded-2xl p-5;
-  border: 1.5px solid var(--cloud);
-  background: white;
-  align-self: flex-start;
-  position: sticky;
-  top: 1rem;
+  @apply fixed inset-0 z-[100] flex items-center justify-center;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  padding: 1rem;
+  animation: canned-edit-fade-in 0.15s ease-out;
 }
+.canned-edit-panel-inner {
+  @apply relative rounded-2xl p-5;
+  width: 540px;
+  max-width: 100%;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  background: white;
+  border: 1.5px solid var(--cloud);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+  animation: canned-edit-pop-in 0.18s ease-out;
+}
+.canned-edit-close {
+  @apply absolute rounded-full inline-flex items-center justify-center;
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: none;
+  color: var(--slate);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.canned-edit-close:hover { background: #f1f5f9; color: var(--ink); }
 .canned-edit-title { @apply text-[1rem] font-bold mb-4; color: var(--ink); }
+@keyframes canned-edit-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes canned-edit-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
 
 /* Canned Picker in reply box */
 .canned-picker {

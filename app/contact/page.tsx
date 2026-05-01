@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
+import { Mail, Zap, Clock, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: '', order: '', email: '', message: '' });
@@ -61,28 +62,36 @@ export default function ContactPage() {
 
             <div className="contact-details">
               <div className="contact-detail-item">
-                <span className="contact-detail-icon">✉️</span>
+                <span className="contact-detail-icon" aria-hidden>
+                  <Mail size={22} strokeWidth={1.75} />
+                </span>
                 <div>
                   <div className="contact-detail-label">Email</div>
                   <a href="mailto:support@visatrips.com" className="contact-detail-value">support@visatrips.com</a>
                 </div>
               </div>
               <div className="contact-detail-item">
-                <span className="contact-detail-icon">⚡</span>
+                <span className="contact-detail-icon" aria-hidden>
+                  <Zap size={22} strokeWidth={1.75} />
+                </span>
                 <div>
                   <div className="contact-detail-label">Response time</div>
                   <div className="contact-detail-value">Within 24 hours</div>
                 </div>
               </div>
               <div className="contact-detail-item">
-                <span className="contact-detail-icon">🕐</span>
+                <span className="contact-detail-icon" aria-hidden>
+                  <Clock size={22} strokeWidth={1.75} />
+                </span>
                 <div>
                   <div className="contact-detail-label">Support hours</div>
                   <div className="contact-detail-value">Mon – Fri, 9am – 6pm EST</div>
                 </div>
               </div>
               <div className="contact-detail-item">
-                <span className="contact-detail-icon">🔒</span>
+                <span className="contact-detail-icon" aria-hidden>
+                  <ShieldCheck size={22} strokeWidth={1.75} />
+                </span>
                 <div>
                   <div className="contact-detail-label">Privacy</div>
                   <div className="contact-detail-value">Your message is secure and confidential</div>
@@ -95,7 +104,9 @@ export default function ContactPage() {
           <div className="contact-form-wrap">
             {submitted ? (
               <div className="contact-success">
-                <div className="contact-success-icon">✅</div>
+                <div className="contact-success-icon" aria-hidden>
+                  <CheckCircle2 size={56} strokeWidth={1.5} />
+                </div>
                 <h2 className="contact-success-title">Message sent!</h2>
                 <p className="contact-success-sub">
                   Thanks for reaching out, {form.name.split(' ')[0]}. We've received your message and will reply to <strong>{form.email}</strong> within 24 hours.

@@ -32,6 +32,12 @@ export const DEFAULTS = {
   'pricing.fees.government': 10,
   'pricing.fees.transactionPercent': 8,
 
+  // Optional add-ons — flat-fee line items customers can opt into either
+  // at checkout or later from the /status page. One row PER ORDER (not
+  // per traveler) by default; if any add-on later needs per-traveler
+  // pricing, prefix the key with `pricing.addons-pp.<name>`.
+  'pricing.addons.rejectionProtection': 50,
+
   // General site settings
   'general.supportEmail': 'support@visatrips.com',
   'general.fromEmail': 'VisaTrips <onboarding@resend.dev>',

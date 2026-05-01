@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAdminSession } from '@/lib/auth';
+import { requireOwner, isErrorResponse } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,8 +15,8 @@ function isValidColor(c: unknown): c is string {
  * PATCH /api/settings/custom-statuses/[id]
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireOwner();
+  if (isErrorResponse(auth)) return auth;
   const { id } = await params;
   try {
     const body = await req.json();
@@ -41,8 +41,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
  * status will be reverted to PROCESSING.
  */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireOwner();
+  if (isErrorResponse(auth)) return auth;
   const { id } = await params;
   try {
     const url = new URL(req.url);

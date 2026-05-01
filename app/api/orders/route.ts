@@ -12,7 +12,10 @@ function generatePin(): string {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { destination, visaType, totalUSD, travelers, billingEmail, cardLast4, processingSpeed } = body;
+    const {
+      destination, visaType, totalUSD, travelers, billingEmail, cardLast4,
+      processingSpeed, rejectionProtection,
+    } = body;
 
     if (!destination || !visaType || !totalUSD || !travelers || !billingEmail) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -28,7 +31,12 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     const order = await prisma.order.create({
-      data: { destination, visaType, totalUSD, travelers, billingEmail, cardLast4: cardLast4 ?? null, processingSpeed: processingSpeed ?? 'standard' },
+      data: {
+        destination, visaType, totalUSD, travelers, billingEmail,
+        cardLast4: cardLast4 ?? null,
+        processingSpeed: processingSpeed ?? 'standard',
+        rejectionProtection: Boolean(rejectionProtection),
+      },
     });
 
     const num = order.orderNumber;

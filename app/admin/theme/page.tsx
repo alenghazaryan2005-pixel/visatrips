@@ -24,11 +24,15 @@ import { AdminSidebar } from '@/components/AdminSidebar';
 import {
   BUILT_IN_PRESETS,
   DEFAULT_THEME,
+  GROUP_META,
+  KEYS_BY_GROUP,
   TOKEN_META,
   THEME_KEYS,
+  applyThemeToDocument,
   isValidHex,
   type Preset,
   type ThemeColors,
+  type ThemeGroup,
   type ThemeKey,
   type UserPreset,
 } from '@/lib/theme';
@@ -59,15 +63,19 @@ export default function ThemeAdminPage() {
   const [presetDesc, setPresetDesc] = useState('');
   const [creatingPreset, setCreatingPreset] = useState(false);
 
-  /* ── Live preview: mutate :root inline styles whenever `colors` changes ── */
+  /* ── Live preview: mutate :root inline styles whenever `colors` changes ──
+   * Highest specificity, so edits override the server-injected
+   * <style id="theme-active"> for instant feedback. On unmount we clear the
+   * inline overrides — at that point either:
+   *   (a) the admin saved → save handler already updated <style id="theme-active">
+   *       with the canonical new theme, so falling back to it is correct, OR
+   *   (b) the admin didn't save → falling back to the (unchanged) <style> block
+   *       reverts the page to the last-saved theme, also correct. */
   useEffect(() => {
     const root = document.documentElement;
     for (const k of THEME_KEYS) {
       root.style.setProperty(`--${k}`, colors[k]);
     }
-    // Cleanup on unmount: clear our inline overrides so that on full nav we
-    // see whatever the server-injected <style> says (which stays in sync if
-    // we saved, or reverts if we didn't).
     return () => {
       for (const k of THEME_KEYS) {
         root.style.removeProperty(`--${k}`);
@@ -93,12 +101,12 @@ export default function ThemeAdminPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  /* ── Initial load ────────────────────────────────────────────────────── */
+  /* ── Initial load — themes are per-user, so any admin can edit their own. ── */
   const loadAll = useCallback(async () => {
     try {
-      const res = await fetch('/api/theme', { cache: 'no-store' });
-      if (res.status === 401) { router.push('/admin'); return; }
-      const data = await res.json();
+      const themeRes = await fetch('/api/theme', { cache: 'no-store' });
+      if (themeRes.status === 401) { router.push('/admin'); return; }
+      const data = await themeRes.json();
       if (data.active) {
         setSaved(data.active);
         setColors(data.active);
@@ -165,7 +173,13 @@ export default function ThemeAdminPage() {
       }
       setSaved(data.active);
       setColors(data.active);
-      setSuccess('Theme saved and pushed live to every open tab on the site.');
+      // Lock the new theme into the persistent <style id="theme-active"> block
+      // so navigating to another admin page (where the shared layout doesn't
+      // re-render) doesn't fall back to the previous server-rendered palette.
+      // ThemeWatcher does the same on SSE pushes — but SSE is suppressed on
+      // this editor page, so we update the block explicitly here.
+      applyThemeToDocument(data.active);
+      setSuccess('Theme saved. Pushed live to every other tab on your account — other admins see their own theme.');
     } catch (err: any) {
       setError(err?.message || 'Save failed.');
     } finally {
@@ -248,7 +262,7 @@ export default function ThemeAdminPage() {
             <div>
               <h1 style={{ fontSize: '1.6rem', fontWeight: 700, marginBottom: '0.25rem' }}>🎨 Color Palette</h1>
               <p style={{ color: '#6b7280', fontSize: '0.9rem', maxWidth: '640px' }}>
-                Customize the colors used across every page on the site. Changes preview live as you edit — they only persist when you click <strong>Save Theme</strong>. Apply a preset to start from a known palette.
+                Customize the colors used across the <strong>admin panel</strong> — and only on <strong>your account</strong>. Other admins see their own theme; customer-facing pages always use the brand defaults. Changes preview live as you edit; they only persist when you click <strong>Save Theme</strong>. Apply a preset to start from a known palette.
               </p>
             </div>
             <Link href="/admin/settings" style={{ color: 'var(--blue)', fontSize: '0.85rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
@@ -271,75 +285,91 @@ export default function ThemeAdminPage() {
             </div>
           )}
 
-          {/* ── Color editors ── */}
+          {/* ── Color editors — grouped by purpose so the picker doesn't
+               feel like a wall of swatches. Each group renders its own
+               header + a grid of token cards. ── */}
           <section style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '0.85rem', padding: '1.25rem', marginBottom: '1.25rem' }}>
             <h2 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '0.25rem' }}>Tokens</h2>
-            <p style={{ color: '#6b7280', fontSize: '0.82rem', marginBottom: '1rem' }}>
-              These 9 tokens drive every color on the site. Hex values only — pasting without # is fine, we'll add it.
+            <p style={{ color: '#6b7280', fontSize: '0.82rem', marginBottom: '1.25rem' }}>
+              {THEME_KEYS.length} tokens drive every colour in the admin panel. Hex values only — pasting without <code>#</code> is fine, we'll add it.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.85rem' }}>
-              {THEME_KEYS.map(k => {
-                const meta = TOKEN_META[k];
-                const value = colors[k];
-                const isDefault = value === DEFAULT_THEME[k];
-                const valid = isValidHex(value);
-                return (
-                  <div key={k} style={{
-                    border: '1px solid ' + (valid ? '#e5e7eb' : '#fecaca'),
-                    borderRadius: '0.6rem',
-                    padding: '0.75rem',
-                    background: valid ? 'white' : '#fef2f2',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
-                      {/* Color swatch + native picker */}
-                      <input
-                        type="color"
-                        value={valid ? value : '#000000'}
-                        onChange={e => updateColor(k, e.target.value)}
-                        style={{
-                          width: '38px', height: '38px', padding: 0, border: '1px solid #d1d5db',
-                          borderRadius: '0.4rem', cursor: 'pointer', background: 'transparent',
-                        }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>{meta.label}</div>
-                        <div style={{ fontSize: '0.72rem', color: '#9ca3af', fontFamily: 'monospace' }}>--{k}</div>
-                      </div>
-                    </div>
-                    <input
-                      type="text"
-                      value={value}
-                      onChange={e => updateColor(k, e.target.value)}
-                      placeholder="#RRGGBB"
-                      maxLength={7}
-                      style={{
-                        width: '100%', padding: '0.45rem 0.6rem', border: '1px solid #d1d5db',
-                        borderRadius: '0.4rem', fontSize: '0.85rem', fontFamily: 'monospace',
-                        textTransform: 'uppercase', marginBottom: '0.4rem',
-                      }}
-                    />
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.72rem' }}>
-                      <span style={{ color: '#6b7280', flex: 1 }}>{meta.description}</span>
-                      {!isDefault && (
-                        <button
-                          type="button"
-                          onClick={() => resetTokenToDefault(k)}
-                          style={{
-                            background: 'transparent', border: 'none', color: '#6b7280',
-                            cursor: 'pointer', fontSize: '0.7rem', textDecoration: 'underline',
-                            padding: 0, whiteSpace: 'nowrap',
-                          }}
-                          title={`Reset to ${DEFAULT_THEME[k]}`}
-                        >
-                          reset
-                        </button>
-                      )}
-                    </div>
+            {(Object.keys(KEYS_BY_GROUP) as ThemeGroup[]).map(group => {
+              const keys = KEYS_BY_GROUP[group];
+              if (keys.length === 0) return null;
+              const groupMeta = GROUP_META[group];
+              return (
+                <div key={group} style={{ marginBottom: '1.5rem' }}>
+                  <div style={{ marginBottom: '0.6rem' }}>
+                    <h3 style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--slate)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.15rem' }}>
+                      {groupMeta.label}
+                    </h3>
+                    <p style={{ fontSize: '0.78rem', color: '#9ca3af', margin: 0 }}>{groupMeta.description}</p>
                   </div>
-                );
-              })}
-            </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
+                    {keys.map(k => {
+                      const meta = TOKEN_META[k];
+                      const value = colors[k];
+                      const isDefault = value === DEFAULT_THEME[k];
+                      const valid = isValidHex(value);
+                      return (
+                        <div key={k} style={{
+                          border: '1px solid ' + (valid ? '#e5e7eb' : '#fecaca'),
+                          borderRadius: '0.6rem',
+                          padding: '0.75rem',
+                          background: valid ? 'white' : '#fef2f2',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                            <input
+                              type="color"
+                              value={valid ? value : '#000000'}
+                              onChange={e => updateColor(k, e.target.value)}
+                              style={{
+                                width: '38px', height: '38px', padding: 0, border: '1px solid #d1d5db',
+                                borderRadius: '0.4rem', cursor: 'pointer', background: 'transparent',
+                              }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: '0.88rem', fontWeight: 600 }}>{meta.label}</div>
+                              <div style={{ fontSize: '0.72rem', color: '#9ca3af', fontFamily: 'monospace' }}>--{k}</div>
+                            </div>
+                          </div>
+                          <input
+                            type="text"
+                            value={value}
+                            onChange={e => updateColor(k, e.target.value)}
+                            placeholder="#RRGGBB"
+                            maxLength={7}
+                            style={{
+                              width: '100%', padding: '0.45rem 0.6rem', border: '1px solid #d1d5db',
+                              borderRadius: '0.4rem', fontSize: '0.85rem', fontFamily: 'monospace',
+                              textTransform: 'uppercase', marginBottom: '0.4rem',
+                            }}
+                          />
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.72rem' }}>
+                            <span style={{ color: '#6b7280', flex: 1 }}>{meta.description}</span>
+                            {!isDefault && (
+                              <button
+                                type="button"
+                                onClick={() => resetTokenToDefault(k)}
+                                style={{
+                                  background: 'transparent', border: 'none', color: '#6b7280',
+                                  cursor: 'pointer', fontSize: '0.7rem', textDecoration: 'underline',
+                                  padding: 0, whiteSpace: 'nowrap',
+                                }}
+                                title={`Reset to ${DEFAULT_THEME[k]}`}
+                              >
+                                reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </section>
 
           {/* ── Preview card ── */}
@@ -361,9 +391,9 @@ export default function ThemeAdminPage() {
                   Get started →
                 </button>
               </div>
-              {/* Mock dark sidebar */}
+              {/* Mock admin sidebar — uses --sidebar (which decoupled from --ink) */}
               <div style={{
-                background: 'var(--navy)', borderRadius: '0.75rem', padding: '1rem', color: 'white',
+                background: 'var(--sidebar)', borderRadius: '0.75rem', padding: '1rem', color: 'white',
               }}>
                 <div style={{ fontSize: '0.78rem', color: 'var(--blue2)', marginBottom: '0.5rem' }}>Admin sidebar</div>
                 <div style={{ fontSize: '0.9rem', marginBottom: '0.4rem', opacity: 0.9 }}>📋 Orders</div>
@@ -385,6 +415,21 @@ export default function ThemeAdminPage() {
                   }}
                 />
                 <div style={{ fontSize: '0.75rem', color: 'var(--slate)' }}>Your email address.</div>
+              </div>
+              {/* Status badges — uses --success/--warning/--danger/--info */}
+              <div style={{
+                background: 'var(--white)', border: '1px solid var(--cloud)', borderRadius: '0.75rem', padding: '1rem',
+              }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--slate)', marginBottom: '0.55rem' }}>Status badges</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  <span className="admin-status status-pending">Pending</span>
+                  <span className="admin-status status-submitted">Submitted</span>
+                  <span className="admin-status status-approved">Approved</span>
+                  <span className="admin-status status-rejected">Rejected</span>
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--slate)', marginTop: '0.55rem' }}>
+                  Backgrounds tint automatically from the foreground colour.
+                </div>
               </div>
             </div>
           </section>

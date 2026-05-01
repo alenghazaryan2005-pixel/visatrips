@@ -46,7 +46,7 @@ const CUSTOMER_ALLOWED = ['travelers', 'flaggedFields'];
 // columns are NOT in this list — clients use the synthetic body fields
 // `photoApproved` / `passportApproved` (Boolean) which the server translates
 // into stamping {ApprovedAt: now, ApprovedBy: admin.name} or clearing both.
-const ADMIN_ALLOWED = ['status', 'notes', 'destination', 'visaType', 'totalUSD', 'billingEmail', 'cardLast4', 'processingSpeed', 'travelers', 'applicationId', 'evisaUrl', 'flaggedFields', 'specialistNotes', 'refundAmount', 'refundReason', 'refundedAt', 'botFlags', 'archivedAt', 'tags'];
+const ADMIN_ALLOWED = ['status', 'notes', 'destination', 'visaType', 'totalUSD', 'billingEmail', 'cardLast4', 'processingSpeed', 'travelers', 'applicationId', 'evisaUrl', 'flaggedFields', 'specialistNotes', 'refundAmount', 'refundReason', 'refundedAt', 'botFlags', 'archivedAt', 'tags', 'rejectionProtection'];
 
 /**
  * Diff incoming travelers JSON vs the stored one and return the set of

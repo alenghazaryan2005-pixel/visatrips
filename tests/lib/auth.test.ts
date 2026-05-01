@@ -16,7 +16,7 @@ vi.mock('next/headers', () => ({
   cookies: async () => mockCookieStore,
 }));
 
-const { getAdminSession, getCustomerSession, requireAdmin, requireCustomer, isErrorResponse } =
+const { getAdminSession, getCustomerSession, requireAdmin, requireOwner, requireCustomer, isErrorResponse } =
   await import('@/lib/auth');
 
 beforeEach(() => {
@@ -34,16 +34,33 @@ describe('getAdminSession', () => {
     expect(await getAdminSession()).toBeNull();
   });
 
-  it('returns legacy { name: "Admin", email: "" } for the plain "authenticated" cookie', async () => {
+  it('returns legacy session (employee role) for the plain "authenticated" cookie', async () => {
     mockCookieStore.get.mockReturnValue({ value: 'authenticated' });
-    expect(await getAdminSession()).toEqual({ name: 'Admin', email: '' });
+    // Pre-role-split cookies don't carry a role; we fall back to 'employee'
+    // so they can't unintentionally use owner-only features. Owners need to
+    // log out + back in to refresh the cookie with their actual role.
+    expect(await getAdminSession()).toEqual({ name: 'Admin', email: '', role: 'employee' });
   });
 
-  it('parses a JSON session with name+email', async () => {
+  it('parses a JSON session with name+email; defaults role to employee when absent', async () => {
     mockCookieStore.get.mockReturnValue({
       value: JSON.stringify({ name: 'Alice', email: 'alice@v.com' }),
     });
-    expect(await getAdminSession()).toEqual({ name: 'Alice', email: 'alice@v.com' });
+    expect(await getAdminSession()).toEqual({ name: 'Alice', email: 'alice@v.com', role: 'employee' });
+  });
+
+  it('parses role=owner from JSON when present', async () => {
+    mockCookieStore.get.mockReturnValue({
+      value: JSON.stringify({ name: 'Alice', email: 'alice@v.com', role: 'owner' }),
+    });
+    expect(await getAdminSession()).toEqual({ name: 'Alice', email: 'alice@v.com', role: 'owner' });
+  });
+
+  it('coerces invalid role values to employee', async () => {
+    mockCookieStore.get.mockReturnValue({
+      value: JSON.stringify({ name: 'A', email: 'a@v.com', role: 'totally-fake' }),
+    });
+    expect((await getAdminSession())?.role).toBe('employee');
   });
 
   it('returns null for JSON missing required fields', async () => {
@@ -99,10 +116,10 @@ describe('getCustomerSession', () => {
 describe('requireAdmin', () => {
   it('returns session when authenticated', async () => {
     mockCookieStore.get.mockReturnValue({
-      value: JSON.stringify({ name: 'A', email: 'a@v.com' }),
+      value: JSON.stringify({ name: 'A', email: 'a@v.com', role: 'owner' }),
     });
     const result = await requireAdmin();
-    expect(result).toEqual({ name: 'A', email: 'a@v.com' });
+    expect(result).toEqual({ name: 'A', email: 'a@v.com', role: 'owner' });
   });
 
   it('returns a NextResponse with status 401 when unauthenticated', async () => {
@@ -122,6 +139,39 @@ describe('requireAdmin', () => {
     });
     const session = await requireAdmin();
     expect(isErrorResponse(session)).toBe(false);
+  });
+});
+
+describe('requireOwner', () => {
+  it('returns 401 when unauthenticated', async () => {
+    mockCookieStore.get.mockReturnValue(undefined);
+    const result = (await requireOwner()) as any;
+    expect(result.status).toBe(401);
+  });
+
+  it('returns 403 when caller is an employee', async () => {
+    mockCookieStore.get.mockReturnValue({
+      value: JSON.stringify({ name: 'B', email: 'b@v.com', role: 'employee' }),
+    });
+    const result = (await requireOwner()) as any;
+    expect(result.status).toBe(403);
+    expect((await result.json()).error).toMatch(/owner role required/i);
+  });
+
+  it('returns the session when caller is owner', async () => {
+    mockCookieStore.get.mockReturnValue({
+      value: JSON.stringify({ name: 'A', email: 'a@v.com', role: 'owner' }),
+    });
+    const result = await requireOwner();
+    expect(result).toEqual({ name: 'A', email: 'a@v.com', role: 'owner' });
+  });
+
+  it('treats role-less sessions as employee (returns 403)', async () => {
+    mockCookieStore.get.mockReturnValue({
+      value: JSON.stringify({ name: 'A', email: 'a@v.com' }),  // no role field
+    });
+    const result = (await requireOwner()) as any;
+    expect(result.status).toBe(403);
   });
 });
 

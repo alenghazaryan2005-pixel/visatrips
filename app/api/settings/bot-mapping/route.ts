@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAdminSession } from '@/lib/auth';
+import { getAdminSession, requireOwner, isErrorResponse } from '@/lib/auth';
 import {
   botMappingSettingKey,
   getBotCatalog,
@@ -56,8 +56,10 @@ export async function GET(req: NextRequest) {
  * Body: { country, overrides: { [stepKey.fieldKey]: BotSource } }
  */
 export async function PUT(req: NextRequest) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Owner-only — bot mapping affects every order processed.
+  const auth = await requireOwner();
+  if (isErrorResponse(auth)) return auth;
+  const admin = auth;
   try {
     const body = await req.json();
     const country = (body.country || 'INDIA').toUpperCase();

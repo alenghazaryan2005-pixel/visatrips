@@ -6,13 +6,23 @@
  * normalisation + sanitization (label trim, key sanitizer, enum coercion).
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { NextResponse } from 'next/server';
 import { makeMockPrisma } from '../helpers/mockPrisma';
 
 const mockPrisma = makeMockPrisma();
 const mockAuth = { getAdminSession: vi.fn() };
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
-vi.mock('@/lib/auth',   () => mockAuth);
+vi.mock('@/lib/auth', () => ({
+  getAdminSession: mockAuth.getAdminSession,
+  requireOwner: async () => {
+    const sess = await mockAuth.getAdminSession();
+    if (!sess) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (sess.role !== 'owner') return NextResponse.json({ error: 'Forbidden — owner role required' }, { status: 403 });
+    return sess;
+  },
+  isErrorResponse: (r: any) => r instanceof NextResponse,
+}));
 
 const { GET, PUT } = await import('@/app/api/settings/application-schema/route');
 
@@ -141,7 +151,7 @@ describe('PUT /api/settings/application-schema', () => {
   });
 
   it('sanitises section/field keys and drops sections with no title', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({
       key: 'application.schema.INDIA',
       value: '{}',
@@ -188,7 +198,7 @@ describe('PUT /api/settings/application-schema', () => {
   });
 
   it('defaults pages=[finish] when none provided', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({
       key: 'application.schema.INDIA',
       value: '{}',
@@ -205,7 +215,7 @@ describe('PUT /api/settings/application-schema', () => {
   });
 
   it('filters pages to only valid values', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({
       key: 'application.schema.INDIA',
       value: '{}',
@@ -224,7 +234,7 @@ describe('PUT /api/settings/application-schema', () => {
   });
 
   it('round-trips deletedBuiltIns tombstones', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({
       key: 'application.schema.INDIA',
       value: '{}',
@@ -244,7 +254,7 @@ describe('PUT /api/settings/application-schema', () => {
   });
 
   it('rejects malformed deletedBuiltIns entries (non-strings, weird chars)', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({
       key: 'application.schema.INDIA',
       value: '{}',
@@ -270,7 +280,7 @@ describe('PUT /api/settings/application-schema', () => {
   });
 
   it('round-trips visibleForVisaTypes', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({
       key: 'application.schema.INDIA',
       value: '{}',
@@ -307,7 +317,7 @@ describe('PUT /api/settings/application-schema', () => {
   });
 
   it('rejects non-string + over-long visa codes in visibleForVisaTypes', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({
       key: 'application.schema.INDIA',
       value: '{}',
@@ -330,7 +340,7 @@ describe('PUT /api/settings/application-schema', () => {
   });
 
   it('returns the merged result — not just the saved input', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Admin', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({
       key: 'application.schema.INDIA',
       value: '{}',

@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAdminSession } from '@/lib/auth';
+import { requireOwner, isErrorResponse } from '@/lib/auth';
 import { FEATURE_FLAGS, FLAG_BY_ID, flagSettingKey, parseFlagValue } from '@/lib/featureFlags';
 
 export const runtime = 'nodejs';
@@ -37,8 +37,11 @@ export async function GET(_req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Feature-flag toggles are owner-only — employees can read flags (so the
+  // admin pages know what UI to render) but can't flip them.
+  const auth = await requireOwner();
+  if (isErrorResponse(auth)) return auth;
+  const admin = auth;
 
   try {
     const body = await req.json();

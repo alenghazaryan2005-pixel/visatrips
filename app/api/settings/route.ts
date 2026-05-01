@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAdminSession } from '@/lib/auth';
+import { requireOwner, isErrorResponse } from '@/lib/auth';
 import { getAllSettings, DEFAULTS } from '@/lib/settings';
 
 export const runtime = 'nodejs';
@@ -31,8 +31,12 @@ export async function GET(_req: NextRequest) {
  * Body: { updates: { [key]: { value, category } } }
  */
 export async function POST(req: NextRequest) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Settings writes are owner-only — these change customer-facing
+  // configuration (prices, emails, status labels). Employees can use the
+  // admin panel but can't alter app config.
+  const auth = await requireOwner();
+  if (isErrorResponse(auth)) return auth;
+  const admin = auth;
 
   try {
     const body = await req.json();

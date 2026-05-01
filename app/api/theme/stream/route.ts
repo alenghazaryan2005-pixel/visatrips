@@ -1,4 +1,5 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAdminSession } from '@/lib/auth';
 import { getActiveTheme } from '@/lib/theme-server';
 import { subscribeThemeChanged } from '@/lib/theme-bus';
 
@@ -6,38 +7,45 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/theme/stream — Server-Sent Events stream of theme changes.
+ * GET /api/theme/stream — Server-Sent Events stream of THIS admin's theme
+ * changes only. Themes are per-user, so the stream is scoped to the
+ * authenticated admin's email — Alice saving never pushes to Bob's tabs.
  *
- * On connect: emits the current theme as the first event so the client can
- * sync immediately even if it missed an earlier broadcast.
+ * On connect: emits Alice's current theme so a fresh tab syncs immediately
+ * even if it missed an earlier broadcast.
  *
- * On every theme save (POST /api/theme), emits the new theme to every
- * subscriber.
+ * On every theme save (POST /api/theme by Alice), emits the new colours to
+ * every Alice tab connected to this stream.
  *
  * Keepalive: comments every 30s so intermediate proxies (Cloudflare, nginx,
  * Vercel, etc.) don't terminate idle SSE connections at the 60s mark.
  *
- * Public — no auth. The active theme is already exposed via GET /api/theme,
- * so streaming it adds no new info.
+ * Auth required — guests get 401 instead of an empty stream they couldn't
+ * use anyway.
  */
 export async function GET(req: NextRequest) {
+  const session = await getAdminSession();
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const myEmail = session.email;
+
   const enc = new TextEncoder();
   let unsubscribe: (() => void) | null = null;
   let keepalive: ReturnType<typeof setInterval> | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
-      // Initial sync — send current saved theme so the client can adopt it
-      // immediately on connect.
+      // Initial sync — send THIS admin's current saved theme.
       try {
-        const initial = await getActiveTheme();
+        const initial = await getActiveTheme(myEmail);
         controller.enqueue(enc.encode(`data: ${JSON.stringify(initial)}\n\n`));
       } catch {
         // Connection still useful even if the initial fetch failed —
         // subsequent broadcasts will sync the client.
       }
 
-      unsubscribe = subscribeThemeChanged(colors => {
+      unsubscribe = subscribeThemeChanged(myEmail, colors => {
         try {
           controller.enqueue(enc.encode(`data: ${JSON.stringify(colors)}\n\n`));
         } catch {
@@ -53,7 +61,6 @@ export async function GET(req: NextRequest) {
         }
       }, 30_000);
 
-      // Browser close / tab close → ReadableStream cancel runs below.
       req.signal.addEventListener('abort', () => {
         unsubscribe?.();
         if (keepalive) clearInterval(keepalive);
@@ -71,7 +78,7 @@ export async function GET(req: NextRequest) {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no', // disable nginx-style proxy buffering
+      'X-Accel-Buffering': 'no',
     },
   });
 }

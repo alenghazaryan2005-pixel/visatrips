@@ -71,9 +71,20 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [merging, setMerging] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
   const [showLinkedOrders, setShowLinkedOrders] = useState(false);
-  const [cannedResponses, setCannedResponses] = useState<{ id: string; title: string; content: string; folder: string }[]>([]);
+  const [cannedResponses, setCannedResponses] = useState<{
+    id: string; title: string; content: string; folder: string;
+    shortcut: string | null; usageCount: number; visibility: 'shared' | 'personal';
+  }[]>([]);
   const [showCanned, setShowCanned] = useState(false);
   const [cannedSearch, setCannedSearch] = useState('');
+  // Slash-command range — when not null, the user is typing `/<query>` in
+  // the reply textarea and the picker is filtered to that query. On
+  // selection we replace the slash-range (rather than appending) so the
+  // typed `/welcome` becomes the resolved canned content.
+  const [slashRange, setSlashRange] = useState<{ start: number; end: number; query: string } | null>(null);
+  // Current admin name for the {{agent}} placeholder. Fetched once on mount.
+  const [currentAdminName, setCurrentAdminName] = useState<string>('');
+  const replyRef = useRef<HTMLTextAreaElement | null>(null);
   const [ticketTags, setTicketTags] = useState('');
   const [newTag, setNewTag] = useState('');
   const [collisionUser, setCollisionUser] = useState<string | null>(null);
@@ -126,6 +137,14 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     return () => clearInterval(interval);
   }, [id]);
   useEffect(() => { fetch('/api/canned').then(r => r.ok ? r.json() : []).then(setCannedResponses).catch(() => {}); }, []);
+  // Pull the admin's display name once so the {{agent}} placeholder
+  // resolves locally without an extra round-trip per insert.
+  useEffect(() => {
+    fetch('/api/admin/session')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.name) setCurrentAdminName(d.name); })
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     fetch('/api/tickets').then(r => r.ok ? r.json() : []).then((tickets: any[]) => {
       const tags = new Set<string>();
@@ -211,15 +230,89 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     } catch {} finally { setForwarding(false); }
   };
 
-  const insertCanned = (content: string) => {
+  /** Resolve all {{...}} placeholders against the current ticket / agent /
+   *  date context. Unresolvable placeholders (e.g. {{order}} on a ticket
+   *  with no linked order) collapse to an empty string — the agent can
+   *  edit the draft before sending. */
+  const resolveCanned = (content: string): string => {
+    if (!ticket) return content;
+    const firstName = (ticket.contactName ?? '').split(' ')[0] || ticket.contactName || '';
+    const orderNum  = ticket.linkedOrders?.[0]?.orderNumber;
+    const orderStr  = orderNum != null ? `#${formatOrderNum(orderNum)}` : '';
+    const today     = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return content
+      .replace(/\{\{name\}\}/g,   firstName)
+      .replace(/\{\{email\}\}/g,  ticket.contactEmail || '')
+      .replace(/\{\{ticket\}\}/g, `#${ticket.ticketNumber}`)
+      .replace(/\{\{order\}\}/g,  orderStr)
+      .replace(/\{\{agent\}\}/g,  currentAdminName || '')
+      .replace(/\{\{date\}\}/g,   today);
+  };
+
+  /** Fire-and-forget usage tracking — bumps usageCount + lastUsedAt so
+   *  most-used responses surface first in the picker on next reload. */
+  const trackCannedUsage = (id: string) => {
+    fetch(`/api/canned/${id}/use`, { method: 'POST' }).catch(() => {});
+  };
+
+  /** Insert a canned response into the reply draft. If the user invoked
+   *  the picker via slash-command (`/welcome`), the typed `/welcome` is
+   *  replaced in-place; otherwise the resolved content is appended to
+   *  the existing draft with a blank line separator. */
+  const insertCanned = (content: string, id: string) => {
     if (!ticket) return;
-    const replaced = content
-      .replace(/\{\{name\}\}/g, ticket.contactName)
-      .replace(/\{\{ticket\}\}/g, String(ticket.ticketNumber))
-      .replace(/\{\{email\}\}/g, ticket.contactEmail);
-    setReply(prev => prev ? prev + '\n\n' + replaced : replaced);
+    const resolved = resolveCanned(content);
+    if (slashRange) {
+      // Slash-command insert — substitute the `/<query>` text.
+      setReply(prev => prev.slice(0, slashRange.start) + resolved + prev.slice(slashRange.end));
+      // Restore caret to just after the inserted content for follow-up typing.
+      const caret = slashRange.start + resolved.length;
+      queueMicrotask(() => {
+        const el = replyRef.current;
+        if (el) { el.focus(); el.setSelectionRange(caret, caret); }
+      });
+    } else {
+      setReply(prev => prev ? prev + '\n\n' + resolved : resolved);
+    }
     setShowCanned(false);
     setCannedSearch('');
+    setSlashRange(null);
+    trackCannedUsage(id);
+  };
+
+  /** Detect a `/<query>` token at the caret position. Returns its range +
+   *  query string if found. The slash must be preceded by whitespace or
+   *  the start of the textarea, so we don't false-trigger inside URLs
+   *  / paths / pre-existing text. */
+  const findSlashAtCaret = (text: string, caret: number): { start: number; end: number; query: string } | null => {
+    // Walk backwards through valid shortcut chars looking for the `/`.
+    let i = caret;
+    while (i > 0 && /[a-z0-9_-]/i.test(text[i - 1])) i--;
+    if (i === 0 || text[i - 1] !== '/') return null;
+    const slashIdx = i - 1;
+    // The char before the `/` must be whitespace (or BOF) to avoid
+    // matching inside URLs / file paths.
+    const prev = slashIdx === 0 ? '' : text[slashIdx - 1];
+    if (prev && !/\s/.test(prev)) return null;
+    return { start: slashIdx, end: caret, query: text.slice(slashIdx + 1, caret).toLowerCase() };
+  };
+
+  /** onChange / onKeyUp handler for the reply textarea — keeps the slash
+   *  picker in sync with what the user is typing. We toggle showCanned
+   *  on/off as the slash-range comes and goes; if the picker was opened
+   *  manually (Canned button) we leave it alone. */
+  const handleReplyChange = (next: string, caret: number) => {
+    setReply(next);
+    const detected = findSlashAtCaret(next, caret);
+    if (detected) {
+      setSlashRange(detected);
+      setShowCanned(true);
+      setCannedSearch(''); // slash-mode owns the filter
+    } else if (slashRange) {
+      // We were in slash-mode but the user stepped out of it.
+      setSlashRange(null);
+      setShowCanned(false);
+    }
   };
 
   const mergeTicket = async () => {
@@ -403,35 +496,131 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                     </button>
                     {showCanned && (
                       <div className="canned-picker">
-                        <input className="canned-picker-search" placeholder="Search responses..." value={cannedSearch} onChange={e => setCannedSearch(e.target.value)} autoFocus />
+                        {/* When the picker was opened via slash-command, the
+                            search field is locked to the typed query so it
+                            mirrors what's in the textarea. The Canned button
+                            still gives a free-typing search input. */}
+                        {slashRange ? (
+                          <div className="canned-picker-search" style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                            color: '#4338ca', fontWeight: 600,
+                          }}>
+                            <span style={{ background: '#eef2ff', padding: '0.15rem 0.4rem', borderRadius: '0.3rem', fontSize: '0.78rem' }}>
+                              /{slashRange.query || '…'}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontFamily: 'inherit', fontWeight: 400 }}>
+                              keep typing or pick below
+                            </span>
+                          </div>
+                        ) : (
+                          <input
+                            className="canned-picker-search"
+                            placeholder="Search title, content, tags, or shortcut..."
+                            value={cannedSearch}
+                            onChange={e => setCannedSearch(e.target.value)}
+                            autoFocus
+                          />
+                        )}
                         <div className="canned-picker-list">
-                          {cannedResponses
-                            .filter(c => !cannedSearch || c.title.toLowerCase().includes(cannedSearch.toLowerCase()) || c.content.toLowerCase().includes(cannedSearch.toLowerCase()))
-                            .map(c => (
-                              <button key={c.id} className="canned-picker-item" onClick={() => insertCanned(c.content)}>
-                                <span className="canned-picker-title">{c.title}</span>
-                                <span className="canned-picker-folder">{c.folder}</span>
-                                <span className="canned-picker-preview">{c.content.slice(0, 60)}...</span>
+                          {(() => {
+                            // In slash-mode, prioritize prefix matches on shortcut, then
+                            // anywhere matches on title. Otherwise filter by free-text
+                            // search across title/content/tags/shortcut.
+                            const filtered = cannedResponses.filter(c => {
+                              if (slashRange) {
+                                const q = slashRange.query;
+                                if (!q) return true;
+                                if (c.shortcut?.startsWith(q)) return true;
+                                if (c.title.toLowerCase().includes(q)) return true;
+                                return false;
+                              }
+                              if (!cannedSearch) return true;
+                              const s = cannedSearch.toLowerCase();
+                              return (
+                                c.title.toLowerCase().includes(s) ||
+                                c.content.toLowerCase().includes(s) ||
+                                (c.shortcut ?? '').includes(s)
+                              );
+                            });
+                            if (filtered.length === 0) {
+                              return (
+                                <div className="canned-picker-empty">
+                                  {cannedResponses.length === 0
+                                    ? <>No canned responses yet. <Link href="/admin/crm/canned" style={{ color: 'var(--blue)' }}>Create one</Link></>
+                                    : 'No matches.'}
+                                </div>
+                              );
+                            }
+                            return filtered.map(c => (
+                              <button
+                                key={c.id}
+                                className="canned-picker-item"
+                                onClick={() => insertCanned(c.content, c.id)}
+                              >
+                                <span className="canned-picker-title" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  {c.title}
+                                  {c.shortcut && (
+                                    <span style={{
+                                      fontSize: '0.65rem', fontWeight: 700,
+                                      fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                                      background: '#eef2ff', color: '#4338ca',
+                                      padding: '0.05rem 0.3rem', borderRadius: '0.25rem',
+                                    }}>
+                                      /{c.shortcut}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="canned-picker-folder" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  {c.folder}
+                                  {c.usageCount > 0 && (
+                                    <span style={{
+                                      fontSize: '0.62rem', color: '#065f46',
+                                      background: '#ecfdf5', padding: '0.05rem 0.3rem',
+                                      borderRadius: '0.25rem', fontWeight: 700,
+                                    }}>
+                                      {c.usageCount}×
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="canned-picker-preview">{c.content.slice(0, 70)}{c.content.length > 70 ? '…' : ''}</span>
                               </button>
-                            ))
-                          }
-                          {cannedResponses.length === 0 && (
-                            <div className="canned-picker-empty">
-                              No canned responses yet. <Link href="/admin/crm/canned" style={{ color: 'var(--blue)' }}>Create one</Link>
-                            </div>
-                          )}
+                            ));
+                          })()}
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
                 <textarea
+                  ref={replyRef}
                   className="tkt2-reply-input"
                   rows={4}
-                  placeholder={isInternal ? 'Add an internal note...' : 'Type your response here...'}
+                  placeholder={isInternal ? 'Add an internal note...' : 'Type your response here, or /shortcut to insert a canned response...'}
                   value={reply}
-                  onChange={e => setReply(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendReply(); }}
+                  onChange={e => handleReplyChange(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+                  onKeyUp={e => {
+                    // Re-evaluate slash detection on caret moves (arrow
+                    // keys, click), not just on text change.
+                    const t = e.currentTarget;
+                    const detected = findSlashAtCaret(t.value, t.selectionStart ?? t.value.length);
+                    if (detected) {
+                      setSlashRange(detected);
+                      if (!showCanned) setShowCanned(true);
+                    } else if (slashRange) {
+                      setSlashRange(null);
+                      setShowCanned(false);
+                    }
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) sendReply();
+                    // Esc closes the slash picker without inserting.
+                    if (e.key === 'Escape' && slashRange) {
+                      e.preventDefault();
+                      setSlashRange(null);
+                      setShowCanned(false);
+                    }
+                  }}
                 />
                 <div className="tkt2-reply-footer">
                   {!isInternal && (

@@ -12,11 +12,12 @@ export async function GET() {
   try {
     // Support both old format ("authenticated") and new format (JSON)
     if (session.value === 'authenticated') {
-      return NextResponse.json({ authenticated: true, name: 'Admin', email: '' });
+      return NextResponse.json({ authenticated: true, name: 'Admin', email: '', role: 'employee' });
     }
     const data = JSON.parse(session.value);
     if (data.name && data.email) {
-      return NextResponse.json({ authenticated: true, name: data.name, email: data.email });
+      const role = data.role === 'owner' ? 'owner' : 'employee';
+      return NextResponse.json({ authenticated: true, name: data.name, email: data.email, role });
     }
     return NextResponse.json({ authenticated: false }, { status: 401 });
   } catch {

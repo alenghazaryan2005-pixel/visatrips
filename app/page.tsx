@@ -3,6 +3,7 @@
 import Nav          from '@/components/Nav';
 import Footer       from '@/components/Footer';
 import VisaSelector from '@/components/VisaSelector';
+import { ShieldCheck, BadgeCheck, Globe, Clock, type LucideIcon } from 'lucide-react';
 
 /* ── Country data ─────────────────────────────────────────────────────────── */
 
@@ -70,11 +71,14 @@ const STEPS = [
   { n: '04', title: 'Receive Your Visa',   desc: 'Your approved e-visa lands directly in your inbox — ready to travel, no office visit required.' },
 ];
 
-const TRUST_CELLS = [
-  { icon: '🔒', title: 'Bank-Grade Security',     desc: 'Your documents are encrypted in transit and at rest. Full GDPR compliance.' },
-  { icon: '📋', title: 'Regulatory Compliance',   desc: "We stay current with every country's visa requirements so you don't have to." },
-  { icon: '🌐', title: '80+ Countries',            desc: 'Wide coverage across Europe, Asia, Americas, and the Middle East.' },
-  { icon: '🕐', title: '24/7 Support',             desc: 'Real humans available around the clock for urgent questions and updates.' },
+// Same icon treatment as the India page's "What you'll need" cards —
+// Lucide icons inside a gradient rounded-square chip. The hover-swap to
+// brand blue is wired in globals.css under `.trust-cell:hover .trust-icon`.
+const TRUST_CELLS: Array<{ Icon: LucideIcon; title: string; desc: string }> = [
+  { Icon: ShieldCheck, title: 'Bank-Grade Security',     desc: 'Your documents are encrypted in transit and at rest. Full GDPR compliance.' },
+  { Icon: BadgeCheck,  title: 'Regulatory Compliance',   desc: "We stay current with every country's visa requirements so you don't have to." },
+  { Icon: Globe,       title: '80+ Countries',            desc: 'Wide coverage across Europe, Asia, Americas, and the Middle East.' },
+  { Icon: Clock,       title: '24/7 Support',             desc: 'Real humans available around the clock for urgent questions and updates.' },
 ];
 
 const STATS = [
@@ -138,7 +142,9 @@ export default function Home() {
           <div className="trust-right">
             {TRUST_CELLS.map((c) => (
               <div className="trust-cell" key={c.title}>
-                <div className="trust-icon">{c.icon}</div>
+                <span className="trust-icon" aria-hidden>
+                  <c.Icon size={28} strokeWidth={1.75} />
+                </span>
                 <div className="trust-cell-title">{c.title}</div>
                 <p className="trust-cell-desc">{c.desc}</p>
               </div>

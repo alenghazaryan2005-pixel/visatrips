@@ -66,7 +66,8 @@
       "Bash(pkill -9 -f \"Google Chrome.*--enable-automation\")",
       "Bash(pkill -9 -f \"tsx scripts/process-visa\")",
       "Bash(grep -n \"orderId={id}\\\\|</div>\\\\s*$\\\\|^    </\\\\|admin-shell\\\\|order-detail-shell\" \"/Users/dotfiler11/Desktop/expressvisa/app/admin/orders/[id]/page.tsx\")",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(git fetch *)"
     ]
   }
 }

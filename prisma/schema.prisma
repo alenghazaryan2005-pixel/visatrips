@@ -27,6 +27,12 @@ model Order {
   billingEmail String
   cardLast4       String?
   processingSpeed String   @default("standard")
+  // Optional add-on: "Rejection Protection Plan" — a flat-fee insurance
+  // line the customer can opt into either at checkout or later from
+  // /status. Price lives in Setting key `pricing.addons.rejectionProtection`
+  // so admins can adjust without redeploying. When true, the add-on's
+  // price was folded into totalUSD at the time it was purchased.
+  rejectionProtection Boolean @default(false)
   lastEditedBy    String?
   applicationId   String?
   evisaUrl         String?
@@ -199,11 +205,27 @@ model CannedResponse {
   content   String
   folder    String   @default("General")
   tags      String?  // comma-separated tags
-  createdBy String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Visibility — "shared" (any admin can see + use) or "personal" (only the
+  // creator). Mirrors Freshdesk's personal/all-agents distinction; we don't
+  // do per-group visibility yet.
+  visibility String  @default("shared")
+  // Slash-command keyword for the in-reply autocomplete. Stored without the
+  // leading "/", so a user typing `/welcome` matches `shortcut: "welcome"`.
+  // Optional — responses without a shortcut still work via the picker UI.
+  shortcut   String?
+  // Per-response usage stats — each call to /api/canned/[id]/use bumps
+  // usageCount and updates lastUsedAt. Drives the "most-used" sort in the
+  // ticket-reply picker so frequently-used responses surface first.
+  usageCount Int      @default(0)
+  lastUsedAt DateTime?
+  createdBy  String?
+  updatedBy  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([folder])
+  @@index([visibility])
+  @@index([shortcut])
   @@map("canned_responses")
 }
 
@@ -217,11 +239,43 @@ model CustomerPin {
   @@map("customer_pins")
 }
 
+// Owner-driven page customizations — Phase 2 of the site editor. Each row
+// is one CSS-property override (or text/visibility override) targeting a
+// specific element via a CSS selector. Owners create drafts in edit mode
+// at /admin (any page); a separate Publish action flips drafts → published
+// at which point all visitors see the change.
+//
+// pagePath = '*' means site-wide (applies on every page); otherwise the
+// exact path the override applies to (e.g. '/admin/orders'). The unique
+// constraint includes status so a single (path, selector, property) slot
+// can have BOTH a draft and a published row simultaneously — visitors see
+// published; the owner in edit mode sees their draft.
+model PageCustomization {
+  id         String   @id @default(cuid())
+  pagePath   String                                // '*' for site-wide, else exact path
+  selector   String                                // CSS selector for the target element
+  property   String                                // 'color' | 'background-color' | 'font-size' | … | special: 'text' | 'hidden'
+  value      String                                // the override value (CSS string or content)
+  status     String   @default("draft")            // 'draft' | 'published'
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  updatedBy  String?
+
+  @@unique([pagePath, selector, property, status])
+  @@index([pagePath, status])
+  @@map("page_customizations")
+}
+
 model AdminUser {
   id        String   @id @default(cuid())
   name      String
   email     String   @unique
   password  String
+  // 'owner' has full access (employee mgmt, theme editor, future page editor).
+  // 'employee' can use the admin panel but can't manage other admins or
+  // customise the site. Defaults to 'employee' so accidentally-created rows
+  // don't get unintended privileges; the seed/owner is set explicitly.
+  role      String   @default("employee")
   createdAt DateTime @default(now())
 
   @@map("admin_users")

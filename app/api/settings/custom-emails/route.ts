@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAdminSession } from '@/lib/auth';
+import { getAdminSession, requireOwner, isErrorResponse } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,8 +29,9 @@ export async function GET(req: NextRequest) {
  * Body: { country, code, label, description?, trigger, subject, structured?, html? }
  */
 export async function POST(req: NextRequest) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireOwner();
+  if (isErrorResponse(auth)) return auth;
+  const admin = auth;
   try {
     const body = await req.json();
     if (!body.code || !body.label || !body.subject) {

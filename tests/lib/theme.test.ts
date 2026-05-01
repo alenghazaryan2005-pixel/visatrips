@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   BUILT_IN_PRESETS,
   DEFAULT_THEME,
+  GROUP_META,
+  KEYS_BY_GROUP,
   THEME_KEYS,
   TOKEN_META,
   generateThemeCSS,
@@ -51,8 +53,22 @@ describe('DEFAULT_THEME + TOKEN_META', () => {
       expect(TOKEN_META[k].description).toBeTruthy();
     }
   });
-  it('exposes exactly 9 tokens', () => {
-    expect(THEME_KEYS).toHaveLength(9);
+  it('exposes the expected token catalog (14 tokens across 4 groups)', () => {
+    expect(THEME_KEYS).toHaveLength(14);
+    // Snapshot the keys so accidental removals get caught loudly.
+    expect(THEME_KEYS).toEqual([
+      'ink', 'slate', 'blue', 'blue2', 'navy',
+      'sky', 'white', 'cloud', 'mist',
+      'sidebar',
+      'success', 'warning', 'danger', 'info',
+    ]);
+  });
+
+  it('every token has a group assigned', () => {
+    for (const k of THEME_KEYS) {
+      const meta = TOKEN_META[k];
+      expect(['brand', 'surface', 'admin', 'status']).toContain(meta.group);
+    }
   });
 });
 
@@ -105,7 +121,7 @@ describe('validateThemeStrict', () => {
 });
 
 describe('generateThemeCSS', () => {
-  it('produces a :root block with all 9 tokens', () => {
+  it('produces a :root block with every catalog token', () => {
     const css = generateThemeCSS(DEFAULT_THEME);
     expect(css).toMatch(/^:root\{/);
     expect(css).toMatch(/\}\n$/);
@@ -119,11 +135,18 @@ describe('generateThemeCSS', () => {
     expect(css).toContain('--blue: #FF0000;');
     expect(css).not.toContain('--blue: #6C8AFF;');
   });
-  it('emits one declaration per token', () => {
+  it('emits one declaration per token (matches THEME_KEYS length)', () => {
     const css = generateThemeCSS(DEFAULT_THEME);
-    // Each declaration is on its own line. There should be 9 declaration lines.
     const declLines = css.split('\n').filter(l => /^\s*--/.test(l));
-    expect(declLines).toHaveLength(9);
+    expect(declLines).toHaveLength(THEME_KEYS.length);
+  });
+  it('emits the new admin/status tokens', () => {
+    const css = generateThemeCSS(DEFAULT_THEME);
+    expect(css).toContain('--sidebar:');
+    expect(css).toContain('--success:');
+    expect(css).toContain('--warning:');
+    expect(css).toContain('--danger:');
+    expect(css).toContain('--info:');
   });
 });
 
@@ -148,6 +171,33 @@ describe('BUILT_IN_PRESETS', () => {
     const dflt = BUILT_IN_PRESETS.find(p => p.id === 'builtin:default-blue');
     expect(dflt).toBeDefined();
     expect(dflt!.colors).toEqual(DEFAULT_THEME);
+  });
+});
+
+describe('KEYS_BY_GROUP + GROUP_META', () => {
+  it('every key in THEME_KEYS appears under exactly one group', () => {
+    const seen = new Set<string>();
+    for (const keys of Object.values(KEYS_BY_GROUP)) {
+      for (const k of keys) {
+        expect(seen.has(k)).toBe(false);
+        seen.add(k);
+      }
+    }
+    expect(seen.size).toBe(THEME_KEYS.length);
+  });
+  it('every group has metadata (label + description)', () => {
+    for (const group of Object.keys(KEYS_BY_GROUP)) {
+      const meta = GROUP_META[group as keyof typeof GROUP_META];
+      expect(meta).toBeDefined();
+      expect(meta.label).toBeTruthy();
+      expect(meta.description).toBeTruthy();
+    }
+  });
+  it('admin group contains the sidebar token', () => {
+    expect(KEYS_BY_GROUP.admin).toContain('sidebar');
+  });
+  it('status group contains all four semantic colours', () => {
+    expect(KEYS_BY_GROUP.status).toEqual(expect.arrayContaining(['success', 'warning', 'danger', 'info']));
   });
 });
 

@@ -4,13 +4,25 @@
  *   POST — admin-only flip; rejects unknown ids and non-boolean values
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { NextResponse } from 'next/server';
 import { makeMockPrisma, type MockPrisma } from '../helpers/mockPrisma';
 
 const mockPrisma = makeMockPrisma();
 const mockAuth = { getAdminSession: vi.fn() };
 
 vi.mock('@/lib/prisma', () => ({ prisma: mockPrisma }));
-vi.mock('@/lib/auth',   () => mockAuth);
+// Auth: route uses requireOwner — re-implement here so tests can drive
+// the session shape via mockAuth.getAdminSession.
+vi.mock('@/lib/auth', () => ({
+  getAdminSession: mockAuth.getAdminSession,
+  requireOwner: async () => {
+    const sess = await mockAuth.getAdminSession();
+    if (!sess) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (sess.role !== 'owner') return NextResponse.json({ error: 'Forbidden — owner role required' }, { status: 403 });
+    return sess;
+  },
+  isErrorResponse: (r: any) => r instanceof NextResponse,
+}));
 
 const { GET, POST } = await import('@/app/api/features/route');
 
@@ -66,21 +78,21 @@ describe('POST /api/features', () => {
   });
 
   it('rejects unknown flag ids with 400', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Alice', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Alice', email: '', role: 'owner' });
     const res = await POST(asReq({ id: 'totallyMadeUp', enabled: true }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/unknown/i);
   });
 
   it('rejects non-boolean enabled values with 400', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Alice', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Alice', email: '', role: 'owner' });
     const res = await POST(asReq({ id: 'orderTags', enabled: 'yes' }));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/boolean/i);
   });
 
   it('upserts the Setting row with category=features and stamps updatedBy', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Alice', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Alice', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({});
     const res = await POST(asReq({ id: 'orderTags', enabled: true }));
     expect(res.status).toBe(200);
@@ -96,7 +108,7 @@ describe('POST /api/features', () => {
   });
 
   it('persists "false" the same way', async () => {
-    mockAuth.getAdminSession.mockResolvedValue({ name: 'Bob', email: '' });
+    mockAuth.getAdminSession.mockResolvedValue({ name: 'Bob', email: '', role: 'owner' });
     mockPrisma.setting.upsert.mockResolvedValue({});
     await POST(asReq({ id: 'orderTags', enabled: false }));
     const call = mockPrisma.setting.upsert.mock.calls[0][0];

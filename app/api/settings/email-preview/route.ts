@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminSession } from '@/lib/auth';
+import { requireOwner, isErrorResponse } from '@/lib/auth';
 import { renderStructured, interpolate, StructuredEmail } from '@/lib/email/renderer';
 
 export const runtime = 'nodejs';
@@ -23,8 +23,8 @@ const SAMPLE = {
  * to show a live preview as the admin types.
  */
 export async function POST(req: NextRequest) {
-  const admin = await getAdminSession();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireOwner();
+  if (isErrorResponse(auth)) return auth;
   try {
     const body = await req.json();
     const structured = body.structured as StructuredEmail;

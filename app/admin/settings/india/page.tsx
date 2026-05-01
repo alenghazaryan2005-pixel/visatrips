@@ -188,15 +188,24 @@ export default function SettingsPage() {
   const [saving, setSaving]     = useState(false);
   const [loading, setLoading]   = useState(true);
   const [authed, setAuthed]     = useState(false);
+  const [isOwner, setIsOwner]   = useState(false);
   const [flash, setFlash]       = useState<string>('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // First verify admin auth (re-use /api/errors since that's admin-only)
-      const authCheck = await fetch('/api/errors?resolved=false&limit=1');
-      if (authCheck.status === 401) { router.push('/admin'); return; }
+      // Verify admin auth + owner-role (settings are app-wide config, owner only).
+      const sessRes = await fetch('/api/admin/session', { cache: 'no-store' });
+      if (sessRes.status === 401) { router.push('/admin'); return; }
+      const sess = await sessRes.json();
       setAuthed(true);
+      setIsOwner(sess.role === 'owner');
+      if (sess.role !== 'owner') {
+        // Skip the heavy settings fetches for employees — they'll see the
+        // access-denied panel rendered below.
+        setLoading(false);
+        return;
+      }
 
       const res = await fetch('/api/settings');
       const d = await res.json();
@@ -293,6 +302,28 @@ export default function SettingsPage() {
 
   if (loading && !authed) {
     return <div style={{ padding: '3rem', textAlign: 'center', color: '#6b7280' }}>Loading…</div>;
+  }
+
+  // Employees can't manage application settings — they see an access-denied
+  // panel. The API also enforces owner-role on every write.
+  if (!isOwner) {
+    return (
+      <div className="admin-shell">
+        <AdminSidebar active="settings" />
+        <div className="admin-main" style={{ maxWidth: '100%' }}>
+          <div style={{ padding: '4rem 1.5rem', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>🔒</div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.5rem' }}>Owner access required</h1>
+            <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+              India settings (pricing, emails, status labels, application schema, bot config) are restricted to owner accounts.
+            </p>
+            <a href="/admin" style={{ display: 'inline-block', marginTop: '1rem', color: 'var(--blue)', fontSize: '0.9rem', textDecoration: 'none' }}>
+              ← Back to admin
+            </a>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -428,6 +459,49 @@ export default function SettingsPage() {
                     );
                   })}
                 </div>
+              </SettingsCard>
+
+              <SettingsCard
+                title="Optional Add-Ons"
+                description="Flat-fee line items the customer can opt into either at checkout or later from /status. Each row applies once per order (not per traveler)."
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '0.6rem 1rem', alignItems: 'center' }}>
+                  {(() => {
+                    const key = 'pricing.addons.rejectionProtection';
+                    const val = getValue(key);
+                    const isDraft = key in drafts;
+                    return (
+                      <>
+                        <label style={{ fontWeight: 500 }}>
+                          Rejection Protection Plan{' '}
+                          <span style={{ color: '#6b7280', fontWeight: 400, fontSize: '0.85rem' }}>
+                            (one-time, per order)
+                          </span>
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ color: '#6b7280' }}>$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={val}
+                            onChange={e => setDraft(key, parseFloat(e.target.value) || 0)}
+                            className="settings-input"
+                            style={{ width: '120px', borderColor: isDraft ? 'var(--blue)' : undefined }}
+                          />
+                          <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>USD / order</span>
+                        </div>
+                        <button onClick={() => resetKey(key)} className="settings-reset" title="Reset to default">↻</button>
+                      </>
+                    );
+                  })()}
+                </div>
+                <p style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '0.75rem' }}>
+                  💡 The customer sees this as an opt-in checkbox on the apply
+                  / payment page, and as an opt-in card on /status if they
+                  declined initially. Setting the price to <strong>$0</strong>{' '}
+                  will still show the option but at no cost.
+                </p>
               </SettingsCard>
 
               <SettingsCard
@@ -796,6 +870,11 @@ export default function SettingsPage() {
                   <NumberInput label="Max reminders per order (then auto-closes)" keyPath="general.reminderMaxCount" getValue={getValue} setDraft={setDraft} min={1} />
                 </div>
               </SettingsCard>
+
+              {/* Feature flags — site-wide toggles. Lives here in the India General
+                  tab as a convenience so admins have one stop for everything; the
+                  flags themselves apply globally, not just to India. */}
+              <FeaturesCard />
             </div>
           )}
 
@@ -834,6 +913,141 @@ function SettingsCard({ title, description, children }: { title: string; descrip
       </div>
       {children}
     </div>
+  );
+}
+
+/* ── Features card ─────────────────────────────────────────────────────────
+ * Self-contained feature-flag toggle list. Backed by /api/features (GET/POST)
+ * and the Setting table (`features.<id>`). Was originally a standalone page
+ * at /admin/features; folded in here for one-stop admin settings access. */
+interface FlagRow {
+  id: string;
+  label: string;
+  description: string;
+  details: string[];
+  enabled: boolean;
+}
+
+function FeaturesCard() {
+  const [flags, setFlags] = useState<FlagRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savingId, setSavingId] = useState('');
+  const [error, setError] = useState('');
+  // Owner-only — employees won't see the card at all even though the GET
+  // endpoint is public. The POST is owner-only on the server side anyway.
+  const [isOwner, setIsOwner] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [sessRes, flagsRes] = await Promise.all([
+          fetch('/api/admin/session', { cache: 'no-store' }),
+          fetch('/api/features', { cache: 'no-store' }),
+        ]);
+        if (!cancelled) {
+          if (sessRes.ok) {
+            const sess = await sessRes.json();
+            setIsOwner(sess.role === 'owner');
+          } else {
+            setIsOwner(false);
+          }
+          if (flagsRes.ok) {
+            const data = await flagsRes.json();
+            setFlags(data.flags || []);
+          }
+        }
+      } catch {} finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Render nothing for employees — keeps the General tab cleaner.
+  if (isOwner === false) return null;
+
+  const toggle = async (flag: FlagRow) => {
+    if (savingId) return;
+    setSavingId(flag.id);
+    setError('');
+    setFlags(prev => prev.map(f => f.id === flag.id ? { ...f, enabled: !f.enabled } : f));
+    try {
+      const res = await fetch('/api/features', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: flag.id, enabled: !flag.enabled }),
+      });
+      if (!res.ok) {
+        setFlags(prev => prev.map(f => f.id === flag.id ? { ...f, enabled: flag.enabled } : f));
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Failed to save.');
+      }
+    } catch (err: any) {
+      setFlags(prev => prev.map(f => f.id === flag.id ? { ...f, enabled: flag.enabled } : f));
+      setError(err?.message || 'Failed to save.');
+    } finally { setSavingId(''); }
+  };
+
+  return (
+    <SettingsCard title="Features" description="Site-wide toggles for optional admin-panel features. Flipping off only hides UI — underlying data is preserved.">
+      {error && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '0.4rem', padding: '0.5rem 0.75rem', marginBottom: '0.75rem', color: '#991b1b', fontSize: '0.82rem' }}>⚠️ {error}</div>
+      )}
+      {loading ? (
+        <div style={{ fontSize: '0.85rem', color: '#9ca3af', fontStyle: 'italic' }}>Loading…</div>
+      ) : flags.length === 0 ? (
+        <div style={{ fontSize: '0.85rem', color: '#9ca3af', fontStyle: 'italic' }}>No feature flags defined.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {flags.map(flag => (
+            <div key={flag.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', paddingBottom: '0.85rem', borderBottom: '1px solid #f3f4f6' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--ink)' }}>{flag.label}</span>
+                  <span style={{
+                    fontSize: '0.62rem', fontWeight: 700, textTransform: 'uppercase',
+                    padding: '0.08rem 0.35rem', borderRadius: '0.25rem',
+                    background: flag.enabled ? '#dcfce7' : '#f3f4f6',
+                    color:      flag.enabled ? '#166534' : '#6b7280',
+                    border: '1px solid ' + (flag.enabled ? '#86efac' : '#e5e7eb'),
+                  }}>{flag.enabled ? 'On' : 'Off'}</span>
+                </div>
+                <p style={{ fontSize: '0.82rem', color: '#475569', marginBottom: flag.details.length ? '0.5rem' : 0 }}>{flag.description}</p>
+                {flag.details.length > 0 && (
+                  <ul style={{ fontSize: '0.74rem', color: '#6b7280', paddingLeft: '1rem', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    {flag.details.map((d, i) => <li key={i}>{d}</li>)}
+                  </ul>
+                )}
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={flag.enabled}
+                disabled={savingId === flag.id}
+                onClick={() => toggle(flag)}
+                title={flag.enabled ? 'Click to turn off' : 'Click to turn on'}
+                style={{
+                  position: 'relative', width: '44px', height: '24px',
+                  background: flag.enabled ? 'var(--blue)' : '#cbd5e1',
+                  border: 'none', borderRadius: '999px',
+                  cursor: savingId === flag.id ? 'wait' : 'pointer',
+                  opacity: savingId === flag.id ? 0.6 : 1,
+                  transition: 'background 0.2s',
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: '3px', left: flag.enabled ? '23px' : '3px',
+                  width: '18px', height: '18px',
+                  background: 'white', borderRadius: '999px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  transition: 'left 0.2s',
+                }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </SettingsCard>
   );
 }
 

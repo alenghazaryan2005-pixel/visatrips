@@ -44,8 +44,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
+    const role = admin.role === 'owner' ? 'owner' : 'employee';
     const cookieStore = await cookies();
-    cookieStore.set(SESSION_TOKEN, JSON.stringify({ name: admin.name, email: admin.email }), {
+    cookieStore.set(SESSION_TOKEN, JSON.stringify({ name: admin.name, email: admin.email, role }), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
       path: '/',
     });
 
-    return NextResponse.json({ success: true, name: admin.name });
+    return NextResponse.json({ success: true, name: admin.name, role });
   } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }

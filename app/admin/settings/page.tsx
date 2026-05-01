@@ -15,6 +15,7 @@ interface CountryCard {
 
 const COUNTRIES: CountryCard[] = [
   { slug: 'india',    name: 'India',       flag: '🇮🇳', status: 'live',         description: 'Tourist, Business, and Medical eVisas' },
+  { slug: 'aruba',    name: 'Aruba',       flag: '🇦🇼', status: 'coming-soon', description: 'ED-Card / online entry form' },
   { slug: 'turkey',   name: 'Turkey',      flag: '🇹🇷', status: 'coming-soon', description: 'eVisa for tourism and transit' },
   { slug: 'egypt',    name: 'Egypt',       flag: '🇪🇬', status: 'coming-soon', description: 'eVisa for single and multiple entry' },
   { slug: 'cambodia', name: 'Cambodia',    flag: '🇰🇭', status: 'coming-soon', description: 'Tourist and Business eVisas' },
@@ -25,18 +26,44 @@ export default function SettingsLandingPage() {
   const router = useRouter();
   const [authed, setAuthed] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Application settings (prices, emails, statuses, country config) are
+  // owner-only — they affect every customer, so we don't let employees
+  // change them. The API also enforces owner-role on every write.
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/errors?resolved=false&limit=1');
+        const res = await fetch('/api/admin/session', { cache: 'no-store' });
         if (res.status === 401) { router.push('/admin'); return; }
+        const data = await res.json();
         setAuthed(true);
+        setIsOwner(data.role === 'owner');
       } catch {} finally { setLoading(false); }
     })();
   }, [router]);
 
   if (loading || !authed) return <div style={{ padding: '3rem', textAlign: 'center', color: '#6b7280' }}>Loading…</div>;
+
+  if (!isOwner) {
+    return (
+      <div className="admin-shell">
+        <AdminSidebar active="settings" />
+        <div className="admin-main" style={{ maxWidth: '100%' }}>
+          <div style={{ padding: '4rem 1.5rem', textAlign: 'center', maxWidth: '600px', margin: '0 auto' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>🔒</div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.5rem' }}>Owner access required</h1>
+            <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>
+              Application settings (pricing, emails, status labels, country config) are restricted to owner accounts. Contact the account owner if you need a change.
+            </p>
+            <Link href="/admin/theme" style={{ display: 'inline-block', marginTop: '1rem', color: 'var(--blue)', fontSize: '0.9rem', textDecoration: 'none' }}>
+              Go to Color Palette →
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-shell">
@@ -64,7 +91,7 @@ export default function SettingsLandingPage() {
               }}>
                 <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎨</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.2rem' }}>Color Palette</div>
-                <div style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: '0.75rem' }}>Customize the colors used across every page. Save and apply presets.</div>
+                <div style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: '0.75rem' }}>Customize the colors used across the admin panel. Customer-facing pages aren&apos;t affected.</div>
                 <div style={{
                   display: 'inline-block',
                   fontSize: '0.72rem',
@@ -78,31 +105,6 @@ export default function SettingsLandingPage() {
               </div>
             </Link>
 
-            <Link href="/admin/features" style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div className="country-card-live" style={{
-                background: 'white',
-                border: '1px solid #e5e7eb',
-                borderRadius: '0.85rem',
-                padding: '1.25rem',
-                cursor: 'pointer',
-                transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s',
-                position: 'relative',
-              }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🧪</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.2rem' }}>Features</div>
-                <div style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: '0.75rem' }}>Toggle optional features on or off across the admin panel.</div>
-                <div style={{
-                  display: 'inline-block',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  padding: '0.2rem 0.5rem',
-                  borderRadius: '0.3rem',
-                  background: '#d1fae5',
-                  color: '#065f46',
-                  textTransform: 'uppercase',
-                }}>● Live</div>
-              </div>
-            </Link>
           </div>
 
           {/* Country-specific settings */}
