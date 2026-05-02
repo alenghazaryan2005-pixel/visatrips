@@ -130,10 +130,6 @@ export function validateAddress(value: string, label = 'Address'): string {
   if (/^\d+$/.test(trimmed)) return `${label} cannot be only numbers`;
   if (!/[a-zA-Z]{2,}/.test(trimmed)) return `${label} must contain words`;
   if (isGibberish(trimmed)) return `Please enter a valid ${label.toLowerCase()}`;
-  // Address should contain at least a number and letters (like "123 Main St")
-  if (!/\d/.test(trimmed) && !/\b(street|st|road|rd|avenue|ave|blvd|drive|dr|lane|ln|way|court|ct|place|pl|circle|cir|box|apt|suite|ste|unit|floor|bldg)\b/i.test(trimmed)) {
-    // Relaxed — just needs to look real
-  }
   return '';
 }
 
