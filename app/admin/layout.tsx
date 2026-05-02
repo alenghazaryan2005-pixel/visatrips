@@ -14,6 +14,7 @@
 
 import { ThemeStyleInjector } from '@/components/ThemeStyleInjector';
 import { ThemeWatcher } from '@/components/ThemeWatcher';
+import { AdminToaster } from '@/components/admin/AdminToaster';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -26,6 +27,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           so other open admin tabs repaint without a manual refresh. */}
       <ThemeWatcher />
       {children}
+      {/* Toast stack — fires triggered imperatively via lib/admin-toast.
+          Sits at bottom-right of every admin page. */}
+      <AdminToaster />
     </>
   );
 }

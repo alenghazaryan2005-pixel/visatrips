@@ -4537,6 +4537,60 @@ input[type="checkbox"]:checked {
 /* ── Edit Mode ── */
 .od-top-actions {
   @apply flex items-center justify-between mb-5;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Admin toast slide-in animation — paired with components/admin/AdminToaster.tsx */
+@keyframes admin-toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Queue Prev/Next nav — sits next to the "Back to Orders" link. Only
+ * renders when an order was opened from a filtered list (the list page
+ * snapshots the queue into sessionStorage on row-click). */
+.od-queue-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--slate);
+}
+.od-queue-btn {
+  font-family: var(--font-sora), sans-serif;
+  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.45rem;
+  background: white;
+  border: 1px solid var(--cloud);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.od-queue-btn:hover:not(:disabled) {
+  background: var(--mist);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.od-queue-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.od-queue-pos {
+  font-size: 0.78rem;
+  color: var(--slate);
+  white-space: nowrap;
+}
+.od-queue-pos strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+.od-queue-filter {
+  color: var(--slate);
+  font-style: italic;
+  margin-left: 0.15rem;
 }
 .od-process-btn {
   font-family: var(--font-jakarta), sans-serif;

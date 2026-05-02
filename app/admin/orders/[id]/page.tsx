@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo, use, useRef } from 'react';
+import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import type { ApplicationSchema } from '@/lib/applicationSchema';
+import { getQueuePosition } from '@/lib/admin-queue';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -682,6 +684,7 @@ export default function OrderDetailPage(props: { params: Promise<{ id: string }>
 
 function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { statuses: customStatuses } = useCustomStatuses();
   const [customAppSchema, setCustomAppSchema] = useState<ApplicationSchema>({ country: 'INDIA', sections: [] });
   const [order, setOrder]     = useState<Order | null>(null);
@@ -721,6 +724,49 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
       .catch(() => setError('Order not found.'))
       .finally(() => setLoading(false));
   }, [id]);
+
+  /* ── Queue navigation (Prev / Next) ───────────────────────────────────
+   * The orders list page snapshots its current filtered order of IDs +
+   * filter description into sessionStorage right before navigating into
+   * a detail view. We read that snapshot here to render Prev / Next
+   * controls + a position counter ("Order 12 of 47 in 'Needs photo
+   * approval'"). When the user presses ← / → arrow keys (and they're not
+   * typing in an input), we navigate. If there's no queue (e.g. the
+   * employee landed on this URL directly), queuePos stays null and the
+   * Prev/Next chrome doesn't render.
+   *
+   * We recompute on every `id` change so navigating Prev → Next → Prev
+   * stays in sync with the queue. */
+  const [queuePos, setQueuePos] = useState<ReturnType<typeof getQueuePosition> | null>(null);
+  useEffect(() => {
+    setQueuePos(getQueuePosition('orders', id));
+  }, [id]);
+
+  const navigateTo = useCallback((targetId: string | null) => {
+    if (!targetId) return;
+    router.push(`/admin/orders/${targetId}`);
+  }, [router]);
+
+  useEffect(() => {
+    if (!queuePos) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Don't hijack arrows when the user is typing — inputs / textareas /
+      // selects all use arrow keys for native cursor movement, and so do
+      // contenteditable surfaces (rich-text reply boxes etc.).
+      const t = e.target as Element | null;
+      if (t) {
+        const tag = t.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        if ((t as HTMLElement).isContentEditable) return;
+      }
+      // Modifiers (Cmd / Ctrl / Alt) — leave alone, those are browser nav.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'ArrowLeft' && queuePos.prevId) { e.preventDefault(); navigateTo(queuePos.prevId); }
+      else if (e.key === 'ArrowRight' && queuePos.nextId) { e.preventDefault(); navigateTo(queuePos.nextId); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [queuePos, navigateTo]);
 
   // Load admin-defined custom application schema for this order's country.
   useEffect(() => {
@@ -1125,9 +1171,39 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
       <div className="admin-main">
       <div className="order-detail-shell">
 
-      {/* Back link */}
+      {/* Back link + queue Prev/Next nav. queuePos is null when the
+          employee landed here from outside the orders list (direct URL,
+          deep link, etc.) — in that case we just show the Back link. */}
       <div className="od-top-actions">
         <Link href="/admin" className="order-detail-back">← Back to Orders</Link>
+        {queuePos && (
+          <div className="od-queue-nav">
+            <button
+              type="button"
+              className="od-queue-btn"
+              onClick={() => navigateTo(queuePos.prevId)}
+              disabled={!queuePos.prevId}
+              title={queuePos.prevId ? 'Previous order in queue (←)' : 'First in queue'}
+            >
+              ← Prev
+            </button>
+            <span className="od-queue-pos">
+              Order <strong>{queuePos.index + 1}</strong> of <strong>{queuePos.total}</strong>
+              {queuePos.filterLabel && (
+                <span className="od-queue-filter"> in {queuePos.filterLabel}</span>
+              )}
+            </span>
+            <button
+              type="button"
+              className="od-queue-btn"
+              onClick={() => navigateTo(queuePos.nextId)}
+              disabled={!queuePos.nextId}
+              title={queuePos.nextId ? 'Next order in queue (→)' : 'Last in queue'}
+            >
+              Next →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── TOP BAR: Order #, Price, Dates ── */}

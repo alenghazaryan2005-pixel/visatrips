@@ -26,9 +26,12 @@ interface Order {
   refundReason: string | null;
   refundedAt:   string | null;
   /** Admin approval timestamps — null = needs admin review.
-   *  Auto-cleared on document re-upload. */
-  photoApprovedAt: string | null;
+   *  Auto-cleared on document re-upload. The matching `*By` fields
+   *  carry the admin name who stamped the approval. */
+  photoApprovedAt:    string | null;
+  photoApprovedBy:    string | null;
   passportApprovedAt: string | null;
+  passportApprovedBy: string | null;
   /** Processing speed — 'standard' | 'rush' | 'super'. */
   processingSpeed: string;
   /** JSON array of OrderTag.id values — admin-applied tags. */
@@ -41,6 +44,8 @@ import { formatOrderNum, VISA_LABELS, STATUS_COLORS, STATUS_LABELS, VISA_COLORS,
 import { CustomStatusesProvider, useCustomStatuses, StatusBadge } from '@/lib/customStatuses';
 import { AdminSidebar } from '@/components/AdminSidebar';
 import { TagChip, useOrderTagCatalog, type OrderTag as OrderTagDef } from '@/components/OrderTags';
+import { writeQueue } from '@/lib/admin-queue';
+import { toast } from '@/lib/admin-toast';
 import { useFeatureFlag } from '@/lib/useFeatureFlag';
 import { Zap, X as XIcon, Mail as MailIcon, StickyNote, Palette, AlertTriangle, RefreshCw, CheckCircle, XCircle, Undo2, Trash2, Camera, FileText, Rocket, type LucideIcon } from 'lucide-react';
 
@@ -653,11 +658,16 @@ function SpeedChip({ speed }: { speed: string }) {
   );
 }
 
-function OrderRow({ order, onStatusChange, onNotesChange, onQuickEdit, tagCatalog }: {
+function OrderRow({ order, onStatusChange, onNotesChange, onQuickEdit, onOpen, tagCatalog }: {
   order: Order;
   onStatusChange: (id: string, status: string) => void;
   onNotesChange: (id: string, notes: string) => void;
   onQuickEdit: (order: Order) => void;
+  /** Called when the row is clicked. The parent (which has access to
+   *  the full filtered list + active filter description) uses this to
+   *  write the order-queue snapshot to sessionStorage before navigating
+   *  — the detail page reads it to render Prev / Next controls. */
+  onOpen: (orderNumberFormatted: string) => void;
   tagCatalog: OrderTagDef[];
 }) {
   const travelers = (() => {
@@ -678,17 +688,19 @@ function OrderRow({ order, onStatusChange, onNotesChange, onQuickEdit, tagCatalo
   const date = new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const time = new Date(order.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-  const router = useRouter();
-
   return (
-    <tr className="admin-row" onClick={() => router.push(`/admin/orders/${formatOrderNum(order.orderNumber)}`)}>
+    <tr className="admin-row" onClick={() => onOpen(formatOrderNum(order.orderNumber))}>
       <td className="admin-td admin-td-id">
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem' }}>
           <span className="admin-order-id">{formatOrderNum(order.orderNumber)}</span>
           <span className={`admin-visa-chip ${VISA_COLORS[order.visaType] ?? 'visa-other'}`}>{VISA_LABELS[order.visaType] ?? order.visaType}</span>
           <SpeedChip speed={order.processingSpeed} />
           {(!order.photoApprovedAt || !order.passportApprovedAt) && (() => {
-            // Single combined "needs review" chip — icons indicate which doc(s) are pending.
+            // Single combined "needs review" chip — icons indicate which
+            // doc(s) are pending. Informational only — approving a photo
+            // requires opening the order so the employee actually sees /
+            // edits the image first. The chip click falls through to the
+            // row's onOpen handler.
             const tip = [
               !order.photoApprovedAt    && 'Photo needs approval',
               !order.passportApprovedAt && 'Passport bio needs approval',
@@ -776,6 +788,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
    *  speed. Click an active chip again to clear (back to "all speeds"). */
   const [speedFilter, setSpeedFilter] = useState<string | null>(null);
   const tagCatalog = useOrderTagCatalog();
+  const router = useRouter();
   /** Feature flag — when OFF, hides tag UI everywhere on this page. Default off. */
   const tagsEnabled = useFeatureFlag('orderTags') ?? false;
   const [quickEditOrder, setQuickEditOrder] = useState<Order | null>(null);
@@ -983,14 +996,56 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     setCrmTags(updated);
   };
 
+  /* ── Inline status change ─────────────────────────────────────────────
+   * Used by the per-row StatusSelect in the orders list. Optimistic
+   * update, toast confirmation with undo, confirm dialog for destructive
+   * transitions (REJECTED / REFUNDED) so a misclick on those doesn't
+   * silently affect customer-facing status. */
   const handleStatusChange = async (id: string, status: string) => {
     const order = orders.find(o => o.id === id);
-    await fetch(`/api/orders/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status, notes: order?.notes }),
-    });
+    if (!order) return;
+    const prevStatus = order.status;
+    if (prevStatus === status) return; // no-op
+
+    // Confirm before transitioning into customer-visible terminal-ish
+    // states. Skip the confirm when reversing OUT of these states (admin
+    // is correcting a mistake — undo toast still covers misclicks).
+    const DESTRUCTIVE = new Set(['REJECTED', 'REFUNDED']);
+    if (DESTRUCTIVE.has(status) && !DESTRUCTIVE.has(prevStatus)) {
+      const num = formatOrderNum(order.orderNumber);
+      if (!confirm(`Set order #${num} to ${status.replace(/_/g, ' ')}? Customers will see this status change.`)) return;
+    }
+
+    // Optimistic — flip the row immediately so the UI feels instant.
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+
+    try {
+      const res = await fetch(`/api/orders/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, notes: order.notes }),
+      });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+
+      const num = formatOrderNum(order.orderNumber);
+      toast.success(`#${num} → ${status.replace(/_/g, ' ')}`, {
+        // Undo: revert optimistic + PATCH back. We don't await — the
+        // undo button already dismissed the toast and the user has moved
+        // on; if it fails we surface a separate error toast.
+        undo: () => {
+          setOrders(prev => prev.map(o => o.id === id ? { ...o, status: prevStatus } : o));
+          fetch(`/api/orders/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: prevStatus, notes: order.notes }),
+          }).catch(() => toast.error(`Couldn't undo — refresh the page.`));
+        },
+      });
+    } catch (err: any) {
+      // Roll back the optimistic change.
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, status: prevStatus } : o));
+      toast.error(err?.message ?? `Couldn't update status — try again.`);
+    }
   };
 
   const handleNotesChange = (id: string, notes: string) => {
@@ -1066,6 +1121,37 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     }
     return orderSortDir === 'desc' ? -cmp : cmp;
   });
+
+  /* ── Row click → snapshot the queue + navigate ───────────────────────
+   * The detail page reads this snapshot from sessionStorage to render
+   * Prev / Next controls. We capture: (a) every order ID in the current
+   * filtered list (NOT just the current page slice — so → arrow walks
+   * through the whole queue, paginating implicitly), and (b) a human-
+   * readable filter label so the detail page can say e.g. "Order 12 of
+   * 47 in 'Needs photo approval'".
+   *
+   * Defined AFTER `filtered` because it depends on the array. We rebuild
+   * the callback whenever any filter dimension changes — that's fine,
+   * it's a single closure passed down to ~25 row instances. */
+  const handleOpenOrder = useCallback((orderNumberFormatted: string) => {
+    const labels: string[] = [];
+    if (search) labels.push(`Search: "${search}"`);
+    if (filter !== 'ALL') labels.push(`Status: ${filter.replace(/_/g, ' ')}`);
+    if (photoNeedsApprovalOnly) labels.push('Needs photo approval');
+    if (passportNeedsApprovalOnly) labels.push('Needs passport approval');
+    if (tagFilterId) {
+      const tag = tagCatalog.tags.find(t => t.id === tagFilterId);
+      if (tag) labels.push(`Tag: ${tag.name}`);
+    }
+    if (speedFilter) labels.push(`Speed: ${speedFilter}`);
+
+    writeQueue('orders', {
+      ids: filtered.map(o => formatOrderNum(o.orderNumber)),
+      filterLabel: labels.length > 0 ? labels.join(' · ') : null,
+    });
+    router.push(`/admin/orders/${orderNumberFormatted}`);
+  }, [filter, search, photoNeedsApprovalOnly, passportNeedsApprovalOnly, tagFilterId, speedFilter, tagCatalog.tags, filtered, router]);
+
 
   const stats = {
     total:    orders.length,
@@ -1368,7 +1454,15 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                   </thead>
                   <tbody>
                     {filtered.slice((ordersPage - 1) * PAGE_SIZE, ordersPage * PAGE_SIZE).map(o => (
-                      <OrderRow key={o.id} order={o} onStatusChange={handleStatusChange} onNotesChange={handleNotesChange} onQuickEdit={setQuickEditOrder} tagCatalog={tagsEnabled ? tagCatalog.tags : []} />
+                      <OrderRow
+                        key={o.id}
+                        order={o}
+                        onStatusChange={handleStatusChange}
+                        onNotesChange={handleNotesChange}
+                        onQuickEdit={setQuickEditOrder}
+                        onOpen={handleOpenOrder}
+                        tagCatalog={tagsEnabled ? tagCatalog.tags : []}
+                      />
                     ))}
                   </tbody>
                 </table>
