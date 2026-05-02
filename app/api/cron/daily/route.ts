@@ -9,7 +9,11 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * /api/cron/daily — three idempotent jobs, called hourly by Vercel Cron.
+ * /api/cron/daily — three idempotent jobs, called once a day by Vercel Cron
+ * at 09:00 UTC (see vercel.json). All three operate on days-or-longer
+ * timescales so daily granularity is sufficient. Hourly was the original
+ * schedule, but Hobby plans cap cron jobs at one run per day — that cap
+ * was silently rejecting every deploy until we switched to daily.
  *
  *   1. Abandoned reminders: email pre-payment drop-offs every 2 days, up to 3x.
  *   2. Abandoned purge: hard-delete abandoned rows older than 7 days.
