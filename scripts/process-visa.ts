@@ -12,9 +12,14 @@
  * 5. Proceeds through all steps
  */
 
+// Side-effect import: populate process.env from .env.local + .env
+// before anything below reads BOT_PAYMENT_ENC_KEY or other secrets.
+// (Next.js auto-loads .env.local but raw tsx invocations don't.)
+import '../lib/loadDotEnv';
 import { chromium, Page } from 'playwright';
 import { PrismaClient } from '@prisma/client';
 import { loadBotOverrides, adminOr, sourceTag, AdminOrResult, createBotRunLogger, BotRunLogger } from '../lib/botRuntime';
+import { getStoredCard, getDecryptedCard, maskCard } from '../lib/cardVault';
 import type { BotSource } from '../lib/botMapping';
 import { normaliseReligion } from '../lib/constants';
 
@@ -553,6 +558,403 @@ async function processVisa(orderNumberInput: string) {
     await delay(2000);
 
     console.log('  ✅ Page ready — starting auto-fill...\n');
+
+    // ── NEW PRE-STEP-1 POPUP (gov added this in 2026) ──
+    // The Indian eVisa site now intercepts Step 1 with a modal
+    // asking for Passport No / Nationality / Name as in passport
+    // before letting the customer near the real registration form.
+    // Without handling it explicitly, the bot's keystrokes
+    // intended for Step 1 inputs land in the popup's first field
+    // instead (saw "bot-test-11@ex" end up in Passport No this
+    // way).
+    //
+    // We probe for the popup by looking for its "Name as in
+    // passport" label (more specific than "Passport No" or
+    // "Nationality" which both also exist on Step 1). If found:
+    //   1. Type the passport number
+    //   2. Select the nationality dropdown by visible text
+    //   3. Type the full name as it appears on the passport
+    //   4. Click Continue
+    //   5. Wait for the popup to dismiss before continuing
+    // If not found we just continue — handles older sessions or
+    // an A/B-test that removes the popup.
+    {
+      let popupPresent = false;
+      try {
+        popupPresent = await page.getByText('Name as in passport', { exact: false })
+          .filter({ visible: true })
+          .count()
+          .then(c => c > 0)
+          .catch(() => false);
+      } catch {}
+
+      if (popupPresent) {
+        console.log('  📋 Pre-Step-1 popup detected — filling Passport No / Nationality / Name…');
+        const popupPassportR  = adminOr('popup', 'passportNumber',   botOverrides, traveler, order, traveler.passportNumber || '');
+        const popupNameR      = adminOr('popup', 'nameAsInPassport', botOverrides, traveler, order, `${traveler.firstName || ''} ${traveler.lastName || ''}`.trim());
+        const popupNatRaw     = traveler.passportCountry || 'US';
+        const popupNatDefault = COUNTRY_MAP[popupNatRaw] || popupNatRaw;
+        const popupNatR       = adminOr('popup', 'nationality',      botOverrides, traveler, order, popupNatDefault);
+
+        // All-JS popup filler. We tried Playwright's `.fill()` /
+        // `.selectOption()` first, but they hung waiting for
+        // actionability (visibility, stable position, options
+        // loaded) on the gov form — especially the Nationality
+        // <select> which Playwright's selectOption polls until
+        // the requested label exists (30s timeout default). Doing
+        // the entire fill+dispatch in one page.evaluate sidesteps
+        // every wait + returns a clear ok/error code so we don't
+        // hang.
+        //
+        // Strategy:
+        //   1. Locate popup container via the "e-Visa Application
+        //      Form" header. Same scoping idea as before — keeps
+        //      us from matching the background Step 1 form's
+        //      same-named labels.
+        //   2. Within the popup, find the label by text.
+        //   3. Walk up to find the nearest input/select sibling.
+        //   4. Set the value via the native setter + dispatch
+        //      'input' and 'change' so framework bindings
+        //      (Angular/React) see the change.
+        //   5. Return { ok, info } so the caller knows what happened.
+        const fillPopupField = async (labelText: string, value: string, kind: 'input' | 'select'): Promise<{ ok: boolean; info: string }> => {
+          return await page.evaluate(({ labelText, value, kind }) => {
+            // 1. popup container
+            const allElements = Array.from(document.querySelectorAll('*'));
+            let headerEl: Element | null = null;
+            for (const el of allElements) {
+              const t = (el.textContent || '').trim();
+              if ((t === 'e-Visa Application Form' || t.startsWith('e-Visa Application Form')) &&
+                  (!headerEl || (el.textContent || '').length < (headerEl.textContent || '').length)) {
+                headerEl = el;
+              }
+            }
+            if (!headerEl) return { ok: false, info: 'popup header "e-Visa Application Form" not found' };
+
+            let popupRoot: Element | null = headerEl;
+            for (let i = 0; i < 10 && popupRoot; i++) {
+              if (popupRoot.querySelectorAll('input, select').length > 0) break;
+              popupRoot = popupRoot.parentElement;
+            }
+            if (!popupRoot) return { ok: false, info: 'no popup body around header' };
+
+            // 2. label inside popup
+            const candidates = Array.from(popupRoot.querySelectorAll('label, span, td, th, div, p'));
+            let best: Element | null = null;
+            let bestLen = Infinity;
+            for (const el of candidates) {
+              const own = (el.textContent || '').trim();
+              if (own.includes(labelText) && own.length < 120 && own.length < bestLen) {
+                best = el;
+                bestLen = own.length;
+              }
+            }
+            if (!best) return { ok: false, info: `label "${labelText}" not found inside popup` };
+
+            // 3. walk up to the field
+            const wantedTag = kind === 'select' ? 'select' : 'input';
+            let cur: Element | null = best;
+            let target: HTMLElement | null = null;
+            for (let i = 0; i < 6 && cur && cur !== popupRoot.parentElement; i++) {
+              const found = Array.from(cur.querySelectorAll(wantedTag)) as HTMLElement[];
+              const pick = found.find(t => !best!.contains(t)) || found[0];
+              if (pick) { target = pick; break; }
+              cur = cur.parentElement;
+            }
+            if (!target) return { ok: false, info: `no <${wantedTag}> near label "${labelText}"` };
+
+            // 4a. <select>
+            if (kind === 'select') {
+              const sel = target as HTMLSelectElement;
+              const wantedUpper = value.toUpperCase().trim();
+              const opts = Array.from(sel.options);
+              const match = opts.find(o => (o.text || '').trim().toUpperCase() === wantedUpper)
+                         || opts.find(o => (o.value || '').toUpperCase() === wantedUpper)
+                         || opts.find(o => (o.text || '').trim().toUpperCase().includes(wantedUpper));
+              if (!match) {
+                return { ok: false, info: `"${value}" not in <select> options (${opts.length} total)` };
+              }
+              sel.value = match.value;
+              sel.dispatchEvent(new Event('input',  { bubbles: true }));
+              sel.dispatchEvent(new Event('change', { bubbles: true }));
+              return { ok: true, info: `selected "${match.text}"` };
+            }
+
+            // 4b. <input>
+            const input = target as HTMLInputElement;
+            // Use the native value setter so React/Angular see
+            // the change (assigning directly to .value bypasses
+            // React's synthetic-event bookkeeping in some
+            // versions).
+            const proto = window.HTMLInputElement.prototype as any;
+            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+            if (setter) setter.call(input, value); else input.value = value;
+            input.dispatchEvent(new Event('input',  { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            // Read back so the caller can confirm the value stuck.
+            return { ok: input.value === value, info: `filled (readback: "${input.value}")` };
+          }, { labelText, value, kind });
+        };
+
+        // 1. Passport No.
+        if (popupPassportR.value) {
+          const res = await fillPopupField('Passport No', String(popupPassportR.value), 'input');
+          if (res.ok) {
+            console.log(`     ✓ Passport No: ${popupPassportR.value}${sourceTag(popupPassportR.source)}`);
+          } else {
+            console.warn(`     ⚠️  Popup Passport No — ${res.info}`);
+          }
+          await botRunLog?.log({
+            stepKey: 'popup', fieldKey: 'passportNumber', label: 'Popup — Passport No',
+            action: 'fill', source: popupPassportR.source, value: String(popupPassportR.value),
+            success: res.ok, errorMsg: res.ok ? undefined : res.info,
+          });
+        }
+
+        // 2. Nationality.
+        if (popupNatR.value) {
+          const res = await fillPopupField('Select Nationality', String(popupNatR.value), 'select');
+          if (res.ok) {
+            console.log(`     ✓ Nationality: ${popupNatR.value}${sourceTag(popupNatR.source)}`);
+          } else {
+            console.warn(`     ⚠️  Popup Nationality — ${res.info}`);
+          }
+          await botRunLog?.log({
+            stepKey: 'popup', fieldKey: 'nationality', label: 'Popup — Nationality',
+            action: 'select', source: popupNatR.source, value: String(popupNatR.value),
+            success: res.ok, errorMsg: res.ok ? undefined : res.info,
+          });
+        }
+
+        // 3. Name as in passport.
+        if (popupNameR.value) {
+          const res = await fillPopupField('Name as in passport', String(popupNameR.value), 'input');
+          if (res.ok) {
+            console.log(`     ✓ Name as in passport: ${popupNameR.value}${sourceTag(popupNameR.source)}`);
+          } else {
+            console.warn(`     ⚠️  Popup Name — ${res.info}`);
+          }
+          await botRunLog?.log({
+            stepKey: 'popup', fieldKey: 'nameAsInPassport', label: 'Popup — Name as in passport',
+            action: 'fill', source: popupNameR.source, value: String(popupNameR.value),
+            success: res.ok, errorMsg: res.ok ? undefined : res.info,
+          });
+        }
+
+        // 4. Click Continue. JS-based search to avoid Playwright
+        //    actionability waits. Walks UP from the popup header
+        //    through ancestors looking for a button whose text
+        //    or value is "continue"; clicks via DOM .click().
+        //
+        //    NOTE: this evaluate is hand-inlined (no named arrow
+        //    consts) on purpose — tsx wraps `const foo = () => {}`
+        //    declarations with __name() for stack traces, and
+        //    that helper doesn't exist in the browser context,
+        //    causing `ReferenceError: __name is not defined`
+        //    when the function runs in the page. Inline-only
+        //    code dodges that build artifact.
+        const continueRes = await page.evaluate(() => {
+          try {
+            const allElements = Array.from(document.querySelectorAll('*'));
+            let headerEl: Element | null = null;
+            for (const el of allElements) {
+              const t = (el.textContent || '').trim();
+              if ((t === 'e-Visa Application Form' || t.startsWith('e-Visa Application Form')) &&
+                  (!headerEl || (el.textContent || '').length < (headerEl.textContent || '').length)) {
+                headerEl = el;
+              }
+            }
+            if (!headerEl) return { ok: false, info: 'popup header not found' };
+
+            let popupRoot: Element | null = headerEl;
+            let lastCount = 0;
+            let lastTexts: string[] = [];
+            for (let i = 0; i < 12 && popupRoot; i++) {
+              const btns = Array.from(popupRoot.querySelectorAll('button, input[type="button"], input[type="submit"]')) as HTMLElement[];
+              lastCount = btns.length;
+              lastTexts = [];
+              let match: HTMLElement | null = null;
+              for (const b of btns) {
+                const txt = (((b as HTMLInputElement).value || b.textContent || '') + '').trim().toLowerCase();
+                lastTexts.push(txt);
+                if (txt === 'continue') { match = b; break; }
+              }
+              if (match) {
+                match.click();
+                return { ok: true, info: `clicked Continue (walked ${i} levels up)` };
+              }
+              popupRoot = popupRoot.parentElement;
+            }
+            return {
+              ok: false,
+              info: `no "Continue" button in popup ancestors — ${lastCount} buttons seen at top: [${lastTexts.slice(0, 6).join(' | ')}]`,
+            };
+          } catch (e: any) {
+            return { ok: false, info: `evaluate threw: ${e?.message || e}` };
+          }
+        }).catch((e: any) => ({ ok: false, info: `page.evaluate failed: ${e?.message || e}` }));
+        if (continueRes.ok) {
+          console.log('     ➡️  Clicked Continue on popup');
+        } else {
+          console.warn(`     ⚠️  Could not click Continue on popup — ${continueRes.info}`);
+        }
+        await botRunLog?.log({
+          stepKey: 'popup', fieldKey: '__continue', label: 'Popup — Continue',
+          action: 'click', source: 'default', value: null,
+          success: continueRes.ok, errorMsg: continueRes.ok ? undefined : continueRes.info,
+        });
+
+        // 5. Wait for the popup to disappear before continuing
+        //    onto Step 1. We poll the "e-Visa Application Form"
+        //    header text — when the popup goes away, the header
+        //    text is no longer on the page. If it sticks around
+        //    (e.g. validation error on a field), give the admin
+        //    a chance to fix it manually.
+        const dismissStart = Date.now();
+        let dismissed = false;
+        while (Date.now() - dismissStart < 8_000) {
+          const stillThere = await page.evaluate(() => {
+            const all = Array.from(document.querySelectorAll('*'));
+            return all.some(el => {
+              const t = (el.textContent || '').trim();
+              return (t === 'e-Visa Application Form' || t.startsWith('e-Visa Application Form'))
+                && (el.textContent || '').length < 200;
+            });
+          }).catch(() => true);
+          if (!stillThere) { dismissed = true; break; }
+          await delay(500);
+        }
+        if (dismissed) {
+          console.log('     ✓ Popup dismissed — continuing to Step 1.');
+        } else {
+          console.warn('     ⚠️  Popup still visible after Continue — gov form may have rejected a value. Inspect the browser.');
+        }
+        await delay(1500);
+      } else {
+        console.log('  (No pre-Step-1 popup detected — proceeding straight to Step 1.)');
+      }
+    }
+
+    // ── HEALTH-SCREENING QUESTION (Q-1) ──
+    // The Indian gov added a screening question right after the
+    // pre-Step-1 popup: "Whether visited Democratic Republic of
+    // Congo, Uganda, or South Sudan in last 21 days?" with
+    // Yes/No radios. Our customer base ~never has, so the bot
+    // always answers No. If a customer HAS been, the admin can
+    // override via bot-mapping (section `popup`, key `q1Congo`)
+    // and the bot will click Yes instead.
+    {
+      const q1AnswerR = adminOr('popup', 'q1Congo', botOverrides, traveler, order, 'No');
+      const wantedAnswer = String(q1AnswerR.value || 'No').toLowerCase().startsWith('y') ? 'yes' : 'no';
+
+      // NOTE: hand-inlined, no named arrow consts — see the
+      // Continue-button evaluate above for the __name explanation.
+      const q1Res = await page.evaluate(({ wantedAnswer }) => {
+        try {
+          const phrase = 'visited Democratic Republic of Congo';
+          const elements = Array.from(document.querySelectorAll('*'));
+          let questionEl: Element | null = null;
+          for (const el of elements) {
+            const t = (el.textContent || '').trim();
+            if (t.includes(phrase) && t.length < 400) {
+              if (!questionEl || (el.textContent || '').length < (questionEl.textContent || '').length) {
+                questionEl = el;
+              }
+            }
+          }
+          if (!questionEl) {
+            // Try a looser fallback in case the gov reworded
+            // the question slightly.
+            for (const el of elements) {
+              const t = (el.textContent || '').trim();
+              if ((t.includes('Congo') || t.includes('Uganda') || t.includes('South Sudan'))
+                  && t.includes('21 days') && t.length < 400) {
+                if (!questionEl || (el.textContent || '').length < (questionEl.textContent || '').length) {
+                  questionEl = el;
+                }
+              }
+            }
+          }
+          if (!questionEl) return { ok: false, info: 'screening question not present on page' };
+
+          // Walk up looking for a container with Yes/No radio
+          // inputs nearby.
+          let container: Element | null = questionEl;
+          for (let i = 0; i < 6 && container; i++) {
+            const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+            if (radios.length >= 2) {
+              // Resolve each radio's label text inline.
+              const labels: string[] = [];
+              let match: HTMLInputElement | null = null;
+              for (const radio of radios) {
+                let label = '';
+                if (radio.id) {
+                  const lbl = document.querySelector(`label[for="${radio.id}"]`);
+                  if (lbl) label = (lbl.textContent || '').trim().toLowerCase();
+                }
+                if (!label) {
+                  const wrap = radio.closest('label');
+                  if (wrap) label = (wrap.textContent || '').trim().toLowerCase();
+                }
+                if (!label) {
+                  let sib: Node | null = radio.nextSibling;
+                  while (sib && !label) {
+                    const t = (sib.textContent || '').trim();
+                    if (t) label = t.toLowerCase();
+                    sib = sib.nextSibling;
+                  }
+                }
+                // Last resort: value attribute.
+                if (!label) label = (radio.value || '').trim().toLowerCase();
+                labels.push(label);
+                if (!match && label.startsWith(wantedAnswer)) match = radio;
+              }
+              // Fallback: if no label matched but there are
+              // exactly 2 radios, pick by convention (Yes=first,
+              // No=second). The gov form puts them in that
+              // order in the visible markup we screenshotted.
+              if (!match && radios.length === 2) {
+                match = wantedAnswer === 'yes' ? radios[0] : radios[1];
+              }
+              if (match) {
+                match.click();
+                match.checked = true;
+                match.dispatchEvent(new Event('input',  { bubbles: true }));
+                match.dispatchEvent(new Event('change', { bubbles: true }));
+                return { ok: true, info: `selected "${wantedAnswer}" (labels seen: ${labels.join(' / ') || '<none>'}, picked value="${match.value || ''}", id="${match.id || ''}")` };
+              }
+              return { ok: false, info: `Yes/No radios found but neither label matched "${wantedAnswer}" — labels: ${labels.join(' / ')}` };
+            }
+            container = container.parentElement;
+          }
+          return { ok: false, info: 'no Yes/No radios near screening question' };
+        } catch (e: any) {
+          return { ok: false, info: `evaluate threw: ${e?.message || e}` };
+        }
+      }, { wantedAnswer }).catch((e: any) => ({ ok: false, info: `page.evaluate failed: ${e?.message || e}` }));
+
+      if (q1Res.ok) {
+        console.log(`  ✅ Q-1 screening (Congo/Uganda/South Sudan, last 21 days): ${wantedAnswer.toUpperCase()}${sourceTag(q1AnswerR.source)}`);
+        await botRunLog?.log({
+          stepKey: 'popup', fieldKey: 'q1Congo',
+          label: 'Q-1 — Visited Congo/Uganda/South Sudan in last 21 days',
+          action: 'click', source: q1AnswerR.source, value: wantedAnswer, success: true,
+        });
+      } else if (q1Res.info === 'screening question not present on page') {
+        // Not on the page — fine, gov A/B test or it moved
+        // somewhere else. Log nothing visible to avoid noise.
+        console.log('  (No Q-1 screening question detected — continuing.)');
+      } else {
+        console.warn(`  ⚠️  Q-1 screening: ${q1Res.info}`);
+        await botRunLog?.log({
+          stepKey: 'popup', fieldKey: 'q1Congo',
+          label: 'Q-1 — Visited Congo/Uganda/South Sudan in last 21 days',
+          action: 'click', source: q1AnswerR.source, value: wantedAnswer, success: false,
+          errorMsg: q1Res.info,
+        });
+      }
+      await delay(500);
+    }
 
     // Discover ALL form field selectors
     console.log('  🔍 Discovering ALL form fields...\n');
@@ -3235,6 +3637,29 @@ async function processVisa(orderNumberInput: string) {
     // ══════════════════════════════════════════════════════════
     console.log('\n📝 STEP 11 — Payment');
     console.log('────────────────────────────────────────────\n');
+
+    // Show the saved bot card so the admin can reference it when
+    // PayPal / Stripe redirects to its hosted card form. India's
+    // gov form sends payment off-site, so we can't auto-type the
+    // card the way Aruba can — but reading the masked details
+    // straight from the vault saves an admin trip to the
+    // /admin/settings/payment page during the manual step.
+    try {
+      const masked = maskCard(await getStoredCard());
+      if (masked) {
+        const expRaw = await getDecryptedCard().catch(() => null);
+        console.log('  💳 Bot card available for manual paste on the gateway page:');
+        console.log(`     ${masked.maskedNumber}  exp ${masked.expirationMonth}/${masked.expirationYear}  ${masked.cardholderName || '(no name)'}`);
+        if (expRaw) {
+          console.log(`     PAN: ${expRaw.cardNumber}    CVV: ${expRaw.cvv}`);
+        }
+        console.log('     Manage at /admin/settings/payment.\n');
+      } else {
+        console.log('  ⚠️  No bot card saved — admin will need their own card for payment. Save one at /admin/settings/payment.\n');
+      }
+    } catch (e: any) {
+      console.log(`  ⚠️  Could not read payment vault: ${e?.message || e}\n`);
+    }
 
     // Wait for payment page to load (has "Pay Now" or "Application id")
     console.log('  ⏳ Waiting for payment page to load...');
