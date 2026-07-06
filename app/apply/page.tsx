@@ -4,8 +4,13 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
+import LandingNav from '@/components/LandingNav';
+import LandingFooter from '@/components/LandingFooter';
+import { Calendar, Plane, CalendarClock, User, CreditCard, Check } from 'lucide-react';
+import CountryFlag from '@/components/CountryFlag';
 import { validateName, stripNameInput, validateEmail, validateAddress, validateCityState, validateZip, validatePassportNumber } from '@/lib/validation';
 import { ApplySchemaProvider, useApplySchema } from '@/lib/applySchemaClient';
+import { getCountryConfig, pricingKey, type CountryConfig, type VisaProduct } from '@/lib/countryConfig';
 
 const PASSPORT_COUNTRIES = [
   { code: 'US', flag: '🇺🇸', name: 'United States' },
@@ -43,23 +48,10 @@ const PASSPORT_COUNTRIES = [
   { code: 'GH', flag: '🇬🇭', name: 'Ghana' },
 ];
 
-const VISA_OPTIONS = [
-  { id: 'tourist-30',  label: 'India Tourist eVisa – 30 days, Double entry',   validity: '30 days after arrival',  entries: 'Double entry',   maxStay: '30 days in total',   price: 25, tag: 'Most Popular' },
-  { id: 'tourist-1y',  label: 'India Tourist eVisa – 1 year, Multiple entry',  validity: '1 year after arrival',   entries: 'Multiple entry', maxStay: '90 days per visit',  price: 40, tag: '' },
-  { id: 'tourist-5y',  label: 'India Tourist eVisa – 5 years, Multiple entry', validity: '5 years after arrival',  entries: 'Multiple entry', maxStay: '90 days per visit',  price: 80, tag: '' },
-  { id: 'business-1y', label: 'India Business eVisa – 1 year, Multiple entry', validity: '1 year after arrival',   entries: 'Multiple entry', maxStay: '180 days per visit', price: 80, tag: '' },
-  { id: 'medical-60',  label: 'India Medical eVisa – 60 days, Triple entry',   validity: '60 days after arrival',  entries: 'Triple entry',   maxStay: '60 days in total',   price: 25, tag: '' },
-];
-
-// Visa IDs that are NOT shown on the customer-facing apply page. Code, schema,
-// admin views and bot wiring for these stay intact — we just hide them from
-// new applications. To re-enable a visa type, remove its id from this list.
-const HIDDEN_VISA_IDS = new Set<string>(['business-1y', 'medical-60']);
-const VISIBLE_VISA_OPTIONS = VISA_OPTIONS.filter(v => !HIDDEN_VISA_IDS.has(v.id));
-
-const PURPOSE_OPTIONS: Record<string, string[]> = {
-  'business-1y': ['Set Up Industrial/Business Venture','Sale/Purchase/Trade','Attend Technical/Business Meetings','Recruit Manpower','Participation in Exhibitions/Trade Fairs','Expert/Specialist for Ongoing Project','Conducting Tours','Deliver Lectures (GIAN)','Sports Related Activity','Join Vessel'],
-};
+// Visa products + hidden ids + purpose-of-visit options used to live here
+// as hardcoded India arrays. They've moved to lib/countryConfig.ts so the
+// apply page can render for any supported country (India, Aruba, …) by
+// reading `?destination=` from the URL.
 
 const MONTHS    = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DAYS      = Array.from({ length: 31 }, (_,i) => String(i+1));
@@ -74,18 +66,38 @@ const emptyTraveler     = (): Traveler     => ({firstName:'',lastName:'',month:'
 const emptyPassportInfo = (): PassportInfo => ({country:'',number:'',placeOfIssue:'',countryOfIssue:'',issMonth:'',issDay:'',issYear:'',expMonth:'',expDay:'',expYear:'',skipForNow:false});
 
 /* ── Progress Bar ── */
+/**
+ * Slim horizontal progress bar: "STEP X / N" caps label on the left,
+ * a thin filled bar underneath. Replaces the previous circles-and-
+ * lines checkpoint style, which took up more vertical real estate
+ * than the customer needed on tight forms.
+ *
+ * Fill percentage = (current + 1) / total — the customer is
+ * currently ON step X, so completion visually reads as `current`
+ * done + the fraction of this one currently being filled. Uses
+ * inline Tailwind so we don't touch globals.css (keeps /legacy and
+ * India/Aruba pages unaffected).
+ */
 function ProgressBar({ current }: { current: number }) {
+  const total = STEPS.length;
+  const pct = Math.min(100, Math.max(0, ((current + 1) / total) * 100));
+  // No max-width or self-centering — lets the bar span the full
+  // .apply-page content column (1440px max minus 5% side padding),
+  // which is the same width as the breadcrumb above and the form
+  // layout below. Previously capped at 720px which read narrower
+  // than the rest of the page.
   return (
-    <div className="ap-progress">
-      {STEPS.map((label, i) => (
-        <div key={label} className="ap-progress-step">
-          <div className={`ap-progress-circle${i<current?' done':i===current?' active':''}`}>
-            {i < current ? '✓' : i+1}
-          </div>
-          <span className={`ap-progress-label${i===current?' active':i<current?' done':''}`}>{label}</span>
-          {i < STEPS.length-1 && <div className={`ap-progress-line${i<current?' done':''}`} />}
-        </div>
-      ))}
+    <div className="pt-4 pb-6">
+      <div className="text-[0.7rem] uppercase tracking-[0.14em] font-semibold text-[#475569] mb-2">
+        Step {current + 1} / {total}
+        <span className="ml-2 text-[#94A3B8] normal-case tracking-normal font-medium">— {STEPS[current]}</span>
+      </div>
+      <div className="h-1.5 w-full bg-[#EEF2F9] rounded-full overflow-hidden">
+        <div
+          className="h-full bg-[#3B82F6] transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }
@@ -94,6 +106,7 @@ function ProgressBar({ current }: { current: number }) {
 interface ProcessingOption { id: string; label: string; surcharge: number; }
 
 function SummaryCard({
+  country,
   visaId,
   travelers,
   processingSurcharge = 0,
@@ -104,6 +117,7 @@ function SummaryCard({
   rejectionProtection = false,
   rejectionPrice = 0,
 }: {
+  country: CountryConfig;
   visaId: string;
   travelers: number;
   processingSurcharge?: number;
@@ -118,24 +132,22 @@ function SummaryCard({
    *  `pricing.addons.rejectionProtection`. */
   rejectionPrice?: number;
 }) {
-  const visa  = VISA_OPTIONS.find(v => v.id === visaId)!;
+  const visa = country.visaProducts.find(v => v.id === visaId) ?? country.visaProducts[0];
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [govFee, setGovFee] = useState<number>(10);
   const [txPct, setTxPct] = useState<number>(8);
   useEffect(() => {
-    const visaIdToCode: Record<string, string> = {
-      'tourist-30': 'TOURIST_30', 'tourist-1y': 'TOURIST_1Y', 'tourist-5y': 'TOURIST_5Y',
-      'business-1y': 'BUSINESS_1Y', 'medical-60': 'MEDICAL_60',
-    };
-    const code = visaIdToCode[visaId] || visaId.toUpperCase().replace('-', '_');
+    const code = country.visaIdToCode[visaId] || visaId.toUpperCase().replace(/-/g, '_');
     fetch('/api/settings').then(r => r.json()).then(d => {
       const s = d.settings || {};
-      const key = `pricing.visa.${code}`;
-      if (s[key] != null) setLivePrice(Number(s[key]));
-      if (s['pricing.fees.government'] != null) setGovFee(Number(s['pricing.fees.government']));
-      if (s['pricing.fees.transactionPercent'] != null) setTxPct(Number(s['pricing.fees.transactionPercent']));
+      const visaPriceKey = pricingKey(country, `visa.${code}`);
+      const govFeeKey    = pricingKey(country, 'fees.government');
+      const txPctKey     = pricingKey(country, 'fees.transactionPercent');
+      if (s[visaPriceKey] != null) setLivePrice(Number(s[visaPriceKey]));
+      if (s[govFeeKey]    != null) setGovFee(Number(s[govFeeKey]));
+      if (s[txPctKey]     != null) setTxPct(Number(s[txPctKey]));
     }).catch(() => {});
-  }, [visaId]);
+  }, [visaId, country]);
 
   const effectivePrice = livePrice ?? visa.price;
   const visaLine       = effectivePrice * travelers;
@@ -154,18 +166,24 @@ function SummaryCard({
     <div className="apply-summary-col">
       <div className="apply-summary-card">
         <div className="apply-summary-header">
-          <span className="apply-summary-flag">🇮🇳</span>
+          <span className="apply-summary-flag" style={{ display: 'inline-flex', alignItems: 'center' }}>
+            <CountryFlag slug={country.slug} size="1.6em" />
+          </span>
           <div>
-            <div className="apply-summary-title">India eVisa</div>
-            <div className="apply-summary-type">{visa.label.split('–')[0].replace('India ','').trim()}</div>
+            <div className="apply-summary-title">{country.productLabel}</div>
+            {/* Strip the country prefix from the visa label so the
+                summary type reads as the product variant only
+                (e.g. "Tourist eVisa – 30 days, …"). For single-product
+                countries (Aruba) the strip is a no-op. */}
+            <div className="apply-summary-type">{visa.label.split('–')[0].replace(country.destination, '').trim()}</div>
           </div>
         </div>
         <div className="apply-summary-divider" />
         <div className="apply-summary-rows">
-          <div className="apply-summary-row"><span className="apply-summary-icon">📅</span><div><div className="apply-summary-row-label">Valid for</div><div className="apply-summary-row-value">{visa.validity}</div></div></div>
-          <div className="apply-summary-row"><span className="apply-summary-icon">✈️</span><div><div className="apply-summary-row-label">Number of entries</div><div className="apply-summary-row-value">{visa.entries}</div></div></div>
-          <div className="apply-summary-row"><span className="apply-summary-icon">🗓️</span><div><div className="apply-summary-row-label">Max stay</div><div className="apply-summary-row-value">{visa.maxStay}</div></div></div>
-          <div className="apply-summary-row"><span className="apply-summary-icon">👤</span><div><div className="apply-summary-row-label">Travelers</div><div className="apply-summary-row-value">{travelers} {travelers===1?'person':'people'}</div></div></div>
+          <div className="apply-summary-row"><span className="apply-summary-icon"><Calendar      size={18} strokeWidth={1.75} /></span><div><div className="apply-summary-row-label">Valid for</div><div className="apply-summary-row-value">{visa.validity}</div></div></div>
+          <div className="apply-summary-row"><span className="apply-summary-icon"><Plane         size={18} strokeWidth={1.75} /></span><div><div className="apply-summary-row-label">Number of entries</div><div className="apply-summary-row-value">{visa.entries}</div></div></div>
+          <div className="apply-summary-row"><span className="apply-summary-icon"><CalendarClock size={18} strokeWidth={1.75} /></span><div><div className="apply-summary-row-label">Max stay</div><div className="apply-summary-row-value">{visa.maxStay}</div></div></div>
+          <div className="apply-summary-row"><span className="apply-summary-icon"><User          size={18} strokeWidth={1.75} /></span><div><div className="apply-summary-row-label">Travelers</div><div className="apply-summary-row-value">{travelers} {travelers===1?'person':'people'}</div></div></div>
         </div>
         {showPrice ? (
           <>
@@ -262,7 +280,7 @@ function PassportDropdown({ value, onChange, disabled }: { value:string; onChang
               <li key={c.code} className={`apply-dropdown-item${c.code===value?' selected':''}`}
                 onClick={e=>{e.stopPropagation();onChange(c.code);setOpen(false);setSearch('');}}>
                 <span>{c.flag}</span><span>{c.name}</span>
-                {c.code===value && <span className="apply-dropdown-check">✓</span>}
+                {c.code===value && <span className="apply-dropdown-check"><Check size={14} strokeWidth={2.5} /></span>}
               </li>
             ))}
           </ul>
@@ -273,13 +291,15 @@ function PassportDropdown({ value, onChange, disabled }: { value:string; onChang
 }
 
 /* ── Step 1 ── */
-function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravelers, purposeOfVisit, setPurposeOfVisit, onNext }: any) {
+function Step1({ country, passport, setPassport, visaId, setVisaId, travelers, setTravelers, purposeOfVisit, setPurposeOfVisit, onNext }: any) {
+  const visibleVisas = country.visaProducts.filter((v: VisaProduct) => !country.hiddenVisaIds.includes(v.id));
+  const purposes: string[] | undefined = country.purposeOptions?.[visaId];
   return (
     <div className="apply-layout">
       <div className="apply-form-col">
         <div className="apply-header">
-          <h1 className="apply-title">Apply now for your<br /><span>India eVisa</span></h1>
-          <p className="apply-subtitle">The India eVisa is mandatory for most foreign passport holders traveling to India.</p>
+          <h1 className="apply-title">{country.copy.applyHeader}<br /><span>{country.productLabel}</span></h1>
+          <p className="apply-subtitle">{country.copy.applySubtitle}</p>
         </div>
         <div className="apply-field">
           <label className="apply-label">Your passport</label>
@@ -288,7 +308,7 @@ function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravele
         <div className="apply-field">
           <label className="apply-label">Applying for</label>
           <div className="apply-visa-list">
-            {VISIBLE_VISA_OPTIONS.map(v=>(
+            {visibleVisas.map((v: VisaProduct) => (
               <label key={v.id} className={`apply-visa-option${visaId===v.id?' selected':''}`}>
                 <input type="radio" name="visa" value={v.id} checked={visaId===v.id} onChange={()=>setVisaId(v.id)} className="sr-only"/>
                 <span className="apply-visa-radio"/>
@@ -298,11 +318,11 @@ function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravele
             ))}
           </div>
         </div>
-        {PURPOSE_OPTIONS[visaId] && PURPOSE_OPTIONS[visaId].length > 1 && (
+        {purposes && purposes.length > 1 && (
           <div className="apply-field">
             <label className="apply-label">Purpose of visit</label>
             <div className="apply-visa-list">
-              {PURPOSE_OPTIONS[visaId].map(p => (
+              {purposes.map(p => (
                 <label key={p} className={`apply-visa-option${purposeOfVisit === p ? ' selected' : ''}`}>
                   <input type="radio" name="purpose" value={p} checked={purposeOfVisit === p} onChange={() => setPurposeOfVisit(p)} className="sr-only"/>
                   <span className="apply-visa-radio"/>
@@ -322,18 +342,18 @@ function Step1({ passport, setPassport, visaId, setVisaId, travelers, setTravele
             <span className="apply-travelers-label">{travelers===1?'traveler':'travelers'}</span>
           </div>
         </div>
-        <button className={`apply-submit${passport && (purposeOfVisit || !PURPOSE_OPTIONS[visaId] || PURPOSE_OPTIONS[visaId].length <= 1)?' active':''}`} disabled={!passport || (PURPOSE_OPTIONS[visaId] && PURPOSE_OPTIONS[visaId].length > 1 && !purposeOfVisit)} onClick={onNext}>
+        <button className={`apply-submit${passport && (purposeOfVisit || !purposes || purposes.length <= 1)?' active':''}`} disabled={!passport || (purposes && purposes.length > 1 && !purposeOfVisit)} onClick={onNext}>
           {passport?'Continue to Your Info →':'Select your passport to continue'}
         </button>
       </div>
-      <SummaryCard visaId={visaId} travelers={travelers} />
+      <SummaryCard country={country} visaId={visaId} travelers={travelers} />
     </div>
   );
 }
 
 /* ── Address Validation ── */
 /* ── Step 2 ── */
-function TravelerCard({ index, data, onChange, expanded, onToggle }: any) {
+function TravelerCard({ country, index, data, onChange, expanded, onToggle }: any) {
   const { getLabel } = useApplySchema();
   return (
     <div className="traveler-card">
@@ -360,7 +380,7 @@ function TravelerCard({ index, data, onChange, expanded, onToggle }: any) {
             </div></div>
           <div className="ap-field"><label className="ap-field-label">{getLabel('personal', 'email', 'Email address')}</label>
             <input className={`ap-input${data.email&&validateEmail(data.email)?' ap-input-error':''}`} type="email" placeholder="johnsmith@gmail.com" value={data.email} onChange={e=>onChange('email',e.target.value)}/>
-            {data.email&&validateEmail(data.email)?<p className="ap-field-error">{validateEmail(data.email)}</p>:<p className="ap-field-hint">Your India eVisa will be sent to this email address</p>}</div>
+            {data.email&&validateEmail(data.email)?<p className="ap-field-error">{validateEmail(data.email)}</p>:<p className="ap-field-hint">{country?.copy?.emailHint ?? 'Your travel document will be sent to this email address'}</p>}</div>
 
           <div className="ap-section-divider"/>
           <div className="ap-section-title">Address Details</div>
@@ -451,7 +471,7 @@ function TravelerCard({ index, data, onChange, expanded, onToggle }: any) {
   );
 }
 
-function Step2({ travelers, visaId, onBack, onNext }: any) {
+function Step2({ country, travelers, visaId, onBack, onNext }: any) {
   const [data,     setData]     = useState<Traveler[]>(Array.from({length:travelers},emptyTraveler));
   const [expanded, setExpanded] = useState<number[]>([0]);
   const update = (i:number,f:keyof Traveler,v:string) => setData(prev=>prev.map((t,idx)=>idx===i?{...t,[f]:v}:t));
@@ -486,7 +506,7 @@ function Step2({ travelers, visaId, onBack, onNext }: any) {
           <p className="apply-subtitle">Enter the details as they appear on your passport.</p>
         </div>
         <div className="traveler-list">
-          {data.map((t,i)=><TravelerCard key={i} index={i} data={t} onChange={(f:keyof Traveler,v:string)=>update(i,f,v)} expanded={expanded.includes(i)} onToggle={()=>toggle(i)}/>)}
+          {data.map((t,i)=><TravelerCard key={i} country={country} index={i} data={t} onChange={(f:keyof Traveler,v:string)=>update(i,f,v)} expanded={expanded.includes(i)} onToggle={()=>toggle(i)}/>)}
         </div>
         <div className="apply-step2-actions">
           <button className="apply-back-btn" onClick={onBack}>← Previous</button>
@@ -496,7 +516,7 @@ function Step2({ travelers, visaId, onBack, onNext }: any) {
           </button>
         </div>
       </div>
-      <SummaryCard visaId={visaId} travelers={travelers}/>
+      <SummaryCard country={country} visaId={visaId} travelers={travelers}/>
     </div>
   );
 }
@@ -556,7 +576,7 @@ function PassportCard({ index, travelerName, data, onChange, expanded, onToggle,
   );
 }
 
-function Step2b({ travelers, travelerNames, travelerData, visaId, onBack, onNext }: any) {
+function Step2b({ country, travelers, travelerNames, travelerData, visaId, onBack, onNext }: any) {
   const [data,     setData]     = useState<PassportInfo[]>(Array.from({length:travelers},emptyPassportInfo));
   const [expanded, setExpanded] = useState<number[]>([0]);
   const update = (i:number,f:keyof PassportInfo,v:string|boolean) => setData(prev=>prev.map((p,idx)=>idx===i?{...p,[f]:v}:p));
@@ -576,7 +596,12 @@ function Step2b({ travelers, travelerNames, travelerData, visaId, onBack, onNext
     const sixMonthsLater = new Date(refDate);
     sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
     if (expDate < sixMonthsLater) {
-      return 'Passport must be valid for at least 6 months from your travel date. India will reject applications with insufficient passport validity.';
+      // Country-specific tail to the warning when the country has one
+      // configured. India warns about strict 6-month enforcement; other
+      // countries get a generic message.
+      const tail = country?.copy?.passportExpiryWarning ??
+        'Many destinations require at least 6 months of passport validity from your arrival date.';
+      return `Passport must be valid for at least 6 months from your travel date. ${tail}`;
     }
     return null;
   };
@@ -601,17 +626,17 @@ function Step2b({ travelers, travelerNames, travelerData, visaId, onBack, onNext
           </button>
         </div>
       </div>
-      <SummaryCard visaId={visaId} travelers={travelers}/>
+      <SummaryCard country={country} visaId={visaId} travelers={travelers}/>
     </div>
   );
 }
 
 /* ── Step 3: Checkout ── */
-function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, onBack }: { visaId:string; travelers:number; travelerData:any[]; passportData:PassportInfo[]; purposeOfVisit:string; onBack:()=>void }) {
+function Step3({ country, visaId, travelers, travelerData, passportData, purposeOfVisit, onBack }: { country: CountryConfig; visaId:string; travelers:number; travelerData:any[]; passportData:PassportInfo[]; purposeOfVisit:string; onBack:()=>void }) {
   const router = useRouter();
-  const visa  = VISA_OPTIONS.find(v=>v.id===visaId)!;
+  const visa = country.visaProducts.find(v => v.id === visaId) ?? country.visaProducts[0];
 
-  // Fetch live pricing from settings (falls back to hard-coded VISA_OPTIONS if offline)
+  // Fetch live pricing from settings (falls back to country-config price if offline).
   const [livePrices, setLivePrices] = useState<Record<string, number> | null>(null);
   const [liveSurcharges, setLiveSurcharges] = useState<Record<string, number> | null>(null);
   const [govFee, setGovFee] = useState<number>(10);
@@ -623,26 +648,29 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
   useEffect(() => {
     fetch('/api/settings').then(r => r.json()).then(d => {
       const s = d.settings || {};
+      // Country-aware key prefixes — India uses legacy un-prefixed
+      // `pricing.visa.X`; Aruba uses `pricing.AW.visa.X`.
+      const visaPrefix = pricingKey(country, 'visa.');
+      const procPrefix = pricingKey(country, 'processing.');
       const prices: Record<string, number> = {};
       const surch: Record<string, number> = {};
       for (const k of Object.keys(s)) {
-        if (k.startsWith('pricing.visa.')) prices[k.replace('pricing.visa.', '')] = Number(s[k]);
-        if (k.startsWith('pricing.processing.')) surch[k.replace('pricing.processing.', '')] = Number(s[k]);
+        if (k.startsWith(visaPrefix)) prices[k.replace(visaPrefix, '')] = Number(s[k]);
+        if (k.startsWith(procPrefix)) surch[k.replace(procPrefix, '')] = Number(s[k]);
       }
       setLivePrices(prices);
       setLiveSurcharges(surch);
-      if (s['pricing.fees.government'] != null) setGovFee(Number(s['pricing.fees.government']));
-      if (s['pricing.fees.transactionPercent'] != null) setTxPct(Number(s['pricing.fees.transactionPercent']));
+      const govKey = pricingKey(country, 'fees.government');
+      const txKey  = pricingKey(country, 'fees.transactionPercent');
+      if (s[govKey] != null) setGovFee(Number(s[govKey]));
+      if (s[txKey]  != null) setTxPct(Number(s[txKey]));
+      // Rejection-protection price stays globally namespaced (one add-on
+      // catalog across all countries; tweak per-country later if needed).
       if (s['pricing.addons.rejectionProtection'] != null) setRejectionPrice(Number(s['pricing.addons.rejectionProtection']));
     }).catch(() => {});
-  }, []);
+  }, [country]);
 
-  // Map lowercase visa IDs to uppercase setting codes
-  const visaIdToCode: Record<string, string> = {
-    'tourist-30': 'TOURIST_30', 'tourist-1y': 'TOURIST_1Y', 'tourist-5y': 'TOURIST_5Y',
-    'business-1y': 'BUSINESS_1Y', 'medical-60': 'MEDICAL_60',
-  };
-  const visaCode = visaIdToCode[visaId] || visaId.toUpperCase().replace('-', '_');
+  const visaCode = country.visaIdToCode[visaId] || visaId.toUpperCase().replace(/-/g, '_');
   const livePrice = livePrices?.[visaCode];
   const effectivePrice = typeof livePrice === 'number' ? livePrice : visa.price;
 
@@ -692,8 +720,8 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          destination: 'India',
-          visaType: visaId.toUpperCase().replace(/-/g, '_'),
+          destination: country.destination,
+          visaType: visaCode,
           totalUSD: total,
           processingSpeed: processing,
           rejectionProtection,
@@ -732,7 +760,10 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
       // Clean up abandoned tracking
       const sid = typeof window !== 'undefined' ? sessionStorage.getItem('ev_session_id') : null;
       if (sid) { fetch(`/api/abandoned?id=${sid}`, { method: 'DELETE' }).catch(() => {}); sessionStorage.removeItem('ev_session_id'); }
-      router.push(`/apply/finish?id=${data.orderId}`);
+      // Include destination in the URL so the finish dispatcher can route
+      // without needing to call /api/orders (which 401s for the just-paid
+      // customer who doesn't yet have a session cookie).
+      router.push(`/apply/finish?id=${data.orderId}&destination=${encodeURIComponent(country.destination)}`);
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong. Please try again.');
     } finally {
@@ -749,7 +780,10 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
         </div>
 
         <div className="checkout-order-strip">
-          <span className="checkout-order-label">🇮🇳 India eVisa — {travelers} {travelers===1?'traveler':'travelers'}</span>
+          <span className="checkout-order-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <CountryFlag slug={country.slug} size="1.2em" />
+            {country.productLabel} — {travelers} {travelers===1?'traveler':'travelers'}
+          </span>
           <span className="checkout-order-price">${total.toFixed(2)} USD</span>
         </div>
 
@@ -769,7 +803,7 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
             <div className="checkout-card-wrap">
               <input className="ap-input" placeholder="1234 5678 9012 3456" value={cardNumber} maxLength={19}
                 onChange={e=>setCardNumber(formatCard(e.target.value))}/>
-              <span className="checkout-card-icons">💳</span>
+              <span className="checkout-card-icons"><CreditCard size={16} strokeWidth={1.75} /></span>
             </div>
           </div>
           <div className="checkout-row-2">
@@ -848,6 +882,7 @@ function Step3({ visaId, travelers, travelerData, passportData, purposeOfVisit, 
         </div>
       </div>
       <SummaryCard
+        country={country}
         visaId={visaId}
         travelers={travelers}
         processingSurcharge={surcharge}
@@ -883,12 +918,34 @@ function saveAbandoned(data: Record<string, any>) {
   }).catch(() => {});
 }
 
-/* ── Main ── */
-function ApplyForm() {
+/* ── Main ──
+ * ApplyShell reads the destination + passport from the URL once and
+ * threads the resolved country config + initial passport down. The
+ * ApplySchemaProvider is initialised with the right country's schema
+ * key (so admin label overrides for the chosen country apply
+ * automatically). Passing through ApplyForm's existing tree keeps the
+ * step components renderable in isolation. */
+function ApplyShell() {
   const searchParams = useSearchParams();
+  const country = getCountryConfig(searchParams.get('destination'));
+  const initialPassport = searchParams.get('passport') ?? '';
+  return (
+    <ApplySchemaProvider country={country.schemaKey}>
+      <ApplyForm country={country} initialPassport={initialPassport} />
+    </ApplySchemaProvider>
+  );
+}
+
+function ApplyForm({ country, initialPassport }: { country: CountryConfig; initialPassport: string }) {
   const [step,          setStep]          = useState(0);
-  const [passport,      setPassport]      = useState(searchParams.get('passport') ?? '');
-  const [visaId,        setVisaId]        = useState('tourist-30');
+  const [passport,      setPassport]      = useState(initialPassport);
+  // Default to the country's first visa product (India: tourist-30,
+  // Aruba: ed-card). Falls back to the very first product if the catalog
+  // somehow has nothing visible.
+  const defaultVisaId = country.visaProducts.find(v => !country.hiddenVisaIds.includes(v.id))?.id
+    ?? country.visaProducts[0]?.id
+    ?? '';
+  const [visaId,        setVisaId]        = useState(defaultVisaId);
   const [purposeOfVisit, setPurposeOfVisit] = useState('');
   const [travelers,     setTravelers]     = useState(1);
   const [travelerNames, setTravelerNames] = useState<string[]>([]);
@@ -896,42 +953,45 @@ function ApplyForm() {
   const [passportData,  setPassportData]  = useState<PassportInfo[]>([]);
 
   return (
-    <>
-      <Nav/>
+    // Top/bottom now come from the landing-shared components so the
+    // /apply flow visually matches the new "/" landing. Nav is kept
+    // as an unused import so a rollback (e.g. reverting to the old
+    // Nav component for country-flag context) is a one-line change.
+    <div className="min-h-screen flex flex-col bg-white">
+      <LandingNav />
       <div className="apply-page">
         <div className="apply-breadcrumb">
           <Link href="/" className="apply-breadcrumb-link">Home</Link>
           <span className="apply-breadcrumb-sep">›</span>
-          <span>India eVisa Application</span>
+          <span>{country.productLabel} Application</span>
         </div>
         <ProgressBar current={step}/>
-        {step===0 && <Step1 passport={passport} setPassport={setPassport} visaId={visaId} setVisaId={setVisaId} travelers={travelers} setTravelers={setTravelers} purposeOfVisit={purposeOfVisit} setPurposeOfVisit={setPurposeOfVisit} onNext={()=>{
-          saveAbandoned({ destination: 'India', visaType: visaId, lastStep: 'step1' });
+        {step===0 && <Step1 country={country} passport={passport} setPassport={setPassport} visaId={visaId} setVisaId={setVisaId} travelers={travelers} setTravelers={setTravelers} purposeOfVisit={purposeOfVisit} setPurposeOfVisit={setPurposeOfVisit} onNext={()=>{
+          saveAbandoned({ destination: country.destination, visaType: visaId, lastStep: 'step1' });
           setStep(1);
         }}/>}
-        {step===1 && <Step2 travelers={travelers} visaId={visaId} onBack={()=>setStep(0)} onNext={(names:string[], data:any[])=>{
+        {step===1 && <Step2 country={country} travelers={travelers} visaId={visaId} onBack={()=>setStep(0)} onNext={(names:string[], data:any[])=>{
           setTravelerNames(names); setTravelerData(data);
           const firstEmail = data[0]?.email || '';
-          saveAbandoned({ destination: 'India', visaType: visaId, travelers: data, email: firstEmail, lastStep: 'step2' });
+          saveAbandoned({ destination: country.destination, visaType: visaId, travelers: data, email: firstEmail, lastStep: 'step2' });
           setStep(2);
         }}/>}
-        {step===2 && <Step2b travelers={travelers} travelerNames={travelerNames} travelerData={travelerData} visaId={visaId} onBack={()=>setStep(1)} onNext={(pData:PassportInfo[])=>{
+        {step===2 && <Step2b country={country} travelers={travelers} travelerNames={travelerNames} travelerData={travelerData} visaId={visaId} onBack={()=>setStep(1)} onNext={(pData:PassportInfo[])=>{
           setPassportData(pData);
-          saveAbandoned({ destination: 'India', visaType: visaId, passportData: pData, lastStep: 'step2b' });
+          saveAbandoned({ destination: country.destination, visaType: visaId, passportData: pData, lastStep: 'step2b' });
           setStep(3);
         }}/>}
-        {step===3 && <Step3 visaId={visaId} travelers={travelers} travelerData={travelerData} passportData={passportData} purposeOfVisit={purposeOfVisit} onBack={()=>setStep(2)}/>}
+        {step===3 && <Step3 country={country} visaId={visaId} travelers={travelers} travelerData={travelerData} passportData={passportData} purposeOfVisit={purposeOfVisit} onBack={()=>setStep(2)}/>}
       </div>
-    </>
+      <LandingFooter showTrust={false} />
+    </div>
   );
 }
 
 export default function ApplyPage() {
   return (
     <Suspense fallback={<div style={{paddingTop:'120px',textAlign:'center'}}>Loading...</div>}>
-      <ApplySchemaProvider country="INDIA">
-        <ApplyForm/>
-      </ApplySchemaProvider>
+      <ApplyShell />
     </Suspense>
   );
 }

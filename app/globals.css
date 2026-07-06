@@ -34,12 +34,16 @@
  * inline <style> from app/admin/layout.tsx overrides any of these on admin
  * pages only — customer-facing pages always use these defaults. */
 :root {
-  /* Brand & text */
+  /* Brand & text — updated 2026 to the navy + light-blue palette
+   * that the new landing page uses. Old marketing periwinkles
+   * (#6C8AFF / #93ADFF / #1A2B5E) still live inside the
+   * .legacy-palette scope below, applied to /india, /aruba, and
+   * /legacy so those pages keep their existing design intact. */
   --ink:     #1E293B;
   --slate:   #475569;
-  --blue:    #6C8AFF;
-  --blue2:   #93ADFF;
-  --navy:    #1A2B5E;
+  --blue:    #3B82F6;  /* was #6C8AFF (periwinkle) */
+  --blue2:   #60A5FA;  /* was #93ADFF */
+  --navy:    #0B2447;  /* was #1A2B5E */
   /* Surfaces */
   --sky:     #F8FAFF;
   --white:   #FDFEFF;
@@ -52,6 +56,18 @@
   --warning: #D97706;
   --danger:  #DC2626;
   --info:    #0284C7;
+}
+
+/* Scope for pages that should keep the pre-2026 palette (India +
+ * Aruba destination landing pages, plus the /legacy homepage
+ * backup). Wrap the page's outer element in
+ * `<div className="legacy-palette">` and every var(--blue) /
+ * var(--blue2) / var(--navy) inside inherits the previous
+ * marketing periwinkle instead of the new navy + light-blue. */
+.legacy-palette {
+  --blue:  #6C8AFF;
+  --blue2: #93ADFF;
+  --navy:  #1A2B5E;
 }
 
 /* ── Base ────────────────────────────────────────────────────────────────── */
@@ -196,13 +212,15 @@ a:focus-visible, button:focus-visible {
 }
 .hero-headline {
   font-family: 'DM Serif Display', serif;
-  font-size: clamp(2.8rem, 4.5vw, 4.4rem);
-  @apply font-normal leading-[1.1] tracking-tight;
+  font-size: clamp(2.4rem, 3.6vw, 3.6rem);
+  @apply font-normal leading-[1.08] tracking-tight;
   color: var(--ink);
 }
-.hero-headline em { font-style: italic; color: var(--blue); }
+/* Kept italic for editorial contrast but dropped the blue tint —
+ * feels more restrained/business than the marketing-italic pop. */
+.hero-headline em { font-style: italic; color: var(--ink); font-weight: 500; }
 .hero-sub {
-  @apply mt-5 text-[0.95rem] leading-7 font-light max-w-[380px];
+  @apply mt-5 text-[0.95rem] leading-7 font-light max-w-[420px];
   color: var(--slate);
 }
 
@@ -258,11 +276,13 @@ a:focus-visible, button:focus-visible {
 .section-eyebrow::before { content: ''; @apply block w-1.5 h-1.5 rounded-full; background: var(--blue); }
 .section-title {
   font-family: 'DM Serif Display', serif;
-  font-size: clamp(2.2rem, 3.5vw, 3.2rem);
-  @apply font-normal leading-[1.1];
+  font-size: clamp(1.9rem, 2.8vw, 2.6rem);
+  @apply font-normal leading-[1.12];
   color: var(--ink);
 }
-.section-title em { font-style: italic; color: var(--blue); }
+/* Restrained em: italic weight-medium ink, no blue tint. Same
+ * treatment as .hero-headline em. */
+.section-title em { font-style: italic; color: var(--ink); font-weight: 500; }
 .sh-right { @apply max-w-[300px] text-[0.9rem] leading-7 font-light; color: var(--slate); }
 
 .svc-row {
@@ -271,7 +291,8 @@ a:focus-visible, button:focus-visible {
 }
 .svc-row:hover {
   background: var(--white);
-  box-shadow: 0 4px 24px rgba(79,110,247,0.08);
+  /* Neutral shadow — was blue-tinted. */
+  box-shadow: 0 4px 16px rgba(30, 41, 59, 0.05);
 }
 .svc-divider { border-bottom: 1px solid var(--cloud); @apply mx-2; }
 .svc-idx {
@@ -323,16 +344,18 @@ a:focus-visible, button:focus-visible {
 }
 .p-step:hover {
   background: var(--white);
-  border-color: var(--blue2);
-  box-shadow: 0 8px 28px rgba(79,110,247,0.1);
-  transform: translateY(-4px);
+  border-color: var(--blue);
+  box-shadow: 0 6px 20px rgba(30, 41, 59, 0.06);
+  /* Removed translateY lift to match trust-cell restraint. */
 }
 .p-step-n {
   font-family: var(--font-sora), sans-serif;
-  @apply text-[4rem] font-extrabold leading-none mb-5;
-  color: rgba(123,150,255,0.25);
-  -webkit-text-stroke: 2px rgba(123,150,255,0.4);
-  letter-spacing: -0.05em;
+  /* Toned down from a 4rem outlined display number to a smaller
+   * solid brand-blue tag. Reads as a step marker instead of a
+   * decorative flourish. */
+  @apply text-[2rem] font-extrabold leading-none mb-4;
+  color: var(--blue);
+  letter-spacing: -0.03em;
 }
 .p-step-title {
   font-family: var(--font-sora), sans-serif;
@@ -357,29 +380,30 @@ a:focus-visible, button:focus-visible {
   border: 1px solid var(--cloud);
 }
 .trust-cell:hover {
-  border-color: var(--blue2);
-  box-shadow: 0 8px 28px rgba(79,110,247,0.1);
-  transform: translateY(-4px);
+  border-color: var(--blue);
+  /* Dropped the translateY lift + tinted colored shadow — feels more
+   * marketing/consumer than professional. Now a neutral, subtler
+   * shadow on hover only, no vertical shift. */
+  box-shadow: 0 6px 20px rgba(30, 41, 59, 0.06);
 }
-/* Lucide-icon chip — same look as `.india-req-icon` so the brand
- * vocabulary stays consistent between the landing-page trust cells
- * and the India page's "What you'll need" cards. */
+/* Lucide-icon chip — flattened to a solid tinted background to
+ * match the admin-panel's icon-chip vocabulary. Was a light
+ * mist→cloud gradient which read more decorative than functional. */
 .trust-icon {
   @apply inline-flex items-center justify-center mb-4;
-  width: 48px;
-  height: 48px;
-  border-radius: 0.85rem;
-  background: linear-gradient(135deg, var(--mist), var(--cloud));
+  width: 44px;
+  height: 44px;
+  border-radius: 0.75rem;
+  background: rgba(108, 138, 255, 0.1);
   color: var(--blue);
-  border: 1px solid var(--cloud);
+  border: 1px solid transparent;
   transition: transform 0.3s, color 0.2s, background 0.2s, border-color 0.2s;
 }
 .trust-cell:hover .trust-icon {
-  /* Subtle pop on hover. Trust cells live in a 2×2 grid, so a scale
-   * reads better than the India page's translateX nudge. */
-  transform: scale(1.06);
+  /* Restrained hover: flip to a full-brand tile without the scale
+   * bounce. Same effect, less playful movement. */
   color: white;
-  background: linear-gradient(135deg, var(--blue), var(--blue2));
+  background: var(--blue);
   border-color: var(--blue);
 }
 .trust-cell-title {
@@ -423,24 +447,26 @@ a:focus-visible, button:focus-visible {
 }
 .cta h2 {
   font-family: 'DM Serif Display', serif;
-  font-size: clamp(2.5rem, 5vw, 5rem);
-  @apply font-normal leading-[1.05] max-w-[700px];
+  font-size: clamp(2.2rem, 3.8vw, 3.8rem);
+  @apply font-normal leading-[1.08] max-w-[700px];
   color: var(--ink);
 }
-.cta h2 em { font-style: italic; color: var(--blue); }
+.cta h2 em { font-style: italic; color: var(--ink); font-weight: 500; }
 .cta-actions { @apply flex gap-4 mt-12 flex-wrap justify-center; }
 .btn-cta-main {
   font-family: var(--font-sora), sans-serif;
   @apply font-bold tracking-wide text-[0.85rem] uppercase px-8 py-4 no-underline rounded-full transition-all duration-200;
   background: var(--blue);
   color: var(--white);
-  box-shadow: 0 4px 20px rgba(79,110,247,0.4);
+  /* Softer resting shadow — was 0.4 opacity blue glow which read
+   * as marketing-loud. 0.2 gives lift without the halo. */
+  box-shadow: 0 4px 16px rgba(108, 138, 255, 0.22);
 }
 .btn-cta-main:hover {
   background: var(--navy);
   color: var(--white);
-  box-shadow: 0 8px 28px rgba(79,110,247,0.3);
-  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(30, 41, 59, 0.14);
+  /* Removed translateY lift for a calmer button feel. */
 }
 .btn-cta-ghost {
   font-family: var(--font-sora), sans-serif;
@@ -450,8 +476,8 @@ a:focus-visible, button:focus-visible {
 }
 .btn-cta-ghost:hover {
   border-color: var(--blue);
-  background: rgba(79,110,247,0.04);
-  transform: translateY(-2px);
+  background: rgba(108, 138, 255, 0.04);
+  /* No translateY — matches the main button. */
 }
 
 /* ── FOOTER ──────────────────────────────────────────────────────────────── */
@@ -654,7 +680,21 @@ footer nav a:hover { color: var(--white); }
 
 /* ── APPLY PAGE ──────────────────────────────────────────────────────────── */
 .apply-page {
-  @apply mx-auto px-[5%] pt-28 pb-20;
+  /* Was `px-[5%]` — 5% side padding grew too big on wider viewports
+   * (70px each side at 1400px, 100px+ on 4K screens), which made
+   * the form + summary layout feel squished. Fixed 32px padding
+   * keeps a comfortable gutter without eating the width. The
+   * `max-width: 1440px` still caps the container on very wide
+   * screens so the form doesn't sprawl uncomfortably wide.
+   *
+   * `w-full` is load-bearing: the page shell is
+   * `<div class="flex flex-col">`, and inside a flex parent, the
+   * `mx-auto` auto-margins get treated as "consume free space" and
+   * override the default cross-axis stretch — the element sizes to
+   * content (~1022px) with big auto-margin gutters. Explicit
+   * `width: 100%` restores the fill-parent behavior; max-width
+   * still centers on ultra-wide viewports as intended. */
+  @apply mx-auto px-8 pt-28 pb-20 w-full;
   max-width: 1440px;
 }
 .apply-breadcrumb {
@@ -1904,29 +1944,22 @@ footer nav a:hover { color: var(--white); }
 .customer-login-shell {
   @apply flex min-h-screen;
 }
+
+/* Initial loading state shown while we check for an existing session. */
+.customer-login-checking {
+  @apply flex flex-col items-center justify-center gap-3 min-h-screen text-[0.88rem];
+  color: var(--slate);
+}
+.customer-login-spinner {
+  animation: customer-login-spin 0.85s linear infinite;
+}
+@keyframes customer-login-spin { to { transform: rotate(360deg); } }
+
+/* ── LEFT: form column ── */
 .customer-login-left {
   @apply flex-1 flex items-center justify-center;
-  padding: 2rem;
+  padding: 2.5rem 2rem;
   background: var(--white);
-}
-.customer-login-right {
-  @apply flex-1 flex items-center justify-center;
-  background: var(--ink);
-  padding: 3rem;
-}
-.customer-login-right-content {
-  max-width: 420px;
-}
-.customer-login-headline {
-  font-family: var(--font-serif);
-  font-size: 2.8rem;
-  line-height: 1.15;
-  color: white;
-  margin-bottom: 1.5rem;
-}
-.customer-login-right-sub {
-  @apply text-[0.95rem] leading-relaxed;
-  color: rgba(255,255,255,0.6);
 }
 .customer-login-card {
   width: 100%;
@@ -1939,102 +1972,353 @@ footer nav a:hover { color: var(--white); }
   color: var(--ink);
   text-decoration: none;
   display: inline-block;
-  margin-bottom: 2rem;
+  margin-bottom: 2.25rem;
 }
 .customer-login-logo sup {
   color: var(--blue);
   font-size: 0.5em;
 }
+
+/* Tiny eyebrow above the title — gives the page a clear category label
+ * (vs. just dropping the user into a form with no preamble). */
+.customer-login-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-sora);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--blue);
+  margin-bottom: 0.5rem;
+}
+.customer-login-eyebrow::before {
+  content: '';
+  width: 18px;
+  height: 1.5px;
+  background: var(--blue);
+  border-radius: 999px;
+}
+
 .customer-login-title {
   font-family: var(--font-serif);
-  font-size: 1.8rem;
+  font-size: 2.1rem;
+  line-height: 1.1;
   color: var(--ink);
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.6rem;
 }
 .customer-login-subtitle {
-  @apply text-[0.88rem];
+  font-size: 0.9rem;
+  line-height: 1.55;
   color: var(--slate);
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
 }
+
 .customer-login-form {
-  @apply flex flex-col gap-4;
+  @apply flex flex-col;
+  gap: 1.1rem;
 }
 .customer-login-field {
-  @apply flex flex-col gap-1;
+  @apply flex flex-col gap-1.5;
+}
+.customer-login-label-row {
+  @apply flex items-center justify-between;
 }
 .customer-login-label {
-  @apply text-[0.78rem] font-semibold uppercase tracking-wider;
+  font-size: 0.78rem;
+  font-weight: 600;
   color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.customer-login-helper-link {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--blue);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.customer-login-helper-link:hover { color: var(--navy); text-decoration: underline; }
+
+/* Input with embedded leading icon (Mail / KeyRound / Hash). */
+.customer-login-input-wrap {
+  position: relative;
+}
+.customer-login-input-icon {
+  position: absolute;
+  left: 0.95rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--slate);
+  pointer-events: none;
+  transition: color 0.15s;
 }
 .customer-login-input {
-  @apply w-full rounded-xl text-[0.9rem];
+  @apply w-full rounded-xl;
+  font-size: 0.92rem;
   border: 1.5px solid var(--cloud);
-  padding: 0.75rem 1rem;
+  padding: 0.78rem 1rem;
   color: var(--ink);
-  transition: border-color 0.2s;
+  background: white;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
+.customer-login-input-with-icon { padding-left: 2.55rem; }
+.customer-login-input::placeholder { color: #cbd5e1; }
 .customer-login-input:focus {
   border-color: var(--blue);
   outline: none;
+  box-shadow: 0 0 0 3px rgba(108,138,255,0.12);
 }
+.customer-login-input-wrap:focus-within .customer-login-input-icon {
+  color: var(--blue);
+}
+
+/* PIN field — letter-spaced + monospace numerals so the 6 digits read
+ * like a code rather than a regular text input. */
+.customer-login-pin {
+  font-family: var(--font-sora);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.4em;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-align: center;
+  padding-left: 2.55rem;
+  padding-right: 1rem;
+}
+.customer-login-pin::placeholder {
+  letter-spacing: 0.4em;
+  font-weight: 700;
+}
+
+.customer-login-hint {
+  font-size: 0.74rem;
+  color: var(--slate);
+  margin-top: 0.1rem;
+  line-height: 1.5;
+}
+
 .customer-login-error {
-  @apply text-[0.85rem] rounded-xl;
+  font-size: 0.85rem;
+  border-radius: 0.65rem;
   background: rgba(220,38,38,0.08);
-  color: #dc2626;
-  padding: 0.75rem 1rem;
+  color: #b91c1c;
+  border: 1px solid rgba(220,38,38,0.18);
+  padding: 0.6rem 0.85rem;
 }
+
 .customer-login-btn {
-  @apply w-full rounded-xl text-[0.9rem] font-semibold;
-  padding: 0.8rem;
+  @apply w-full rounded-xl font-semibold inline-flex items-center justify-center;
+  font-size: 0.92rem;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
   background: var(--cloud);
   color: var(--slate);
   border: none;
   cursor: not-allowed;
-  transition: background 0.2s, color 0.2s;
-  margin-top: 0.5rem;
+  transition: background 0.18s, color 0.18s, transform 0.1s, box-shadow 0.18s;
+  margin-top: 0.25rem;
 }
 .customer-login-btn.active {
   background: var(--blue);
   color: white;
   cursor: pointer;
+  box-shadow: 0 4px 14px rgba(108,138,255,0.25);
 }
 .customer-login-btn.active:hover {
   background: var(--navy);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(108,138,255,0.32);
 }
+.customer-login-btn.active:active {
+  transform: translateY(0);
+}
+.customer-login-btn:disabled { opacity: 0.85; }
+
 .customer-login-back {
-  @apply text-[0.85rem] text-center;
-  margin-top: 1.5rem;
+  font-size: 0.82rem;
+  text-align: center;
+  margin-top: 1.75rem;
 }
 .customer-login-back a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   color: var(--slate);
   text-decoration: none;
+  transition: color 0.15s;
 }
-.customer-login-back a:hover {
+.customer-login-back a:hover { color: var(--blue); }
+
+/* ── RIGHT: hero panel ── */
+.customer-login-right {
+  @apply flex-1 flex items-center justify-center;
+  position: relative;
+  padding: 3rem;
+  background: linear-gradient(135deg, var(--ink) 0%, #0f172a 100%);
+  overflow: hidden;
+}
+/* Subtle dot grid + radial-fade overlay so the dark panel reads as
+ * designed rather than as a flat block. The radial fade keeps the
+ * pattern from feeling tiled. */
+.customer-login-right-pattern {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1.5px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 80% 60% at 30% 40%, black 0%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 30% 40%, black 0%, transparent 80%);
+  pointer-events: none;
+}
+.customer-login-right-content {
+  position: relative;
+  max-width: 440px;
+  z-index: 1;
+}
+.customer-login-right-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-sora);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  margin-bottom: 1.5rem;
+}
+.customer-login-headline {
+  font-family: var(--font-serif);
+  font-size: 2.9rem;
+  line-height: 1.08;
+  color: white;
+  margin-bottom: 1.25rem;
+  letter-spacing: -0.01em;
+}
+.customer-login-headline em {
   color: var(--blue);
+  font-style: italic;
+}
+.customer-login-right-sub {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.65);
+  margin-bottom: 1.75rem;
+}
+.customer-login-points {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.customer-login-points li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.78);
+  line-height: 1.5;
+}
+.customer-login-points-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+  margin-top: 0.55rem;
+  box-shadow: 0 0 0 4px rgba(108,138,255,0.18);
 }
 
-/* Lost PIN Modal */
+/* ── Lost PIN modal ── */
 .lost-pin-overlay {
   @apply fixed inset-0 flex items-center justify-center z-[200];
-  background: rgba(0,0,0,0.4);
-  backdrop-filter: blur(4px);
+  background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 1rem;
+  animation: lost-pin-fade 0.15s ease-out;
 }
+@keyframes lost-pin-fade { from { opacity: 0; } to { opacity: 1; } }
 .lost-pin-modal {
-  @apply relative rounded-2xl p-8;
+  position: relative;
+  border-radius: 1rem;
+  padding: 2rem;
   background: white;
-  width: 420px;
-  max-width: 90vw;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  width: 440px;
+  max-width: 100%;
+  box-shadow: 0 24px 64px rgba(15,23,42,0.25);
+  animation: lost-pin-pop 0.18s ease-out;
+}
+@keyframes lost-pin-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .lost-pin-close {
-  @apply absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full cursor-pointer;
-  background: #f1f5f9;
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: transparent;
   border: none;
-  color: #94A3B8;
-  font-size: 0.85rem;
-  transition: background 0.15s;
+  color: var(--slate);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
-.lost-pin-close:hover { background: #e2e8f0; color: #1E293B; }
+.lost-pin-close:hover { background: #f1f5f9; color: var(--ink); }
+.lost-pin-modal-eyebrow {
+  display: inline-block;
+  font-family: var(--font-sora);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--blue);
+  margin-bottom: 0.5rem;
+}
+.lost-pin-modal-title {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  line-height: 1.15;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+}
+.lost-pin-modal-sub {
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--slate);
+  margin-bottom: 1.25rem;
+}
+.lost-pin-success {
+  text-align: center;
+  padding: 0.5rem 0;
+}
+.lost-pin-success-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--mist), var(--cloud));
+  color: var(--blue);
+  border: 1px solid var(--cloud);
+  margin-bottom: 1rem;
+}
+.lost-pin-success .lost-pin-modal-title { margin-bottom: 0.4rem; }
+.lost-pin-success .lost-pin-modal-sub { margin-bottom: 1.5rem; }
 
 @media (max-width: 768px) {
   .customer-login-shell { @apply flex-col; }
@@ -2760,6 +3044,112 @@ footer nav a:hover { color: var(--white); }
 @media (max-width: 600px) {
   .india-req-grid { grid-template-columns: 1fr; }
   .india-visa-grid .india-visa-card { flex: 1 1 100%; max-width: 100%; }
+}
+
+/* ── ARUBA LANDING PAGE OVERRIDES ───────────────────────────────────────────
+ * The Aruba page reuses the india-* class names for layout (hero, sections,
+ * cards, FAQ, CTA — see app/aruba/page.tsx) but swaps the warm orange/green
+ * accents for cool blues. Scoping these overrides under .aruba-theme means
+ * the India page is untouched.
+ *
+ * Why scoped instead of duplicate classes:
+ *   The structural rules in .india-* are already a small library of layout
+ *   primitives (~500 lines). Cloning them to .aruba-* would double the file
+ *   and force every future fix to land twice. A theme wrapper costs one
+ *   extra class on <main> and keeps a single source of truth for layout.
+ */
+
+/* Hero — solid #EFF6FF, exactly matching .india-section-alt and
+ * .process-bg below. We were running a 3-stop gradient here, but
+ * even at the lightest end (#FAFCFF) the top of the hero read as
+ * a different shade from the solid sections, breaking the "single
+ * continuous blue tone" goal. Flat colour = no shade jumps between
+ * sections; the only visible boundary is the yellow band.
+ *
+ * `main.aruba-theme` (specificity 0,2,1) + !important ensures we
+ * beat the runtime <style id="page-customizations"> block injected
+ * by CustomizationApplier — that block is appended last to <head>
+ * and would otherwise win at equal specificity. Same defensive
+ * pattern applied to every override below. */
+main.aruba-theme .india-hero {
+  background: #EFF6FF !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Faded star in the top-left of the hero — a Caribbean / "One Happy
+ * Island" nod without dialing the brand colour up. Encoded as an SVG
+ * data URL so we don't have to ship an image asset. Sized ~480px so
+ * it reads as a watermark, opacity 0.07 to stay faded.
+ *
+ * Pointer-events: none so the star can never block CTA clicks even
+ * if a future redesign makes it overlap them. */
+main.aruba-theme .india-hero::before {
+  content: '';
+  position: absolute;
+  top: 40px;
+  left: 40px;
+  width: 480px;
+  height: 480px;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23DC2626' d='M50 5 L61.8 38.2 L96.5 38.2 L68.3 58.8 L80.1 92 L50 71.4 L19.9 92 L31.7 58.8 L3.5 38.2 L38.2 38.2 Z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.09;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Lift the hero's actual content above the star — the carousel image
+ * already gets z-index from its overflow:hidden parent, but the text
+ * column needs an explicit stacking context. */
+main.aruba-theme .india-hero-inner { position: relative; z-index: 1; }
+
+/* The "alt" section (Requirements) is mint-green on the India page —
+ * swap to a soft sky blue that complements the hero. */
+main.aruba-theme .india-section-alt {
+  background: #EFF6FF !important;
+}
+
+/* Process section ("Four steps to your ED Card") — matches the soft
+ * blue of the Requirements section below so the page reads as one
+ * cohesive blue tone rather than alternating shades. The hero
+ * gradient ends near the same value, so the boundary feels seamless.
+ *
+ * Two horizontal lines between Process and Requirements — drawn via
+ * `border-style: double`, the only place CSS gives a true
+ * two-parallel-line effect without extra DOM. Bumped from 10px to
+ * 18px so each line + the gap reads thicker. The colour is a soft
+ * pastel cream-yellow (#FDE68A, Tailwind yellow-200) instead of the
+ * earlier vivid #FACC15 — sits more comfortably on the blue ground
+ * and matches the muted palette of the rest of the page. */
+main.aruba-theme .process-bg {
+  background: #EFF6FF !important;
+  /* Bumped from 18px → 28px so each line + gap reads thicker, and
+   * dropped saturation from #FDE68A (amber-200) to #FAEBC8 (soft
+   * butter cream) — sits more like an actual pastel band on the
+   * blue ground than a vivid yellow stripe. */
+  border-bottom: 28px double #FAEBC8 !important;
+}
+
+/* The plain .india-section (Visa Types, Visa Types Info, FAQ) renders
+ * on the body's white background by default — paint it the same
+ * #EFF6FF as the rest of the page so the entire scroll reads as one
+ * uniform tone. */
+main.aruba-theme .india-section {
+  background: #EFF6FF !important;
+}
+
+/* Closing CTA — was a dark navy gradient with white text on the India
+ * page. Switch to the page's #EFF6FF and flip the title/subtitle to
+ * dark so they stay legible. */
+main.aruba-theme .india-cta-section {
+  background: #EFF6FF !important;
+}
+main.aruba-theme .india-cta-title {
+  color: var(--ink) !important;
+}
+main.aruba-theme .india-cta-sub {
+  color: var(--slate) !important;
 }
 
 /* ── ADMIN ───────────────────────────────────────────────────────────────── */
@@ -4818,3 +5208,5 @@ input[type="checkbox"]:checked {
 .admin-shell [class~="rounded-full"] {
   border-radius: 9999px !important;
 }
+
+

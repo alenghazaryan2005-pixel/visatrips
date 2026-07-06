@@ -30,15 +30,31 @@ function presetsKeyFor(email: string): string {
   return `theme.user.${email.toLowerCase()}.presets`;
 }
 
-// Legacy keys (pre-per-user). Read-only fallback — never written.
+// Legacy keys (pre-per-user). Both are dead data now — kept around in
+// the DB only for archeology. Nothing reads or writes to them. We dropped
+// the legacy `theme.active` fallback after a corrupted row poisoned every
+// admin who didn't have their own per-user theme yet (e.g. white token
+// set to a deep blue, sidebar to a light blue). Falling back to
+// DEFAULT_THEME is safer: it can never be corrupted at runtime, and a
+// fresh admin sees the brand palette every time until they save their
+// own. Don't add the fallback back without first making the legacy row
+// permanently read-only at the API layer.
 const LEGACY_ACTIVE_KEY = 'theme.active';
 const LEGACY_PRESETS_KEY = 'theme.presets';
+// Suppress unused-vars — kept for documentation; intentionally not
+// referenced anywhere in the read path.
+void LEGACY_ACTIVE_KEY; void LEGACY_PRESETS_KEY;
 
 /**
- * Returns the active theme for a specific admin email. Falls back to:
- *   1. The legacy global `theme.active` (so the very first admin session
- *      after this change still sees the existing palette they remember)
- *   2. DEFAULT_THEME on any failure
+ * Returns the active theme for a specific admin email.
+ *  - If the admin has a per-user `theme.user.<email>.active` row, use it.
+ *  - Otherwise fall through to DEFAULT_THEME (the brand defaults baked
+ *    into lib/theme.ts).
+ *
+ * Never reads the legacy global `theme.active` — that path was a
+ * corruption vector (any single bad save poisoned every admin with no
+ * per-user row). DEFAULT_THEME is in code, immutable at runtime, and
+ * always renders as a clean brand palette.
  */
 export async function getActiveTheme(email?: string | null): Promise<ThemeColors> {
   try {
@@ -48,12 +64,6 @@ export async function getActiveTheme(email?: string | null): Promise<ThemeColors
         const parsed = JSON.parse(userRow.value);
         return normalizeTheme(parsed);
       }
-    }
-    // Legacy fallback — global theme from the pre-per-user era.
-    const legacy = await prisma.setting.findUnique({ where: { key: LEGACY_ACTIVE_KEY } });
-    if (legacy) {
-      const parsed = JSON.parse(legacy.value);
-      return normalizeTheme(parsed);
     }
     return { ...DEFAULT_THEME };
   } catch {
@@ -68,8 +78,12 @@ export async function getActiveTheme(email?: string | null): Promise<ThemeColors
  */
 export async function getUserPresets(email?: string | null): Promise<UserPreset[]> {
   try {
-    const key = email ? presetsKeyFor(email) : LEGACY_PRESETS_KEY;
-    const row = await prisma.setting.findUnique({ where: { key } });
+    // Same rationale as the active-theme fallback above: don't read the
+    // legacy global presets row. Anonymous calls (no email) just get an
+    // empty list; a fresh admin will see the built-ins from
+    // BUILT_IN_PRESETS until they save their first preset.
+    if (!email) return [];
+    const row = await prisma.setting.findUnique({ where: { key: presetsKeyFor(email) } });
     if (!row) return [];
     const parsed = JSON.parse(row.value);
     if (!Array.isArray(parsed)) return [];

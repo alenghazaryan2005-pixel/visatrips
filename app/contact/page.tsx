@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
+import LandingNav from '@/components/LandingNav';
+import LandingFooter from '@/components/LandingFooter';
 import { Mail, Zap, Clock, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 export default function ContactPage() {
@@ -40,8 +42,13 @@ export default function ContactPage() {
   };
 
   return (
-    <>
-      <Nav />
+    // Same top/bottom shell as `/` and the /apply flow — navy
+    // LandingNav on top, LandingFooter on the bottom with the
+    // "Built for Confidence" trust strip suppressed (customers on
+    // the Contact page don't need marketing reassurance mid-page,
+    // just the standard sitewide footer).
+    <div className="min-h-screen flex flex-col bg-white">
+      <LandingNav />
       <div className="contact-page">
         <div className="legal-breadcrumb">
           <Link href="/" className="legal-breadcrumb-link">Home</Link>
@@ -190,6 +197,7 @@ export default function ContactPage() {
 
         </div>
       </div>
-    </>
+      <LandingFooter showTrust={false} />
+    </div>
   );
 }

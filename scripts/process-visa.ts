@@ -239,7 +239,7 @@ function formatDateForForm(dateStr: string | undefined): string {
 
 // ── Main Bot ──
 
-async function processVisa(orderNumberInput: string) {
+async function processVisa(orderNumberInput: string, travelerIndex: number = 0) {
   console.log('\n🚀 VisaTrips Auto-Fill Bot');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
@@ -257,15 +257,22 @@ async function processVisa(orderNumberInput: string) {
   }
 
   let traveler: any;
+  let travelersLen = 0;
   try {
     const travelers = JSON.parse(order.travelers);
-    traveler = travelers[0];
+    travelersLen = Array.isArray(travelers) ? travelers.length : 0;
+    if (travelerIndex < 0 || travelerIndex >= travelersLen) {
+      console.error(`❌ travelerIndex ${travelerIndex} out of range — order has ${travelersLen} traveler${travelersLen === 1 ? '' : 's'}.`);
+      process.exit(1);
+    }
+    traveler = travelers[travelerIndex];
   } catch {
     console.error('❌ Could not parse traveler data!');
     process.exit(1);
   }
 
-  console.log(`✅ Found order: ${traveler.firstName} ${traveler.lastName}`);
+  const travelerTag = travelersLen > 1 ? ` [traveler ${travelerIndex + 1} of ${travelersLen}]` : '';
+  console.log(`✅ Found order: ${traveler.firstName} ${traveler.lastName}${travelerTag}`);
 
   // Refuse to run when either document hasn't been explicitly approved by
   // an admin. Both approval timestamps default to null on new orders, so
@@ -1973,6 +1980,34 @@ async function processVisa(orderNumberInput: string) {
     await selectByIdOr('addressFamily', 'maritalStatus', 'marital_status', 'Marital Status', maritalVal);
     await delay(500);
 
+    // ── Spouse's Details ──
+    // Only rendered by the gov form when marital status is
+    // MARRIED. The form dynamically injects the spouse-* inputs
+    // after that select changes, so we wait briefly for them to
+    // exist, then fill using the same pattern as father/mother.
+    // Falls back to the traveler's own country/nationality for
+    // place-of-birth + country-of-birth when the customer didn't
+    // provide them (typical for couples on shared trips).
+    if (maritalVal === 'MARRIED') {
+      console.log('\n  💑 Spouse\'s Details');
+      // Give Angular a beat to inject the spouse-* inputs.
+      await delay(1200);
+      // Log whether we can see the spouse-name input before
+      // trying to fill — surfaces the actual gov-form ID pattern
+      // in the run log if it differs from what we guess below.
+      try {
+        const spouseInputPresent = await page.$('#spouse_name, #spousename, [id*="spouse_name" i], [name*="spouse_name" i]');
+        if (!spouseInputPresent) {
+          console.log('     ⚠️  Spouse inputs not detected in DOM — gov form may use a different id pattern. Attempting fills anyway; see per-field logs below.');
+        }
+      } catch {}
+
+      await fillByIdOr('addressFamily', 'spouseName',       'spouse_name',            "Spouse's Name",             traveler.spouseName || 'NA');
+      await fillByIdOr('addressFamily', 'spouseBirthplace', 'spouse_place_of_birth',  "Spouse's Place of Birth",   traveler.spousePlaceOfBirth || traveler.cityOfBirth || 'NA');
+      await selectByIdOr('addressFamily', 'spouseNationality',    'spouse_nationality',       "Spouse's Nationality",      COUNTRY_MAP[traveler.spouseNationality || ''] || traveler.spouseNationality || addrCountry);
+      await selectByIdOr('addressFamily', 'spouseCountryOfBirth', 'spouse_country_of_birth',  "Spouse's Country of Birth", COUNTRY_MAP[traveler.spouseCountryOfBirth || ''] || traveler.spouseCountryOfBirth || addrCountry);
+    }
+
     // ── Pakistan parents — default No, admin can override Yes/manual/skip ──
     console.log('\n  🇵🇰 Pakistan Heritage');
     {
@@ -2885,25 +2920,53 @@ async function processVisa(orderNumberInput: string) {
       } else {
         console.log('  ✅ Step 4 unloaded — waiting for Step 5 form...');
       }
-      // Now wait for Step 5 radios + network settle
-      await page.waitForSelector('input[type="radio"]', { timeout: 30_000, state: 'visible' });
+      // Now wait for the REAL Step 5 radios to appear. The gov
+      // form uses a distinctive pattern here — `name="radioName[N]"`
+      // (with `id="question_yes_N"` / `question_no_N`) — which
+      // NEVER shows up on Step 4. Waiting for that specifically
+      // dodges the false-positive we hit before, where the bot
+      // scanned Step 4's leftover radios (saarc_flag, refuse_flag,
+      // old_visa_flag, haveYouBookedRoomInHotel) and clicked NO
+      // on each, then advanced without ever seeing the real
+      // security-question set.
+      await page.waitForFunction(() => {
+        return document.querySelectorAll('input[type="radio"][name^="radioName["]').length > 0;
+      }, { timeout: 45_000 });
       await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
-      console.log('  ✅ Step 5 form detected');
+      console.log('  ✅ Step 5 form detected (found radioName[N] pattern)');
     } catch {
-      console.log('  ⚠️  Could not detect Step 5 — waiting extra time...');
+      console.log('  ⚠️  Could not detect Step 5 radioName[N] pattern — waiting extra time...');
     }
     await delay(1500);
 
-    // Discover Step 5 radios
-    const s5Radios = await page.$$eval('input[type="radio"]', function(els) {
+    // Discover Step 5 radios. FILTER to the security-question
+    // pattern only (`radioName[N]`, `question_yes_N`, `question_no_N`).
+    // Any leftover Step 4 radios still in the DOM (e.g. hotel /
+    // SAARC flags that Angular hasn't cleaned up yet) would
+    // otherwise get "clicked NO" no-ops on this pass — masking
+    // whether the actual Step 5 got answered. Also drops the
+    // pre-existing security-question groups if the page loaded
+    // but the pattern name differs, so the run log clearly shows
+    // "empty" instead of "answered wrong thing".
+    const s5RadiosRaw = await page.$$eval('input[type="radio"]', function(els) {
       var r: any[] = [];
       for (var i = 0; i < els.length; i++) {
         var e = els[i] as HTMLInputElement;
+        // Filter to visible radios only — invisible ones are
+        // leftover from prior steps.
+        if ((e as any).offsetParent === null) continue;
         r.push({ name: e.name, value: e.value, id: e.id });
       }
       return r;
     });
-    console.log('  📋 Step 5 radios:', JSON.stringify(s5Radios, null, 2));
+    const s5Radios = s5RadiosRaw.filter(r =>
+      /^radioName\[\d+\]$/.test(r.name)
+      || /^question_(yes|no)_\d+$/.test(r.id),
+    );
+    if (s5Radios.length === 0 && s5RadiosRaw.length > 0) {
+      console.log('  ⚠️  Only non-Step-5 radios visible — Step 5 may not have loaded correctly. Rejected radios:', JSON.stringify(s5RadiosRaw.map(r => r.name).filter((v, i, a) => a.indexOf(v) === i)));
+    }
+    console.log('  📋 Step 5 radios (security-question pattern only):', JSON.stringify(s5Radios, null, 2));
 
     // Group radios by name
     const s5Groups = new Map<string, any[]>();
@@ -3796,6 +3859,197 @@ async function processVisa(orderNumberInput: string) {
     }
     await delay(2000);
 
+    // ── Dismiss "Note: Regarding Payment" popup ──
+    // After Pay Now, the gov site shows a modal:
+    //   "The Visa fee payment status updation may take up to 2 hours…"
+    // with a single Ok button. Click it via DOM .click() so we
+    // dodge any actionability waits. Inline-only evaluate to
+    // dodge tsx __name() (same trick as the popup/Q-1 handlers
+    // up top).
+    {
+      const okRes = await page.evaluate(() => {
+        try {
+          const titlePhrase = 'Regarding Payment';
+          const allElements = Array.from(document.querySelectorAll('*'));
+          let titleEl: Element | null = null;
+          for (const el of allElements) {
+            const t = (el.textContent || '').trim();
+            if (t.includes(titlePhrase) && t.length < 200) {
+              if (!titleEl || (el.textContent || '').length < (titleEl.textContent || '').length) {
+                titleEl = el;
+              }
+            }
+          }
+          if (!titleEl) return { ok: false, info: 'note popup not present' };
+          // Walk up looking for the modal container with an Ok button.
+          let cur: Element | null = titleEl;
+          for (let i = 0; i < 8 && cur; i++) {
+            const btns = Array.from(cur.querySelectorAll('button, input[type="button"], input[type="submit"]')) as HTMLElement[];
+            for (const b of btns) {
+              const txt = (((b as HTMLInputElement).value || b.textContent || '') + '').trim().toLowerCase();
+              if (txt === 'ok' || txt === 'okay') {
+                b.click();
+                return { ok: true, info: `clicked Ok` };
+              }
+            }
+            cur = cur.parentElement;
+          }
+          return { ok: false, info: 'Ok button not found near "Regarding Payment" header' };
+        } catch (e: any) { return { ok: false, info: `evaluate threw: ${e?.message || e}` }; }
+      }).catch((e: any) => ({ ok: false, info: `page.evaluate failed: ${e?.message || e}` }));
+
+      if (okRes.ok) {
+        console.log(`  ✅ Dismissed "Note: Regarding Payment" popup (clicked Ok)`);
+        await delay(1500);
+      } else if (okRes.info === 'note popup not present') {
+        console.log('  (No "Regarding Payment" popup detected — proceeding.)');
+      } else {
+        console.warn(`  ⚠️  Could not dismiss Note popup — ${okRes.info}`);
+      }
+    }
+
+    // ── SBI ePay credit-card form (post-redirect) ──
+    // After dismissing the Note popup, the gov page redirects to
+    // the SBI ePay gateway with a Debit/Credit Card form active
+    // by default. Card values come from the encrypted vault we
+    // built for Aruba — same source of truth for both bots.
+    // After filling, we STOP and let the human click Pay Now so
+    // they can verify the typed values before money moves.
+    {
+      // Wait for SBI ePay to load — detect by "Card Number"
+      // label OR the "SBI ePay" header. 30s window; gov-side
+      // redirects can be slow.
+      console.log('  💳 Waiting for SBI ePay card form to load…');
+      let sbiLoaded = false;
+      const sbiStart = Date.now();
+      while (Date.now() - sbiStart < 30_000) {
+        const present = await page.evaluate(() => {
+          const text = document.body?.textContent || '';
+          return text.includes('Card Number') && (text.includes('CVV') || text.includes('CVC'));
+        }).catch(() => false);
+        if (present) { sbiLoaded = true; break; }
+        await delay(800);
+      }
+      if (!sbiLoaded) {
+        console.warn(`  ⚠️  SBI ePay card form not detected after 30s — falling through to gateway selection.`);
+      } else {
+        console.log('  ✅ SBI ePay card form detected — loading vault card…');
+        let card = null;
+        try {
+          card = await getDecryptedCard();
+        } catch (e: any) {
+          console.warn(`  ⚠️  Could not decrypt vault card: ${e?.message || e}`);
+        }
+        if (!card) {
+          console.warn('  ⚠️  No bot card saved at /admin/settings/payment — leaving SBI form blank for manual entry.');
+          botFlags.push('🔴 SBI ePay form reached but no bot payment card on file. Save one at /admin/settings/payment.');
+        } else {
+          const fillRes = await page.evaluate(({ card, MONTH_NAMES }) => {
+            try {
+              // Helper-free, inline finder. Walks all labelish
+              // text nodes, picks the smallest match, walks UP
+              // to the nearest input/select.
+              const findField = (labelText: string, kind: 'input' | 'select'): HTMLElement | null => {
+                const candidates = Array.from(document.querySelectorAll('label, span, td, th, div, p'));
+                let best: Element | null = null;
+                let bestLen = Infinity;
+                for (const el of candidates) {
+                  const own = (el.textContent || '').trim();
+                  if (own.includes(labelText) && own.length < 120 && own.length < bestLen) {
+                    best = el;
+                    bestLen = own.length;
+                  }
+                }
+                if (!best) return null;
+                const wantedTag = kind === 'select' ? 'select' : 'input';
+                let cur: Element | null = best;
+                for (let i = 0; i < 6 && cur; i++) {
+                  const found = Array.from(cur.querySelectorAll(wantedTag)) as HTMLElement[];
+                  const pick = found.find(t => !best!.contains(t)) || found[0];
+                  if (pick) return pick;
+                  cur = cur.parentElement;
+                }
+                return null;
+              };
+              const setInput = (el: HTMLInputElement | null, value: string): boolean => {
+                if (!el) return false;
+                const proto = window.HTMLInputElement.prototype as any;
+                const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+                if (setter) setter.call(el, value); else el.value = value;
+                el.dispatchEvent(new Event('input',  { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+                return el.value === value;
+              };
+              const setSelect = (sel: HTMLSelectElement | null, value: string): boolean => {
+                if (!sel) return false;
+                const wantedUpper = value.toUpperCase().trim();
+                const wantedNum = parseInt(value, 10);
+                const opts = Array.from(sel.options);
+                const match = opts.find(o => (o.text || '').trim().toUpperCase() === wantedUpper)
+                           || opts.find(o => (o.value || '').toUpperCase() === wantedUpper)
+                           || (Number.isFinite(wantedNum) && opts.find(o => parseInt(o.value, 10) === wantedNum))
+                           || (Number.isFinite(wantedNum) && opts.find(o => parseInt((o.text || '').trim(), 10) === wantedNum))
+                           || opts.find(o => (o.text || '').trim().toUpperCase().includes(wantedUpper));
+                if (!match) return false;
+                sel.value = match.value;
+                sel.dispatchEvent(new Event('input',  { bubbles: true }));
+                sel.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+              };
+
+              const results: Record<string, boolean> = {};
+              results.cardNumber = setInput(findField('Card Number', 'input') as HTMLInputElement, card.cardNumber);
+              results.cardholderName = setInput(findField('Name of the card holder', 'input') as HTMLInputElement
+                                            || findField('Name on card', 'input') as HTMLInputElement
+                                            || findField('Card holder', 'input') as HTMLInputElement, card.cardholderName);
+              // SBI's Month select shows month NAMES (January, February, ...)
+              // or numbers (01..12). setSelect's mixed-mode matcher
+              // handles both — pass the month NAME for max success
+              // (matches text), it'll also match numeric option values.
+              const monthIdx = parseInt(card.expirationMonth, 10);
+              const monthName = (monthIdx >= 1 && monthIdx <= 12) ? MONTH_NAMES[monthIdx] : card.expirationMonth;
+              results.expMonth = setSelect(findField('Expiry', 'select') as HTMLSelectElement, monthName);
+              // For year, scope by walking from the Month select's
+              // sibling — but for simplicity, find any select whose
+              // options contain the 4-digit year.
+              const yearSelects = Array.from(document.querySelectorAll('select')) as HTMLSelectElement[];
+              let yearFilled = false;
+              for (const ys of yearSelects) {
+                if (Array.from(ys.options).some(o => (o.value || o.text || '').trim() === card.expirationYear)) {
+                  if (ys.value !== card.expirationYear || !results.expMonth) {
+                    if (setSelect(ys, card.expirationYear)) { yearFilled = true; break; }
+                  }
+                }
+              }
+              results.expYear = yearFilled;
+              results.cvv = setInput(findField('CVV', 'input') as HTMLInputElement
+                                  || findField('CVC', 'input') as HTMLInputElement, card.cvv);
+              return { ok: true, results };
+            } catch (e: any) {
+              return { ok: false, results: {}, info: `evaluate threw: ${e?.message || e}` };
+            }
+          }, {
+            card,
+            MONTH_NAMES: ['','January','February','March','April','May','June','July','August','September','October','November','December'],
+          }).catch((e: any) => ({ ok: false, results: {} as Record<string, boolean>, info: `page.evaluate failed: ${e?.message || e}` }));
+
+          const r = fillRes.results as Record<string, boolean>;
+          console.log(`     ${r.cardNumber     ? '✓' : '⚠️'} Card Number${r.cardNumber     ? `: ${card.cardNumber.slice(0,4)}…${card.last4}` : ' — not filled'}`);
+          console.log(`     ${r.cardholderName ? '✓' : '⚠️'} Cardholder${r.cardholderName ? `: ${card.cardholderName}` : ' — not filled'}`);
+          console.log(`     ${r.expMonth       ? '✓' : '⚠️'} Expiry Month${r.expMonth     ? `: ${card.expirationMonth}` : ' — not filled'}`);
+          console.log(`     ${r.expYear        ? '✓' : '⚠️'} Expiry Year${r.expYear       ? `: ${card.expirationYear}` : ' — not filled'}`);
+          console.log(`     ${r.cvv            ? '✓' : '⚠️'} CVV${r.cvv                   ? `: •••` : ' — not filled'}`);
+          await botRunLog?.log({
+            stepKey: 'payment', fieldKey: 'sbiCard', label: 'SBI ePay — card details',
+            action: 'fill', source: 'default', value: JSON.stringify(r),
+            success: r.cardNumber && r.cardholderName && r.expMonth && r.expYear && r.cvv,
+            errorMsg: (r.cardNumber && r.cardholderName && r.expMonth && r.expYear && r.cvv) ? undefined : 'one or more SBI card fields did not fill — see results JSON',
+          });
+          console.log('  ⏸  Bot stops here. Verify the card details and click "Pay Now" yourself to submit.');
+        }
+      }
+    }
+
     // ── Select payment gateway (default PayPal) ── admin can hardcode another label (e.g. 'Stripe'), manual, or skip
     console.log('  💳 Selecting payment gateway...');
     {
@@ -3980,9 +4234,19 @@ async function waitOrRedo(): Promise<boolean> {
 
 const orderArg = process.argv[2];
 if (!orderArg) {
-  console.error('Usage: npx tsx scripts/process-visa.ts <orderNumber>');
+  console.error('Usage: npx tsx scripts/process-visa.ts <orderNumber> [travelerIndex]');
   console.error('Example: npx tsx scripts/process-visa.ts 00015');
+  console.error('         npx tsx scripts/process-visa.ts 00015 1     # process the second traveler');
   process.exit(1);
 }
 
-processVisa(orderArg);
+// Optional traveler index (0-based). Defaults to 0 for single-traveler
+// orders — the bot server also passes 0 when the admin's Process
+// Traveler button is used on a single-traveler order.
+const travelerIndexArg = process.argv[3] !== undefined ? parseInt(process.argv[3], 10) : 0;
+if (Number.isNaN(travelerIndexArg) || travelerIndexArg < 0) {
+  console.error(`❌ travelerIndex must be a non-negative integer — got "${process.argv[3]}"`);
+  process.exit(1);
+}
+
+processVisa(orderArg, travelerIndexArg);

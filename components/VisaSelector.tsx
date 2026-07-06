@@ -159,7 +159,7 @@ export default function VisaSelector({ passportCountries, destinationCountries }
       <button
         className={`vs-cta${canSubmit ? ' vs-cta--on' : ''}`}
         disabled={!canSubmit}
-        onClick={() => canSubmit && (window.location.href = `/apply?passport=${passport}`)}
+        onClick={() => canSubmit && (window.location.href = `/apply?passport=${passport}&destination=${destination}`)}
       >
         {canSubmit
           ? `Get started — ${sel1?.name} → ${sel2?.name} →`

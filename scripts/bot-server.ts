@@ -7,13 +7,31 @@
  * Usage: npx tsx scripts/bot-server.ts
  */
 
+// Side-effect import: populates process.env from .env.local + .env
+// before anything below reads BOT_PAYMENT_ENC_KEY or other secrets.
+// Must stay at the very top of the import list.
+import '../lib/loadDotEnv';
 import http from 'http';
 import { exec, ChildProcess } from 'child_process';
 import path from 'path';
 import { chromium } from 'playwright';
+import { PrismaClient } from '@prisma/client';
 
 const PORT = 3001;
 const projectDir = path.resolve(__dirname, '..');
+
+// Per-destination bot script. Default is India's process-visa.ts (the
+// original / oldest entry point — kept as the fallback so any new
+// country routes through it until we add a dedicated bot). Add a row
+// here when a new country gets its own bot script.
+const BOT_SCRIPTS: Record<string, string> = {
+  india: 'scripts/process-visa.ts',
+  aruba: 'scripts/process-aruba.ts',
+};
+
+// Prisma instance is reused across requests — opening a fresh client
+// per /process request would leak Postgres connections under load.
+const prisma = new PrismaClient();
 
 // Track the currently running bot process so we can kill it before starting a new one
 let currentBot: ChildProcess | null = null;
@@ -52,7 +70,11 @@ function killCurrentBot(): Promise<void> {
       exec(
         'pkill -9 -f "Google Chrome.*--remote-debugging-pipe" 2>/dev/null; ' +
         'pkill -9 -f "Google Chrome.*--enable-automation" 2>/dev/null; ' +
-        'pkill -9 -f "tsx scripts/process-visa" 2>/dev/null',
+        // Match every per-country bot script we ship — process-visa
+        // (India), process-aruba (Aruba), and any future process-*
+        // siblings. Without the wildcard, /stop would only kill the
+        // India bot and leave a runaway Aruba bot behind.
+        'pkill -9 -f "tsx scripts/process-" 2>/dev/null',
         () => setTimeout(resolve, 300),
       );
     };
@@ -93,21 +115,59 @@ const server = http.createServer((req, res) => {
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
       try {
-        const { orderNumber } = JSON.parse(body);
+        const { orderNumber, travelerIndex } = JSON.parse(body);
         if (!orderNumber) {
           res.writeHead(400);
           res.end(JSON.stringify({ error: 'orderNumber is required' }));
           return;
         }
 
+        // Look up the order to find which country bot to dispatch to.
+        // We accept formatted numbers (e.g. "00037") as well as the raw
+        // number, so strip non-digits for the lookup.
+        const numeric = parseInt(String(orderNumber).replace(/[^0-9]/g, ''), 10);
+        if (!numeric || isNaN(numeric)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Invalid orderNumber' }));
+          return;
+        }
+        const order = await prisma.order.findFirst({ where: { orderNumber: numeric } });
+        if (!order) {
+          res.writeHead(404);
+          res.end(JSON.stringify({ error: `Order #${orderNumber} not found` }));
+          return;
+        }
+
+        const dest = (order.destination || 'India').toLowerCase();
+        const script = BOT_SCRIPTS[dest] || BOT_SCRIPTS.india;
+
+        // Optional traveler index — currently only used by the India
+        // bot, where each traveler on a multi-applicant order needs
+        // its own full Step 1–11 flow with its own payment. Aruba
+        // handles multi-traveler inside a single application, so it
+        // ignores this arg. Validated as non-negative integer if
+        // provided; when omitted the bot script defaults to
+        // travelers[0] (single-traveler orders).
+        let tIdxArg = '';
+        if (travelerIndex !== undefined && travelerIndex !== null) {
+          const tIdx = Number(travelerIndex);
+          if (!Number.isInteger(tIdx) || tIdx < 0) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'travelerIndex must be a non-negative integer' }));
+            return;
+          }
+          tIdxArg = ` ${tIdx}`;
+        }
+
         // Kill any running bot first
         await killCurrentBot();
 
-        console.log(`\n🚀 Processing order #${orderNumber}...`);
+        const humanIdx = tIdxArg ? ` (traveler #${Number(tIdxArg.trim()) + 1})` : '';
+        console.log(`\n🚀 Processing order #${orderNumber}${humanIdx} (${order.destination}) → ${script}...`);
 
         // Launch the bot in a new process group so we can kill the whole tree
         const child = exec(
-          `npx tsx scripts/process-visa.ts ${orderNumber}`,
+          `npx tsx ${script} ${orderNumber}${tIdxArg}`,
           { cwd: projectDir, detached: true } as any,
           (error, stdout, stderr) => {
             if (error && error.signal !== 'SIGKILL') console.error('Bot error:', error.message);
@@ -123,10 +183,11 @@ const server = http.createServer((req, res) => {
         child.stderr?.pipe(process.stderr);
 
         res.writeHead(200);
-        res.end(JSON.stringify({ success: true, message: `Bot launched for order #${orderNumber}` }));
-      } catch {
+        res.end(JSON.stringify({ success: true, message: `Bot launched for order #${orderNumber} (${order.destination})` }));
+      } catch (err: any) {
+        console.error('Process request failed:', err?.message || err);
         res.writeHead(400);
-        res.end(JSON.stringify({ error: 'Invalid request' }));
+        res.end(JSON.stringify({ error: err?.message || 'Invalid request' }));
       }
     });
   } else if (req.method === 'POST' && req.url === '/stop') {
@@ -238,6 +299,21 @@ const server = http.createServer((req, res) => {
     res.writeHead(404);
     res.end(JSON.stringify({ error: 'Not found' }));
   }
+});
+
+// Friendly error on port-already-in-use (a zombie bot-server from a
+// crashed previous run is the most common cause). Without this the
+// raw Node EADDRINUSE stack trace fires and looks alarming.
+server.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n⛔ Port ${PORT} is already in use — another bot-server (or some other process) is listening on it.`);
+    console.error(`   Free it up:`);
+    console.error(`     pkill -f "tsx scripts/bot-server" ; pkill -f "tsx scripts/process-"`);
+    console.error(`   …then start this again.\n`);
+    process.exit(1);
+  }
+  console.error('\n⛔ Bot server failed:', err.message);
+  process.exit(1);
 });
 
 server.listen(PORT, () => {

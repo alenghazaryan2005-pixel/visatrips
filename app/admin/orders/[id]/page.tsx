@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, use, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AdminSidebar } from '@/components/AdminSidebar';
-import type { ApplicationSchema } from '@/lib/applicationSchema';
+import { PER_TRAVELER_FIELD_KEYS, type ApplicationSchema } from '@/lib/applicationSchema';
 import { getQueuePosition } from '@/lib/admin-queue';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
@@ -768,13 +768,18 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [queuePos, navigateTo]);
 
-  // Load admin-defined custom application schema for this order's country.
+  // Load the application schema for this order's country. Used both
+  // for admin-added custom sections (rendered alongside India's built-in
+  // hardcoded cards) and — for non-India destinations — for ALL sections
+  // since those don't have hardcoded cards. The API returns `sections`
+  // (the post-Phase-1 shape); we used to look at `customSections`, the
+  // legacy key, which silently no-op'd for every order.
   useEffect(() => {
     if (!order) return;
     const country = (order.destination || 'India').toUpperCase();
     fetch(`/api/settings/application-schema?country=${encodeURIComponent(country)}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data && Array.isArray(data.customSections)) setCustomAppSchema(data); })
+      .then(data => { if (data && Array.isArray(data.sections)) setCustomAppSchema(data); })
       .catch(() => {});
   }, [order]);
 
@@ -1064,10 +1069,28 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
     }
   };
 
-  /** Convenience derivations. Both must be approved before bot can run. */
+  /** Convenience derivations.
+   *
+   * `allDocsApproved` is the "ready to run the bot" gate. It requires
+   * approval ONLY for the documents the traveler actually uploaded —
+   * not blanket photo + passport. Why:
+   *   - India travellers upload a photoUrl AND a passportBioUrl, so
+   *     both must be approved.
+   *   - Aruba travellers upload a single `passportFile` (no photo
+   *     in the schema). Requiring photoApproved would leave the
+   *     button permanently grey for every Aruba order.
+   *
+   * The check is "is there an uploaded file? if so, is it approved?".
+   * No upload → no gate. Means we never block on a doc that doesn't
+   * exist on this order. */
   const photoApproved    = !!order?.photoApprovedAt;
   const passportApproved = !!order?.passportApprovedAt;
-  const allDocsApproved  = photoApproved && passportApproved;
+  const firstTraveler    = travelers[0] as (Traveler & { passportFile?: string }) | undefined;
+  const hasPhoto         = !!firstTraveler?.photoUrl;
+  const hasPassportDoc   = !!firstTraveler?.passportBioUrl || !!firstTraveler?.passportFile;
+  const allDocsApproved  =
+    (!hasPhoto       || photoApproved) &&
+    (!hasPassportDoc || passportApproved);
 
   /** Format an approval as "✓ Approved by Alice · 5m ago" or null. */
   const formatApproval = (at: string | null, by: string | null) => {
@@ -1436,41 +1459,92 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
         {!editing ? (
           <>
             <button className="od-edit-btn" onClick={startEditing}><Pencil size={13} strokeWidth={2.25} /><span>Full Edit</span></button>
-            <button
-              className="od-process-btn"
-              disabled={!allDocsApproved}
-              title={allDocsApproved ? '' : 'Approve both documents above before running the bot.'}
-              style={!allDocsApproved ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-              onClick={async () => {
-              // Pre-flight: refuse to launch if either document still needs
-              // admin approval. The bot script also guards independently,
-              // but checking here gives clearer UX and avoids a wasted
-              // process spawn.
-              if (!allDocsApproved) {
-                const pending: string[] = [];
-                if (!photoApproved)    pending.push('• Traveler photo (📸)');
-                if (!passportApproved) pending.push('• Passport bio page (📄)');
-                alert(
-                  'Cannot run bot — these documents still need your approval:\n\n'
-                  + pending.join('\n')
-                  + '\n\nReview each document above and click ✓ Approve next to it.'
-                );
-                return;
-              }
-              const orderNum = formatOrderNum(order.orderNumber);
-              try {
-                const res = await fetch('http://localhost:3001/process', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ orderNumber: orderNum }),
+            {/*
+              * Bot-launch button(s).
+              *
+              * India:   one button per traveler ("Process Traveler #N —
+              *          First Last") because the Indian eVisa system
+              *          requires a separate application + payment per
+              *          applicant. Admin picks a traveler, bot runs
+              *          Step 1–11 for that one, pauses at SBI ePay for
+              *          the admin to click Pay Now, then admin comes
+              *          back and clicks the next traveler's button.
+              *
+              * Everywhere else (Aruba etc.): a single "Process
+              *          Application" button — multi-traveler is handled
+              *          inside a single application via "Add Family
+              *          Member" in the bot, so one launch covers all
+              *          travelers.
+              */}
+            {(() => {
+              const isIndia = (order.destination || '').toLowerCase() === 'india';
+              const launchBot = async (label: string, travelerIndex?: number) => {
+                // Pre-flight — same as before, refuse to launch if
+                // required docs still need admin approval.
+                if (!allDocsApproved) {
+                  const pending: string[] = [];
+                  if (hasPhoto       && !photoApproved)    pending.push('• Traveler photo (📸)');
+                  if (hasPassportDoc && !passportApproved) pending.push('• Passport bio page (📄)');
+                  alert(
+                    'Cannot run bot — these documents still need your approval:\n\n'
+                    + pending.join('\n')
+                    + '\n\nReview each document above and click ✓ Approve next to it.'
+                  );
+                  return;
+                }
+                const orderNum = formatOrderNum(order.orderNumber);
+                try {
+                  const res = await fetch('http://localhost:3001/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      orderNumber: orderNum,
+                      ...(travelerIndex !== undefined ? { travelerIndex } : {}),
+                    }),
+                  });
+                  const data = await res.json();
+                  if (data.success) alert(`Bot launched for ${label} on order #${orderNum}!\nCheck the bot server terminal for progress.`);
+                  else alert(`Error: ${data.error}`);
+                } catch {
+                  alert('Bot server not running.\n\nStart it in a terminal:\nnpx tsx scripts/bot-server.ts');
+                }
+              };
+
+              if (isIndia) {
+                // One button per traveler. If somehow there are zero
+                // travelers, fall back to a disabled "no traveler" state
+                // rather than rendering no button at all.
+                const list = travelers.length > 0 ? travelers : [null];
+                return list.map((t, i) => {
+                  const name = t ? `${t.firstName || ''} ${t.lastName || ''}`.trim() || 'Unnamed' : '(no traveler data)';
+                  const label = travelers.length > 1
+                    ? `Process Traveler #${i + 1} — ${name}`
+                    : `Process Traveler`;
+                  return (
+                    <button
+                      key={`process-traveler-${i}`}
+                      className="od-process-btn"
+                      disabled={!allDocsApproved || !t}
+                      title={!t ? 'No traveler data on this order' : (allDocsApproved ? `Runs the India bot for ${name}. Pauses at SBI ePay for you to click Pay Now.` : 'Approve both documents above before running the bot.')}
+                      style={(!allDocsApproved || !t) ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                      onClick={() => launchBot(name, i)}
+                    ><Bot size={13} strokeWidth={2.25} /><span>{label}</span></button>
+                  );
                 });
-                const data = await res.json();
-                if (data.success) alert(`Bot launched for order #${orderNum}!\nCheck the bot server terminal for progress.`);
-                else alert(`Error: ${data.error}`);
-              } catch {
-                alert('Bot server not running.\n\nStart it in a terminal:\nnpx tsx scripts/bot-server.ts');
               }
-            }}><Bot size={13} strokeWidth={2.25} /><span>Process Application</span></button>
+
+              // Non-India: single Process Application button — bot
+              // handles multi-traveler internally.
+              return (
+                <button
+                  className="od-process-btn"
+                  disabled={!allDocsApproved}
+                  title={allDocsApproved ? '' : 'Approve both documents above before running the bot.'}
+                  style={!allDocsApproved ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                  onClick={() => launchBot('order')}
+                ><Bot size={13} strokeWidth={2.25} /><span>Process Application</span></button>
+              );
+            })()}
             <button
               type="button"
               title="Stop the running bot and close its browser window"
@@ -1563,7 +1637,14 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
               {!editing ? (
                 <div className="ts-grid">
                   {/* Uploaded Documents — shown at the top for quick visual verification */}
-                  {(t.photoUrl || t.passportBioUrl) && (
+                  {/* `t.passportFile` is the schema-driven field used by
+                   * Aruba's finish form (and any future country routed
+                   * through SchemaDrivenFinish whose passport upload
+                   * lands in the 'passport' bucket). We render it in
+                   * the same slot as India's `passportBioUrl` so the
+                   * approval / download / flag affordances are
+                   * identical across destinations. */}
+                  {(t.photoUrl || t.passportBioUrl || (t as any).passportFile) && (
                     <div className="ts-card ts-card-docs">
                       <div className="ts-card-header"><span className="ts-card-icon"><Paperclip size={14} strokeWidth={2} /></span><span>Uploaded Documents</span></div>
                       <div style={{display:'flex',gap:'1.5rem',flexWrap:'wrap',marginTop:'0.5rem'}}>
@@ -1612,13 +1693,21 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                           </div>
                         </div>
                       )}
-                      {t.passportBioUrl && (
-                        <div style={{textAlign:'center', border: !passportApproved ? '2px solid #f59e0b' : flaggedFields.includes('passportBioUrl') ? '2px solid #dc2626' : '2px solid #86efac', borderRadius:'1rem', padding:'0.5rem'}}>
-                          <a href={t.passportBioUrl} target="_blank" rel="noopener noreferrer">
-                            {t.passportBioUrl.endsWith('.pdf') ? (
+                      {(() => {
+                        // India stores its passport bio at `t.passportBioUrl`; Aruba's schema-driven
+                        // form stores at `t.passportFile`. Either is acceptable here — the approval /
+                        // flag / download UI is identical, and we flag against whichever key the
+                        // order actually uses so re-uploads correctly invalidate the approval.
+                        const passportUrl  = t.passportBioUrl || (t as any).passportFile;
+                        const passportFlagKey = t.passportBioUrl ? 'passportBioUrl' : 'passportFile';
+                        if (!passportUrl) return null;
+                        return (
+                        <div style={{textAlign:'center', border: !passportApproved ? '2px solid #f59e0b' : flaggedFields.includes(passportFlagKey) ? '2px solid #dc2626' : '2px solid #86efac', borderRadius:'1rem', padding:'0.5rem'}}>
+                          <a href={passportUrl} target="_blank" rel="noopener noreferrer">
+                            {passportUrl.toLowerCase().endsWith('.pdf') ? (
                               <div style={{width:'140px',height:'140px',background:'#f1f5f9',borderRadius:'0.75rem',border:'2px solid var(--cloud)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'var(--slate)'}}><FileText size={32} strokeWidth={1.75} /></div>
                             ) : (
-                              <img src={t.passportBioUrl} alt="Passport bio" style={{maxWidth:'200px',maxHeight:'140px',borderRadius:'0.75rem',border:'2px solid var(--cloud)',objectFit:'cover',cursor:'pointer'}} />
+                              <img src={passportUrl} alt="Passport bio" style={{maxWidth:'200px',maxHeight:'140px',borderRadius:'0.75rem',border:'2px solid var(--cloud)',objectFit:'cover',cursor:'pointer'}} />
                             )}
                           </a>
                           <div style={{fontSize:'0.75rem',color:'var(--slate)',marginTop:'0.25rem'}}>Passport Bio Page</div>
@@ -1633,7 +1722,7 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                             </div>
                           )}
                           <div style={{display:'flex',gap:'0.35rem',justifyContent:'center',marginTop:'0.35rem',flexWrap:'wrap'}}>
-                            <a href={t.passportBioUrl} download style={{fontSize:'0.75rem',fontWeight:600,color:'var(--blue)',textDecoration:'none',padding:'0.25rem 0.5rem',borderRadius:'0.5rem',border:'1px solid var(--cloud)',background:'white'}}>
+                            <a href={passportUrl} download style={{fontSize:'0.75rem',fontWeight:600,color:'var(--blue)',textDecoration:'none',padding:'0.25rem 0.5rem',borderRadius:'0.5rem',border:'1px solid var(--cloud)',background:'white'}}>
                               ⬇
                             </a>
                             <button
@@ -1653,18 +1742,34 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                             >
                               {approvalSaving === 'passport' ? '…' : passportApproved ? 'Revoke' : '✓ Approve'}
                             </button>
-                            {(flagMode || flaggedFields.includes('passportBioUrl')) && (
-                              <button type="button" className={`flag-btn${flaggedFields.includes('passportBioUrl') ? ' active' : ''}`} onClick={() => toggleFlag('passportBioUrl')} style={{opacity: flaggedFields.includes('passportBioUrl') ? 1 : 0.4}}>
+                            {(flagMode || flaggedFields.includes(passportFlagKey)) && (
+                              <button type="button" className={`flag-btn${flaggedFields.includes(passportFlagKey) ? ' active' : ''}`} onClick={() => toggleFlag(passportFlagKey)} style={{opacity: flaggedFields.includes(passportFlagKey) ? 1 : 0.4}}>
                                 <Flag size={13} strokeWidth={2.25} />
                               </button>
                             )}
                           </div>
                         </div>
-                      )}
+                        );
+                      })()}
                       </div>
                     </div>
                   )}
 
+                  {/*
+                   * India-only hardcoded read cards. For Aruba and any
+                   * future non-India destination, these are skipped and
+                   * the schema-driven cards below are the single source
+                   * of truth — otherwise admin would see duplicate
+                   * Personal/Address/Trip/Passport cards (one India
+                   * shape, one Aruba shape) for every Aruba order
+                   * because the two schemas share key names like
+                   * firstName, dob, address, passportNumber, etc.
+                   *
+                   * Mirrors the same gate added to the edit-mode block
+                   * further down — both views render the same set of
+                   * cards per destination.
+                   */}
+                  {(order.destination || '').toLowerCase() === 'india' && <>
                   {/* Personal */}
                   <div className="ts-card ts-card-personal">
                     <div className="ts-card-header"><span className="ts-card-icon"><User size={14} strokeWidth={2} /></span><span>Personal Details</span></div>
@@ -1842,13 +1947,37 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                       <div style={{fontSize:'0.85rem',color:'var(--ink)',padding:'0.25rem 0'}}>Step: <strong>{t.finishStep}</strong></div>
                     </div>
                   )}
+                  </>}
 
-                  {/* Admin-defined custom sections (built-ins are shown via hardcoded cards above) */}
-                  {customAppSchema.sections
+                  {/* Admin-defined custom sections — INDIA ONLY.
+                   *
+                   * For India, this block renders any admin-added
+                   * sections (the ones with builtIn=false from the
+                   * Phase-1 custom-section workflow). India's built-in
+                   * sections are rendered above as hardcoded cards, so
+                   * this fills the gap for admin-added extras only.
+                   *
+                   * For non-India destinations, the schema-driven block
+                   * below already renders every section (built-in AND
+                   * admin-added) by reading values from t[fieldKey].
+                   * Running this Phase-1 block in addition would double
+                   * up any admin-added section — that's the bug behind
+                   * "Home Address listed twice" on Aruba.
+                   *
+                   * Phase-1 reads values from t.custom — that wrapper
+                   * only exists for India's hand-written finish form;
+                   * SchemaDrivenFinish writes flat to t[key]. So it's
+                   * also semantically wrong to run this for non-India. */}
+                  {(order.destination || '').toLowerCase() === 'india' && customAppSchema.sections
                     .filter(sec => !sec.builtIn && !sec.hidden && sec.fields.length > 0)
                     .map(sec => {
                       const vals = (t as any).custom || {};
-                      const visibleFields = sec.fields.filter(f => !f.hidden);
+                      const visibleFields = sec.fields
+                        .filter(f => !f.hidden)
+                        .filter(f => {
+                          const v = vals[f.key];
+                          return v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0);
+                        });
                       if (visibleFields.length === 0) return null;
                       return (
                         <div key={sec.key} className="ts-card">
@@ -1865,6 +1994,102 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                         </div>
                       );
                     })}
+
+                  {/*
+                   * Schema-driven cards for non-India destinations.
+                   *
+                   * India has bespoke hardcoded cards above (Personal,
+                   * Birth & Identity, Address, Employment, Family, etc.)
+                   * tuned to its government-form fields. Non-India
+                   * destinations (Aruba and any future country routed
+                   * through SchemaDrivenFinish) don't have hardcoded
+                   * cards — instead we render every non-hidden schema
+                   * section here, pulling values directly from `t[key]`
+                   * (the schema-driven submit stores them flat, not
+                   * under `t.custom` like Phase-1 admin-added sections).
+                   *
+                   * Skipped for India so we don't duplicate the
+                   * hardcoded cards. Only renders sections that have
+                   * at least one field with a value, so we don't
+                   * spam the admin with empty cards before the
+                   * customer has submitted.
+                   */}
+                  {(order.destination || '').toLowerCase() !== 'india' &&
+                    customAppSchema.sections
+                      .filter(sec => !sec.hidden && sec.fields.length > 0)
+                      .filter(sec => {
+                        // Hide cards that are entirely empty — keeps
+                        // the admin view tidy when an order is still
+                        // unfinished or when the schema has fields the
+                        // customer hasn't filled in. We exclude file
+                        // fields from "non-empty" here too, since they
+                        // render in the Uploaded Documents card above
+                        // — counting them would falsely keep an
+                        // otherwise-empty card on screen.
+                        return sec.fields.some(f => {
+                          if (f.type === 'file') return false;
+                          const v = (t as any)[f.key];
+                          return v !== undefined && v !== null && v !== '';
+                        });
+                      })
+                      .map(sec => {
+                        // file fields are rendered separately in the
+                        // Uploaded Documents card (with preview /
+                        // approval / download / flag affordances) so
+                        // we drop them out of this generic value list.
+                        // For additional travelers (i > 0) we also
+                        // strip order-level fields so the read view
+                        // matches what's editable — Trip / Address /
+                        // Contact / Payment apply to traveler 0 only.
+                        const isExtraTraveler = i > 0;
+                        const perTravelerSet = new Set<string>(PER_TRAVELER_FIELD_KEYS as readonly string[]);
+                        const visibleFields = sec.fields.filter(f => {
+                          if (f.hidden) return false;
+                          if (f.type === 'file') return false;
+                          if (isExtraTraveler && !perTravelerSet.has(f.key)) return false;
+                          return true;
+                        });
+                        if (visibleFields.length === 0) return null;
+                        return (
+                          <div key={`schema-${sec.key}`} className="ts-card">
+                            <div className="ts-card-header">
+                              <span className="ts-card-icon">
+                                <SectionIcon icon={sec.icon} emoji={sec.emoji} size={14} strokeWidth={2} />
+                              </span>
+                              <span>{sec.title}</span>
+                            </div>
+                            <div className="modal-rows">
+                              {visibleFields.map(f => {
+                                // Raw value — pass directly to FlagRow
+                                // so its own `if (!value) return null`
+                                // skips empty rows. Lightly format
+                                // booleans, arrays, and bare values
+                                // for readability; explicit empty
+                                // (undefined / null / '') stays empty
+                                // so the row drops out.
+                                const raw = (t as any)[f.key];
+                                let display: React.ReactNode = undefined;
+                                if (raw !== undefined && raw !== null && raw !== '') {
+                                  if (typeof raw === 'boolean') display = raw ? 'Yes' : 'No';
+                                  else if (Array.isArray(raw)) display = raw.length > 0 ? raw.join(', ') : undefined;
+                                  else display = String(raw);
+                                }
+                                return (
+                                  <FlagRow
+                                    key={f.key}
+                                    field={f.key}
+                                    label={f.label}
+                                    value={display}
+                                    flagged={flaggedFields}
+                                    onToggle={toggleFlag}
+                                    showFlags={flagMode}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
                 </div>
               ) : (
                 <div className="ts-grid">
@@ -1949,6 +2174,18 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                     </div>
                   </div>
 
+                  {/*
+                   * India-only hardcoded edit cards. Aruba and any other
+                   * non-India destination uses the schema-driven block
+                   * further down (see "Schema-driven editable cards"),
+                   * which renders fields per the country's
+                   * applicationSchema instead of these India-shaped
+                   * hand-written ones. Wrapping in a destination check
+                   * stops Aruba admins from seeing empty Indian
+                   * Family / References / Security cards they can never
+                   * meaningfully fill in.
+                   */}
+                  {(order.destination || '').toLowerCase() === 'india' && <>
                   {/* Personal Details */}
                   <div className="ts-card ts-card-personal">
                     <div className="ts-card-header"><span className="ts-card-icon"><User size={14} strokeWidth={2} /></span><span>Personal Details</span></div>
@@ -2246,9 +2483,14 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                         </select></div>
                     </div>
                   </div>
+                  </>}
 
-                  {/* Admin-defined custom sections (editable) — built-ins are handled via hardcoded cards */}
-                  {customAppSchema.sections
+                  {/* Admin-defined custom sections (editable) — INDIA ONLY.
+                   * Same rationale as the read-view Phase-1 block above:
+                   * non-India destinations have a schema-driven editable
+                   * block that renders every section, so running this
+                   * Phase-1 block too would double up. */}
+                  {(order.destination || '').toLowerCase() === 'india' && customAppSchema.sections
                     .filter(sec => !sec.builtIn && !sec.hidden && sec.fields.length > 0)
                     .map(sec => {
                       const vals = ((t as any).custom || {}) as Record<string, any>;
@@ -2299,6 +2541,98 @@ function OrderDetailPageInner({ params }: { params: Promise<{ id: string }> }) {
                       </div>
                     );
                   })}
+
+                  {/*
+                   * Schema-driven editable cards for non-India destinations.
+                   *
+                   * Mirror of the read-view schema cards above, but as
+                   * editable form fields. Values live flat on the
+                   * traveler (no .custom wrapper — that's a Phase-1
+                   * convention; the schema-driven submit stores fields
+                   * directly on t[fieldKey]). file fields are skipped
+                   * because the Uploaded Documents card has dedicated
+                   * preview/approval/replace UI for them.
+                   *
+                   * Date fields render as plain text inputs since the
+                   * stored format is "January 15, 2026" — native
+                   * <input type="date"> wants ISO and would fight us.
+                   * Admin can hand-edit the string; for bulk reformatting
+                   * the customer should re-do it via the finish flow.
+                   *
+                   * Per-traveler filtering: for additional travelers
+                   * (i > 0), we only render fields that are in
+                   * PER_TRAVELER_FIELD_KEYS — Trip details, Address,
+                   * Contact, Payment are order-level and apply to
+                   * traveler 0 only. Mirrors the customer-side
+                   * "Add another traveler" cards in SchemaDrivenFinish.
+                   * Sections that have no per-traveler fields for
+                   * extras drop out entirely.
+                   */}
+                  {(order.destination || '').toLowerCase() !== 'india' &&
+                    customAppSchema.sections
+                      .filter(sec => !sec.hidden && sec.fields.length > 0)
+                      .map(sec => {
+                        const isExtraTraveler = i > 0;
+                        const perTravelerSet = new Set<string>(PER_TRAVELER_FIELD_KEYS as readonly string[]);
+                        const visibleFields = sec.fields.filter(f => {
+                          if (f.hidden) return false;
+                          if (f.type === 'file') return false;
+                          if (isExtraTraveler && !perTravelerSet.has(f.key)) return false;
+                          return true;
+                        });
+                        if (visibleFields.length === 0) return null;
+                        return (
+                          <div key={`schema-edit-${sec.key}`} className="ts-card">
+                            <div className="ts-card-header">
+                              <span className="ts-card-icon">
+                                <SectionIcon icon={sec.icon} emoji={sec.emoji} size={14} strokeWidth={2} />
+                              </span>
+                              <span>{sec.title}</span>
+                            </div>
+                            <div className="ts-edit-fields">
+                              {visibleFields.map(f => {
+                                const value = (t as any)[f.key];
+                                return (
+                                  <div key={f.key} className="ap-field">
+                                    <label className="ap-field-label">
+                                      {f.label}
+                                      {f.required ? <span style={{ color: '#dc2626' }}> *</span> : null}
+                                    </label>
+                                    {f.type === 'textarea' ? (
+                                      <textarea className="od-edit-input" rows={3} value={value ?? ''} onChange={e => updateEditTraveler(i, f.key, e.target.value)} placeholder={f.placeholder} />
+                                    ) : f.type === 'select' || f.type === 'radio' ? (
+                                      <select className="od-edit-input" value={value ?? ''} onChange={e => updateEditTraveler(i, f.key, e.target.value)}>
+                                        <option value="">—</option>
+                                        {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                                      </select>
+                                    ) : f.type === 'checkbox' ? (
+                                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={value === true || value === 'true'}
+                                          onChange={e => updateEditTraveler(i, f.key, e.target.checked)}
+                                        />
+                                        <span style={{ fontSize: '0.85rem' }}>
+                                          {(value === true || value === 'true') ? 'Yes' : 'No'}
+                                        </span>
+                                      </label>
+                                    ) : (
+                                      <input
+                                        type={f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}
+                                        className="od-edit-input"
+                                        value={value ?? ''}
+                                        onChange={e => updateEditTraveler(i, f.key, e.target.value)}
+                                        placeholder={f.type === 'date' ? 'e.g. January 15, 2026' : f.placeholder}
+                                      />
+                                    )}
+                                    {f.helpText && <p style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '0.25rem' }}>{f.helpText}</p>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
                 </div>
               )}
             </div>

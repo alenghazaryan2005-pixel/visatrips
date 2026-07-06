@@ -134,7 +134,11 @@ export default function IndiaPage() {
     return () => clearInterval(timer);
   }, []);
   return (
-    <>
+    // `legacy-palette` scope keeps this page on the pre-2026
+    // periwinkle marketing palette (var(--blue) = #6C8AFF), while
+    // the rest of the site — admin, /apply, footer, homepage —
+    // uses the new navy + light-blue palette from :root.
+    <div className="legacy-palette">
       <Nav countryFlag="🇮🇳" />
 
       <main>
@@ -320,6 +324,6 @@ export default function IndiaPage() {
 
       <Footer />
       <ChatWidget />
-    </>
+    </div>
   );
 }

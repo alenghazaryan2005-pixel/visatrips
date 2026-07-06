@@ -36,3 +36,7 @@ playwright-report/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+.env*.local
+
+# bot debug dumps (HTML snapshots written by scripts/process-*.ts on failure)
+.bot-debug/

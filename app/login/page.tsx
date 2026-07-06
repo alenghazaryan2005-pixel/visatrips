@@ -3,13 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  Mail, KeyRound, ArrowRight, MailCheck, X as XIcon,
+  Loader2, ShieldCheck, ChevronLeft,
+} from 'lucide-react';
 
 export default function CustomerLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
-  const [orderNumber, setOrderNumber] = useState('');
-  const [loginMode, setLoginMode] = useState<'pin' | 'order'>('pin');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -36,10 +38,7 @@ export default function CustomerLoginPage() {
       const res = await fetch('/api/customer/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(loginMode === 'pin'
-          ? { email: email.trim(), pin: pin.trim() }
-          : { email: email.trim(), orderNumber: orderNumber.trim() }
-        ),
+        body: JSON.stringify({ email: email.trim(), pin: pin.trim() }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Login failed'); setLoading(false); return; }
@@ -71,143 +70,220 @@ export default function CustomerLoginPage() {
     } finally { setRecovering(false); }
   };
 
-  if (checking) return <div style={{ paddingTop: '120px', textAlign: 'center' }}>Loading...</div>;
+  if (checking) {
+    return (
+      <div className="customer-login-checking">
+        <Loader2 className="customer-login-spinner" size={28} strokeWidth={2.25} aria-hidden />
+        <span>Checking your session…</span>
+      </div>
+    );
+  }
 
-  const canSubmit = email.trim() && (loginMode === 'pin' ? pin.trim().length === 6 : orderNumber.trim().length > 0);
+  const canSubmit = email.trim() && pin.trim().length === 6;
 
   return (
     <div className="customer-login-shell">
+      {/* ── LEFT: form ─────────────────────────────────────────────── */}
       <div className="customer-login-left">
         <div className="customer-login-card">
-          <Link href="/" className="customer-login-logo">VisaTrips<sup>®</sup></Link>
-          <h1 className="customer-login-title">Check Your Visa Status</h1>
-          <p className="customer-login-subtitle">Log in with your email and {loginMode === 'pin' ? '6-digit PIN' : 'order number'}</p>
+          <Link href="/" className="customer-login-logo">
+            VisaTrips<sup>®</sup>
+          </Link>
+
+          <span className="customer-login-eyebrow">Status lookup</span>
+          <h1 className="customer-login-title">Welcome back.</h1>
+          <p className="customer-login-subtitle">
+            Enter your email and PIN to pick up where you left off.
+          </p>
 
           <form onSubmit={handleSubmit} className="customer-login-form">
+            {/* Email */}
             <div className="customer-login-field">
-              <label className="customer-login-label">Email address</label>
-              <input
-                className="customer-login-input"
-                type="email"
-                placeholder="you@email.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                autoFocus
-              />
+              <label className="customer-login-label" htmlFor="cl-email">Email</label>
+              <div className="customer-login-input-wrap">
+                <Mail size={16} strokeWidth={1.85} className="customer-login-input-icon" aria-hidden />
+                <input
+                  id="cl-email"
+                  className="customer-login-input customer-login-input-with-icon"
+                  type="email"
+                  placeholder="you@email.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  autoFocus
+                />
+              </div>
             </div>
 
-            {loginMode === 'pin' ? (
-              <div className="customer-login-field">
-                <label className="customer-login-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  PIN
-                  <button type="button" onClick={() => { setShowLostPin(true); setRecoverEmail(email); setRecoverSuccess(false); setRecoverError(''); }} style={{ background: 'none', border: 'none', color: 'var(--blue, #6C8AFF)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 500 }}>
-                    Lost PIN?
-                  </button>
-                </label>
+            {/* PIN */}
+            <div className="customer-login-field">
+              <div className="customer-login-label-row">
+                <label className="customer-login-label" htmlFor="cl-pin">6-digit PIN</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLostPin(true);
+                    setRecoverEmail(email);
+                    setRecoverSuccess(false);
+                    setRecoverError('');
+                  }}
+                  className="customer-login-helper-link"
+                >
+                  Lost your PIN?
+                </button>
+              </div>
+              <div className="customer-login-input-wrap">
+                <KeyRound size={16} strokeWidth={1.85} className="customer-login-input-icon" aria-hidden />
                 <input
-                  className="customer-login-input"
+                  id="cl-pin"
+                  className="customer-login-input customer-login-input-with-icon customer-login-pin"
                   type="text"
                   inputMode="numeric"
-                  placeholder="6-digit PIN"
+                  autoComplete="one-time-code"
+                  placeholder="••••••"
                   value={pin}
                   maxLength={6}
                   onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  style={{ letterSpacing: '4px', fontSize: '1.2rem', fontWeight: 700, textAlign: 'center' }}
                 />
-                <p style={{ fontSize: '0.75rem', color: '#94A3B8', marginTop: '0.35rem' }}>
-                  Your PIN was sent to your email when you placed your order.
-                </p>
               </div>
-            ) : (
-              <div className="customer-login-field">
-                <label className="customer-login-label">Order number</label>
-                <input
-                  className="customer-login-input"
-                  type="text"
-                  placeholder="e.g. 00123"
-                  value={orderNumber}
-                  onChange={e => setOrderNumber(e.target.value)}
-                />
+              <p className="customer-login-hint">
+                Sent to your email when you placed your order.
+              </p>
+            </div>
+
+            {/* Error band */}
+            {error && (
+              <div className="customer-login-error" role="alert">
+                {error}
               </div>
             )}
 
-            <button type="button" onClick={() => { setLoginMode(m => m === 'pin' ? 'order' : 'pin'); setError(''); }} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', fontSize: '0.78rem', textAlign: 'center', width: '100%', marginBottom: '0.5rem' }}>
-              {loginMode === 'pin' ? 'Use order number instead' : 'Use PIN instead'}
-            </button>
-
-            {error && <div className="customer-login-error">{error}</div>}
-
+            {/* Submit */}
             <button
               type="submit"
               className={`customer-login-btn${canSubmit ? ' active' : ''}`}
               disabled={!canSubmit || loading}
             >
-              {loading ? 'Logging in...' : 'Log In'}
+              {loading ? (
+                <>
+                  <Loader2 size={16} strokeWidth={2} className="customer-login-spinner" aria-hidden />
+                  Checking…
+                </>
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight size={16} strokeWidth={2} aria-hidden />
+                </>
+              )}
             </button>
           </form>
 
           <p className="customer-login-back">
-            <Link href="/">← Back to VisaTrips</Link>
+            <Link href="/">
+              <ChevronLeft size={14} strokeWidth={2} aria-hidden />
+              Back to VisaTrips
+            </Link>
           </p>
         </div>
       </div>
 
+      {/* ── RIGHT: hero ────────────────────────────────────────────── */}
       <div className="customer-login-right">
+        {/* Decorative dot grid — subtle background texture so the dark
+            panel reads as designed rather than just a flat block. */}
+        <div className="customer-login-right-pattern" aria-hidden />
+
         <div className="customer-login-right-content">
+          <span className="customer-login-right-badge">
+            <ShieldCheck size={14} strokeWidth={2} aria-hidden />
+            Encrypted &amp; private
+          </span>
           <h2 className="customer-login-headline">
-            Check the status<br/>of your Visa<br/>by logging in!
+            Your visa,<br />
+            <em>at a glance.</em>
           </h2>
           <p className="customer-login-right-sub">
-            Track your application progress, view your details, and finish your application — all in one place.
+            Track every step from submission to approval — view documents,
+            download your eVisa, and finish anything we still need.
           </p>
+
+          {/* Three quick reassurance points */}
+          <ul className="customer-login-points">
+            <li><span className="customer-login-points-dot" /> Live status updates as your application moves</li>
+            <li><span className="customer-login-points-dot" /> One-click download of your approved eVisa</li>
+            <li><span className="customer-login-points-dot" /> Re-upload documents if anything needs fixing</li>
+          </ul>
         </div>
       </div>
 
-      {/* Lost PIN Modal */}
+      {/* ── Lost PIN modal ────────────────────────────────────────── */}
       {showLostPin && (
         <div className="lost-pin-overlay" onClick={() => setShowLostPin(false)}>
           <div className="lost-pin-modal" onClick={e => e.stopPropagation()}>
-            <button className="lost-pin-close" onClick={() => setShowLostPin(false)}>✕</button>
+            <button
+              className="lost-pin-close"
+              onClick={() => setShowLostPin(false)}
+              aria-label="Close"
+            >
+              <XIcon size={16} strokeWidth={2.25} />
+            </button>
 
             {recoverSuccess ? (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>✉️</div>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem', color: '#1E293B' }}>Check Your Email</h2>
-                <p style={{ color: '#94A3B8', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-                  If an account exists with <strong>{recoverEmail}</strong>, we&apos;ve sent your PIN to that address.
+              <div className="lost-pin-success">
+                <span className="lost-pin-success-icon" aria-hidden>
+                  <MailCheck size={32} strokeWidth={1.75} />
+                </span>
+                <h2 className="lost-pin-modal-title">Check your email</h2>
+                <p className="lost-pin-modal-sub">
+                  If an account exists with <strong>{recoverEmail}</strong>, your PIN is on its way.
                 </p>
-                <button className="customer-login-btn active" onClick={() => setShowLostPin(false)} style={{ width: '100%' }}>
-                  Back to Login
+                <button
+                  className="customer-login-btn active"
+                  onClick={() => setShowLostPin(false)}
+                >
+                  Back to login
                 </button>
               </div>
             ) : (
               <>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.25rem', color: '#1E293B' }}>Recover Your PIN</h2>
-                <p style={{ color: '#94A3B8', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                  Enter your email address and we&apos;ll send you your PIN.
+                <span className="lost-pin-modal-eyebrow">Recover access</span>
+                <h2 className="lost-pin-modal-title">Send my PIN</h2>
+                <p className="lost-pin-modal-sub">
+                  Enter your email and we&apos;ll re-send the 6-digit PIN we issued when you placed your order.
                 </p>
 
                 <div className="customer-login-field">
-                  <label className="customer-login-label">Email address</label>
-                  <input
-                    className="customer-login-input"
-                    type="email"
-                    placeholder="you@email.com"
-                    value={recoverEmail}
-                    onChange={e => setRecoverEmail(e.target.value)}
-                    autoFocus
-                  />
+                  <label className="customer-login-label" htmlFor="cl-recover-email">Email</label>
+                  <div className="customer-login-input-wrap">
+                    <Mail size={16} strokeWidth={1.85} className="customer-login-input-icon" aria-hidden />
+                    <input
+                      id="cl-recover-email"
+                      className="customer-login-input customer-login-input-with-icon"
+                      type="email"
+                      placeholder="you@email.com"
+                      value={recoverEmail}
+                      onChange={e => setRecoverEmail(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
                 </div>
 
-                {recoverError && <div className="customer-login-error">{recoverError}</div>}
+                {recoverError && (
+                  <div className="customer-login-error" role="alert">{recoverError}</div>
+                )}
 
                 <button
                   className={`customer-login-btn${recoverEmail.trim() ? ' active' : ''}`}
                   disabled={!recoverEmail.trim() || recovering}
                   onClick={handleRecover}
-                  style={{ width: '100%', marginTop: '0.75rem' }}
                 >
-                  {recovering ? 'Sending...' : 'Send My PIN'}
+                  {recovering ? (
+                    <>
+                      <Loader2 size={16} strokeWidth={2} className="customer-login-spinner" aria-hidden />
+                      Sending…
+                    </>
+                  ) : (
+                    <>Send PIN<ArrowRight size={16} strokeWidth={2} aria-hidden /></>
+                  )}
                 </button>
               </>
             )}

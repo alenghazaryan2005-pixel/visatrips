@@ -4,57 +4,18 @@ import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Nav from '@/components/Nav';
+import LandingNav from '@/components/LandingNav';
+import LandingFooter from '@/components/LandingFooter';
+import { Flag, AlertTriangle, Check, X as XIcon, User, Glasses, HardHat, Laugh, Camera, FileText, CheckCircle2 } from 'lucide-react';
 import { validateName, stripNameInput, validatePhone, validateAddress, validateCityState, validateZip, validateRequired, stripDiacritics } from '@/lib/validation';
 import { INDIA_RELIGIONS } from '@/lib/constants';
 import type { ApplicationSchema, CustomSection, CustomField } from '@/lib/applicationSchema';
 import { SectionIcon } from '@/lib/sectionIcons';
+import { SchemaDrivenFinish } from './SchemaDrivenFinish';
 
-/* ── Custom Dropdown ── */
-function CustomDropdown({ options, value, onChange, placeholder }: { options: string[]; value: string; onChange: (v: string) => void; placeholder: string }) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  useEffect(() => {
-    if (open && inputRef.current) inputRef.current.focus();
-    if (!open) setSearch('');
-  }, [open]);
-
-  const filtered = search ? options.filter(o => o.toLowerCase().includes(search.toLowerCase())) : options;
-
-  return (
-    <div className="cdd-wrap" ref={ref}>
-      <button type="button" className={`cdd-trigger${value ? ' has-value' : ''}`} onClick={() => setOpen(!open)}>
-        <span className={value ? 'cdd-value' : 'cdd-placeholder'}>{value || placeholder}</span>
-        <svg className={`cdd-chevron${open ? ' open' : ''}`} width="12" height="12" viewBox="0 0 12 12"><path fill="#8892B0" d="M6 8L1 3h10z"/></svg>
-      </button>
-      {open && (
-        <div className="cdd-menu">
-          <div className="cdd-search-wrap">
-            <input ref={inputRef} className="cdd-search" type="text" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-          <div className="cdd-options">
-            {filtered.length === 0 && <div className="cdd-empty">No results</div>}
-            {filtered.map(o => (
-              <button key={o} type="button" className={`cdd-option${o === value ? ' selected' : ''}`} onClick={() => { onChange(o); setOpen(false); }}>
-                {o}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+/* CustomDropdown moved to ./CustomDropdown.tsx so the schema-driven
+ * renderer (Aruba + future countries) can reuse the exact same widget. */
+import { CustomDropdown } from './CustomDropdown';
 
 interface Traveler {
   firstName: string;
@@ -624,12 +585,12 @@ function FinishContent() {
     if (isFlagged(field)) setOrderFlaggedFields(prev => prev.filter(f => f !== field));
   };
   const FlagHint = ({ field }: { field: string }) => isFlagged(field) ? (
-    <span className="finish-flag-hint">🚩 Correct this field</span>
+    <span className="finish-flag-hint"><Flag size={13} strokeWidth={2} style={{ verticalAlign: '-0.15em', marginRight: '0.25em' }} />Correct this field</span>
   ) : null;
 
   const CorrectionBanner = () => orderFlaggedFields.length > 0 && orderSpecialistNotes ? (
     <div className="finish-correction-banner">
-      <span>⚠️</span>
+      <span><AlertTriangle size={16} strokeWidth={2} /></span>
       <div>
         <strong>Specialist&apos;s Note:</strong> {orderSpecialistNotes}
       </div>
@@ -950,22 +911,27 @@ function FinishContent() {
             <CorrectionBanner />
             <h1 className="finish-heading">Personal Details</h1>
 
-            {/* Parents/grandparents question */}
-            <div className="finish-form-group">
-              <label className="finish-form-label">
-                Were your parents or grandparents born in Pakistan, or did they live there permanently?
-              </label>
-              <div className="finish-radio-row">
-                <button type="button" className={`finish-radio-btn${parentsFromDest === 'yes' ? ' selected' : ''}`} onClick={() => setParentsFromDest('yes')}>
-                  <span className={`finish-radio-circle${parentsFromDest === 'yes' ? ' active' : ''}`}/>
-                  Yes
-                </button>
-                <button type="button" className={`finish-radio-btn${parentsFromDest === 'no' ? ' selected' : ''}`} onClick={() => setParentsFromDest('no')}>
-                  <span className={`finish-radio-circle${parentsFromDest === 'no' ? ' active' : ''}`}/>
-                  No
-                </button>
+            {/* Parents/grandparents-from-Pakistan question — India only.
+                Aruba (and any other country routed through this same form)
+                hides this; the question is a compliance gate specific to
+                India's visa flow and irrelevant elsewhere. */}
+            {(order.destination || '').toUpperCase() === 'INDIA' && (
+              <div className="finish-form-group">
+                <label className="finish-form-label">
+                  Were your parents or grandparents born in Pakistan, or did they live there permanently?
+                </label>
+                <div className="finish-radio-row">
+                  <button type="button" className={`finish-radio-btn${parentsFromDest === 'yes' ? ' selected' : ''}`} onClick={() => setParentsFromDest('yes')}>
+                    <span className={`finish-radio-circle${parentsFromDest === 'yes' ? ' active' : ''}`}/>
+                    Yes
+                  </button>
+                  <button type="button" className={`finish-radio-btn${parentsFromDest === 'no' ? ' selected' : ''}`} onClick={() => setParentsFromDest('no')}>
+                    <span className={`finish-radio-circle${parentsFromDest === 'no' ? ' active' : ''}`}/>
+                    No
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Gender */}
             <div className={`finish-form-group${flagClass('gender')}`}>
@@ -1608,27 +1574,27 @@ function FinishContent() {
               <div className="photo-guide-examples">
                 <div className="photo-example good">
                   <div className="photo-example-placeholder">
-                    <span className="photo-example-icon">👤</span>
+                    <span className="photo-example-icon"><User    size={40} strokeWidth={1.5} /></span>
                   </div>
-                  <span className="photo-example-badge good">✓</span>
+                  <span className="photo-example-badge good"><Check  size={12} strokeWidth={3} /></span>
                 </div>
                 <div className="photo-example bad">
                   <div className="photo-example-placeholder">
-                    <span className="photo-example-icon">🕶️</span>
+                    <span className="photo-example-icon"><Glasses size={40} strokeWidth={1.5} /></span>
                   </div>
-                  <span className="photo-example-badge bad">✗</span>
+                  <span className="photo-example-badge bad"><XIcon size={12} strokeWidth={3} /></span>
                 </div>
                 <div className="photo-example bad">
                   <div className="photo-example-placeholder">
-                    <span className="photo-example-icon">🧢</span>
+                    <span className="photo-example-icon"><HardHat size={40} strokeWidth={1.5} /></span>
                   </div>
-                  <span className="photo-example-badge bad">✗</span>
+                  <span className="photo-example-badge bad"><XIcon size={12} strokeWidth={3} /></span>
                 </div>
                 <div className="photo-example bad">
                   <div className="photo-example-placeholder">
-                    <span className="photo-example-icon">😄</span>
+                    <span className="photo-example-icon"><Laugh   size={40} strokeWidth={1.5} /></span>
                   </div>
-                  <span className="photo-example-badge bad">✗</span>
+                  <span className="photo-example-badge bad"><XIcon size={12} strokeWidth={3} /></span>
                 </div>
               </div>
             </div>
@@ -1681,7 +1647,7 @@ function FinishContent() {
                 onDrop={handlePhotoDrop}
                 onClick={() => document.getElementById('photo-input')?.click()}
               >
-                <div className="photo-upload-icon">📷</div>
+                <div className="photo-upload-icon"><Camera size={32} strokeWidth={1.6} /></div>
                 <p className="photo-upload-text">Drag and drop your photo here</p>
                 <p className="photo-upload-subtext">or click to browse files</p>
                 <p className="photo-upload-formats">JPG, PNG — Max 5MB</p>
@@ -1799,7 +1765,7 @@ function FinishContent() {
                 onDrop={handleBioDrop}
                 onClick={() => document.getElementById('bio-input')?.click()}
               >
-                <div className="photo-upload-icon">📄</div>
+                <div className="photo-upload-icon"><FileText size={32} strokeWidth={1.6} /></div>
                 <p className="photo-upload-text">Drag and drop your passport scan here</p>
                 <p className="photo-upload-subtext">or click to browse files</p>
                 <p className="photo-upload-formats">JPG, PNG, PDF — Max 5MB</p>
@@ -1809,7 +1775,7 @@ function FinishContent() {
               <div className="photo-preview-wrap">
                 {passportBioPreview === 'pdf' ? (
                   <div style={{ background: '#f1f5f9', borderRadius: '1rem', padding: '2rem 3rem', textAlign: 'center' }}>
-                    <span style={{ fontSize: '2rem' }}>📄</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center' }}><FileText size={28} strokeWidth={1.6} /></span>
                     <p style={{ marginTop: '0.5rem', fontWeight: 600 }}>{passportBio?.name}</p>
                   </div>
                 ) : (
@@ -2313,8 +2279,8 @@ function FinishContent() {
               <button className="finish-back-btn" onClick={() => setStep('additional')}>
                 ← Back
               </button>
-              <button className="finish-next-btn ready" onClick={handleFinalSubmit} style={{ background: '#10b981' }}>
-                ✓ Finish &amp; Submit Application
+              <button className="finish-next-btn ready" onClick={handleFinalSubmit} style={{ background: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Check size={16} strokeWidth={2.5} /> Finish &amp; Submit Application
               </button>
             </div>
           </div>
@@ -2330,7 +2296,9 @@ function FinishContent() {
         {sidebar}
         <main className="finish-main">
           <div className="finish-main-inner" style={{ textAlign: 'center', paddingTop: '4rem' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
+            <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
+              <CheckCircle2 size={56} strokeWidth={1.6} style={{ color: '#10b981' }} />
+            </div>
             <h1 className="finish-heading" style={{ marginBottom: '0.5rem' }}>Application Submitted!</h1>
             <p style={{ color: 'var(--slate)', fontSize: '1rem', maxWidth: '480px', margin: '0 auto 2rem' }}>
               Your information has been received. We&apos;ll review your application and update your status. You can track your progress on the status page.
@@ -2349,13 +2317,77 @@ function FinishContent() {
 
 export default function FinishPage() {
   return (
-    <>
-      <Nav />
+    // Top nav + bottom trust/footer shared with the "/" landing.
+    // Kept `Nav` import in scope for any future rollback needs.
+    <div className="min-h-screen flex flex-col bg-white">
+      <LandingNav />
       <Suspense fallback={<div style={{ paddingTop: '120px', textAlign: 'center' }}>Loading...</div>}>
-        <FinishContent />
+        <FinishDispatcher />
       </Suspense>
-    </>
+      <LandingFooter showTrust={false} />
+    </div>
   );
+}
+
+/**
+ * Pre-flight: peek at the order to learn its destination, then route to
+ * the right renderer. India keeps the existing hardcoded FinishContent
+ * (the proven flow). Other countries (Aruba and any future ones) route
+ * to SchemaDrivenFinish, which reads `application.schema.<COUNTRY>` and
+ * renders the admin-defined form. Both renderers share India's CSS
+ * classes, so the visual is consistent across destinations.
+ */
+function FinishDispatcher() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get('id') ?? '';
+  // Prefer the destination from the URL — set by the apply page on
+  // checkout — so we don't have to call /api/orders/[id]. That endpoint
+  // requires a customer session, which the customer doesn't have yet
+  // immediately after paying. Fetching as a fallback for the legacy case
+  // where someone navigates here without `?destination=` (e.g. an old
+  // saved link).
+  const urlDestination = searchParams.get('destination');
+  const [destination, setDestination] = useState<string | null>(urlDestination);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!orderId) { setError('Missing order id'); return; }
+    if (urlDestination) return; // happy path — we already know the destination
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`);
+        if (!res.ok) {
+          // 401 for a brand-new order whose customer hasn't logged in
+          // yet — not an error, just default to India so the page renders.
+          // A wrong default is harmless: India's hardcoded form works for
+          // any order that has Indian-shaped data; for non-India orders the
+          // apply page always sets the URL param, so we only fall back here
+          // for malformed or legacy links.
+          if (!cancelled) setDestination('India');
+          return;
+        }
+        const o = await res.json();
+        if (!cancelled) setDestination(typeof o?.destination === 'string' ? o.destination : 'India');
+      } catch {
+        if (!cancelled) setDestination('India');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [orderId, urlDestination]);
+
+  if (error) {
+    return (
+      <div style={{ paddingTop: '120px', textAlign: 'center', color: '#6b7280' }}>
+        {error}. <Link href="/" style={{ color: 'var(--blue)' }}>Back to home →</Link>
+      </div>
+    );
+  }
+  if (!destination) {
+    return <div style={{ paddingTop: '120px', textAlign: 'center' }}>Loading…</div>;
+  }
+  if (destination.toUpperCase() === 'INDIA') return <FinishContent />;
+  return <SchemaDrivenFinish orderId={orderId} />;
 }
 
 // ── Custom field helpers ─────────────────────────────────────────────────

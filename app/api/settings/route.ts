@@ -14,10 +14,14 @@ export const dynamic = 'force-dynamic';
 export async function GET(_req: NextRequest) {
   try {
     const all = await getAllSettings();
-    // Filter out any keys that contain secrets (none right now, but future-proof)
+    // Filter out any keys that contain secrets. `bot.payment.*` holds
+    // the encrypted card vault — even though the blobs are encrypted,
+    // we never want them flowing through a public/anonymous endpoint
+    // (admin UI uses the /api/admin/settings/payment route instead).
     const sanitized: Record<string, any> = {};
     for (const k of Object.keys(all)) {
       if (k.includes('secret') || k.includes('apiKey') || k.includes('password')) continue;
+      if (k.startsWith('bot.payment.')) continue;
       sanitized[k] = all[k];
     }
     return NextResponse.json({ settings: sanitized, defaults: DEFAULTS });

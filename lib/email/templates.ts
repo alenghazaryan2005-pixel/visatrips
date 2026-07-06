@@ -69,6 +69,54 @@ const footerStyle = `
   font-size: 13px;
 `;
 
+/**
+ * Per-destination wording helper. Email copy was originally written
+ * assuming every order was an Indian eVisa — "visa application", "your
+ * eVisa is ready", etc. With Aruba (ED Card) on board, those phrases
+ * read wrong to the customer. This helper returns the right product
+ * noun per destination so a single email template can serve both.
+ *
+ * Add a new branch when we onboard another destination whose product
+ * isn't an eVisa.
+ */
+function emailWording(destination?: string): {
+  /** Singular product, e.g. "visa" or "ED Card". Used inline like "your ED Card". */
+  product: string;
+  /** Capitalised for headers / subjects, e.g. "Visa" or "ED Card". */
+  productCap: string;
+  /** "<X> application", e.g. "visa application" or "ED Card application". */
+  application: string;
+  /** Title-cased subject form, e.g. "Visa Application" or "ED Card Application". */
+  applicationCap: string;
+  /** What we call the final delivered doc (gov eVisa for India,
+   *  the ED Card itself for Aruba — they're the same artefact for
+   *  Aruba so it's still "ED Card"). */
+  deliveredDoc: string;
+  /** Capitalised form of deliveredDoc. */
+  deliveredDocCap: string;
+} {
+  const dest = (destination || '').toLowerCase();
+  if (dest === 'aruba') {
+    return {
+      product: 'ED Card',
+      productCap: 'ED Card',
+      application: 'ED Card application',
+      applicationCap: 'ED Card Application',
+      deliveredDoc: 'ED Card',
+      deliveredDocCap: 'ED Card',
+    };
+  }
+  // India + default
+  return {
+    product: 'visa',
+    productCap: 'Visa',
+    application: 'visa application',
+    applicationCap: 'Visa Application',
+    deliveredDoc: 'eVisa',
+    deliveredDocCap: 'eVisa',
+  };
+}
+
 function wrap(content: string) {
   return `
     <!DOCTYPE html>
@@ -99,6 +147,7 @@ export function orderConfirmationEmail(data: {
   total: number;
   travelers: number;
 }) {
+  const w = emailWording(data.destination);
   return {
     subject: `Order Confirmed — #${data.orderNumber}`,
     html: wrap(`
@@ -109,13 +158,13 @@ export function orderConfirmationEmail(data: {
         <table style="width:100%; font-size:14px;" cellpadding="6">
           <tr><td style="color:#94A3B8;">Order #</td><td style="text-align:right; font-weight:600;">${data.orderNumber}</td></tr>
           <tr><td style="color:#94A3B8;">Destination</td><td style="text-align:right;">${data.destination}</td></tr>
-          <tr><td style="color:#94A3B8;">Visa Type</td><td style="text-align:right;">${data.visaType}</td></tr>
+          <tr><td style="color:#94A3B8;">${w.productCap} Type</td><td style="text-align:right;">${data.visaType}</td></tr>
           <tr><td style="color:#94A3B8;">Travelers</td><td style="text-align:right;">${data.travelers}</td></tr>
           <tr><td style="color:#94A3B8; border-top:1px solid #EDF1F8; padding-top:12px;">Total</td><td style="text-align:right; font-weight:700; font-size:18px; color:#6C8AFF; border-top:1px solid #EDF1F8; padding-top:12px;">$${data.total} USD</td></tr>
         </table>
       </div>
 
-      <p style="margin:24px 0;">Next step: complete your application to submit your visa request.</p>
+      <p style="margin:24px 0;">Next step: complete your application to submit your ${w.product} request.</p>
 
       <div style="text-align:center; margin:32px 0;">
         <a href="${SITE_URL}/login" style="${buttonStyle}">Finish Your Application</a>
@@ -132,7 +181,9 @@ export function correctionNeededEmail(data: {
   orderNumber: string;
   specialistNotes: string;
   flaggedFields: string[];
+  destination?: string;
 }) {
+  const w = emailWording(data.destination);
   const fieldList = data.flaggedFields.length > 0
     ? `<ul style="margin:12px 0;">${data.flaggedFields.map(f => `<li style="padding:4px 0;">${f}</li>`).join('')}</ul>`
     : '';
@@ -141,7 +192,7 @@ export function correctionNeededEmail(data: {
     subject: `Action Required — Order #${data.orderNumber} Needs Correction`,
     html: wrap(`
       <h1 style="font-size:24px; margin-bottom:8px; color:#dc2626;">Your application needs correction</h1>
-      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name}, our team found issues with your visa application.</p>
+      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name}, our team found issues with your ${w.application}.</p>
 
       ${data.specialistNotes ? `
         <div style="${cardStyle} border-left: 4px solid #dc2626;">
@@ -166,20 +217,22 @@ export function correctionNeededEmail(data: {
   };
 }
 
-/** eVisa ready — sent when admin uploads the approved eVisa */
+/** Final approved doc ready — sent when admin uploads the approved
+ *  doc (India: gov-issued eVisa PDF; Aruba: ED Card PDF). */
 export function evisaReadyEmail(data: {
   name: string;
   orderNumber: string;
   destination: string;
 }) {
+  const w = emailWording(data.destination);
   return {
-    subject: `Your ${data.destination} eVisa is Ready! — Order #${data.orderNumber}`,
+    subject: `Your ${data.destination} ${w.deliveredDoc} is Ready! — Order #${data.orderNumber}`,
     html: wrap(`
       <div style="text-align:center; margin-bottom:24px;">
         <span style="font-size:48px;">✅</span>
       </div>
-      <h1 style="font-size:24px; margin-bottom:8px; text-align:center; color:#059669;">Your eVisa has been approved!</h1>
-      <p style="color:#94A3B8; text-align:center; margin-bottom:24px;">Congratulations, ${data.name}! Your ${data.destination} eVisa is ready to download.</p>
+      <h1 style="font-size:24px; margin-bottom:8px; text-align:center; color:#059669;">Your ${w.deliveredDoc} has been approved!</h1>
+      <p style="color:#94A3B8; text-align:center; margin-bottom:24px;">Congratulations, ${data.name}! Your ${data.destination} ${w.deliveredDoc} is ready to download.</p>
 
       <div style="${cardStyle}">
         <table style="width:100%; font-size:14px;" cellpadding="6">
@@ -190,10 +243,10 @@ export function evisaReadyEmail(data: {
       </div>
 
       <div style="text-align:center; margin:32px 0;">
-        <a href="${SITE_URL}/login" style="${greenButtonStyle}">Download Your eVisa</a>
+        <a href="${SITE_URL}/login" style="${greenButtonStyle}">Download Your ${w.deliveredDoc}</a>
       </div>
 
-      <p style="font-size:13px; color:#94A3B8;">We recommend printing a copy of your eVisa to carry with you when traveling.</p>
+      <p style="font-size:13px; color:#94A3B8;">We recommend printing a copy of your ${w.deliveredDoc} to carry with you when traveling.</p>
     `),
   };
 }
@@ -203,7 +256,9 @@ export function statusUpdateEmail(data: {
   name: string;
   orderNumber: string;
   status: string;
+  destination?: string;
 }) {
+  const w = emailWording(data.destination);
   const statusLabels: Record<string, string> = {
     UNFINISHED:       'Unfinished',
     PROCESSING:       'Processing',
@@ -222,7 +277,7 @@ export function statusUpdateEmail(data: {
     subject: `Status Update — Order #${data.orderNumber}`,
     html: wrap(`
       <h1 style="font-size:24px; margin-bottom:8px;">Application Status Update</h1>
-      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name}, your visa application status has been updated.</p>
+      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name}, your ${w.application} status has been updated.</p>
 
       <div style="${cardStyle} text-align:center;">
         <p style="color:#94A3B8; margin-bottom:8px;">Order #${data.orderNumber}</p>
@@ -240,12 +295,14 @@ export function statusUpdateEmail(data: {
 export function finishReminderEmail(data: {
   name: string;
   orderNumber: string;
+  destination?: string;
 }) {
+  const w = emailWording(data.destination);
   return {
-    subject: `Complete Your Visa Application — Order #${data.orderNumber}`,
+    subject: `Complete Your ${w.applicationCap} — Order #${data.orderNumber}`,
     html: wrap(`
       <h1 style="font-size:24px; margin-bottom:8px;">Don't forget to finish your application!</h1>
-      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name}, your visa application is almost complete. Please finish the remaining steps to submit it for processing.</p>
+      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name}, your ${w.application} is almost complete. Please finish the remaining steps to submit it for processing.</p>
 
       <div style="text-align:center; margin:32px 0;">
         <a href="${SITE_URL}/login" style="${buttonStyle}">Continue Your Application</a>
@@ -268,12 +325,13 @@ export function abandonedReminderEmail(data: {
   destination?: string | null;
   reminderIndex: number; // 1, 2, or 3 — useful for admins reading the source
 }) {
+  const w = emailWording(data.destination ?? undefined);
   const dest = data.destination ? ` ${data.destination}` : '';
   return {
-    subject: `Still interested in your${dest} visa?`,
+    subject: `Still interested in your${dest} ${w.product}?`,
     html: wrap(`
       <h1 style="font-size:24px; margin-bottom:8px;">We saved your spot!</h1>
-      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name || 'there'}, you started a${dest} visa application with VisaTrips but didn't finish. It only takes a few minutes to pick up where you left off.</p>
+      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name || 'there'}, you started a${dest} ${w.application} with VisaTrips but didn't finish. It only takes a few minutes to pick up where you left off.</p>
 
       <div style="text-align:center; margin:32px 0;">
         <a href="${SITE_URL}/apply" style="${buttonStyle}">Finish My Application</a>
@@ -291,6 +349,13 @@ export function applicationSubmittedEmail(data: {
   applicationId: string;
   destination: string;
 }) {
+  const w = emailWording(data.destination);
+  // The "look it up on the government portal" footnote is India-only —
+  // Aruba's ED Card has no equivalent self-service tracker, so we just
+  // tell them to keep the ID on hand for support.
+  const trackingFootnote = (data.destination || '').toLowerCase() === 'india'
+    ? 'Keep your Application ID handy — you can use it on the Indian Government portal to check processing status directly.'
+    : 'Keep your Application ID handy in case you need to reference it with our support team.';
   return {
     subject: `Application Submitted — #${data.orderNumber}`,
     html: wrap(`
@@ -298,7 +363,7 @@ export function applicationSubmittedEmail(data: {
         <span style="font-size:48px;">📨</span>
       </div>
       <h1 style="font-size:24px; margin-bottom:8px; text-align:center;">Your application is in!</h1>
-      <p style="color:#94A3B8; text-align:center; margin-bottom:24px;">Hi ${data.name}, we've successfully submitted your ${data.destination} visa application. Now we wait for approval.</p>
+      <p style="color:#94A3B8; text-align:center; margin-bottom:24px;">Hi ${data.name}, we've successfully submitted your ${data.destination} ${w.application}. Now we wait for approval.</p>
 
       <div style="${cardStyle}">
         <table style="width:100%; font-size:14px;" cellpadding="6">
@@ -308,13 +373,13 @@ export function applicationSubmittedEmail(data: {
         </table>
       </div>
 
-      <p style="margin:24px 0;">Processing typically takes 2–4 business days. We'll email you the moment your eVisa is approved.</p>
+      <p style="margin:24px 0;">Processing typically takes 2–4 business days. We'll email you the moment your ${w.deliveredDoc} is approved.</p>
 
       <div style="text-align:center; margin:32px 0;">
         <a href="${SITE_URL}/login" style="${buttonStyle}">View Application Status</a>
       </div>
 
-      <p style="font-size:13px; color:#94A3B8;">Keep your Application ID handy — you can use it on the Indian Government portal to check processing status directly.</p>
+      <p style="font-size:13px; color:#94A3B8;">${trackingFootnote}</p>
     `),
   };
 }
@@ -323,15 +388,17 @@ export function applicationSubmittedEmail(data: {
 export function autoClosedEmail(data: {
   name: string;
   orderNumber: string;
+  destination?: string;
 }) {
+  const w = emailWording(data.destination);
   return {
     subject: `Order Closed — #${data.orderNumber}`,
     html: wrap(`
       <h1 style="font-size:24px; margin-bottom:8px;">Your order has been closed</h1>
-      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name}, we noticed your visa application at VisaTrips was never completed despite our reminders.</p>
+      <p style="color:#94A3B8; margin-bottom:24px;">Hi ${data.name}, we noticed your ${w.application} at VisaTrips was never completed despite our reminders.</p>
 
       <div style="${cardStyle}">
-        <p style="margin:0;">Order #${data.orderNumber} has been marked as closed. If you still need your visa, please reach out and we'll help you pick up where you left off.</p>
+        <p style="margin:0;">Order #${data.orderNumber} has been marked as closed. If you still need your ${w.product}, please reach out and we'll help you pick up where you left off.</p>
       </div>
 
       <div style="text-align:center; margin:32px 0;">

@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
               orderNumber: orderNum,
               specialistNotes: order.specialistNotes || '',
               flaggedFields: flagged,
+              destination: order.destination,
             });
             break;
           case 'evisa':
@@ -85,12 +86,14 @@ export async function POST(req: NextRequest) {
               name,
               orderNumber: orderNum,
               status: order.status,
+              destination: order.destination,
             });
             break;
           case 'reminder':
             template = finishReminderEmail({
               name,
               orderNumber: orderNum,
+              destination: order.destination,
             });
             break;
           case 'submitted':
@@ -109,6 +112,7 @@ export async function POST(req: NextRequest) {
             template = autoClosedEmail({
               name,
               orderNumber: orderNum,
+              destination: order.destination,
             });
             break;
           default:

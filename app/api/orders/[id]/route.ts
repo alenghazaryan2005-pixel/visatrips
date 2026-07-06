@@ -40,8 +40,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
-// Fields customers are allowed to update
-const CUSTOMER_ALLOWED = ['travelers', 'flaggedFields'];
+// Fields customers are allowed to update.
+//   - travelers: the form data (filling out or correcting their app)
+//   - flaggedFields: cleared on re-submission so the next admin review
+//     starts with a clean slate
+//   - status: ONLY PROCESSING is accepted (enforced below at the
+//     'status' validation block). Required so the order flips out of
+//     UNFINISHED when the customer finishes the form.
+//   - specialistNotes: cleared on re-submission for the same reason
+//     as flaggedFields. Plain text, no HTML — we never render this
+//     dangerously, so even if a customer writes their own note here
+//     it's harmless self-view.
+const CUSTOMER_ALLOWED = ['travelers', 'flaggedFields', 'status', 'specialistNotes'];
 // Fields only admins can update directly. Note: photo/passport approval
 // columns are NOT in this list — clients use the synthetic body fields
 // `photoApproved` / `passportApproved` (Boolean) which the server translates

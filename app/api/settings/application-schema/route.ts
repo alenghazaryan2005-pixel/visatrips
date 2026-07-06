@@ -14,7 +14,7 @@ import {
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const VALID_FIELD_TYPES = ['text','email','tel','date','number','textarea','select','radio','checkbox'];
+const VALID_FIELD_TYPES = ['text','email','tel','date','number','textarea','select','radio','checkbox','file'];
 const VALID_BOT_ACTIONS: BotAction[] = ['fill','select','click','check','upload','skip'];
 
 function sanitizeKey(k: unknown, fallback: string): string {

@@ -394,7 +394,7 @@ export default function StatusPage() {
                 ← Back to All Orders
               </button>
             )}
-            <h1 className="customer-status-title">Your Visa Application</h1>
+            <h1 className="customer-status-title">Your {(order.destination || '').toLowerCase() === 'aruba' ? 'ED Card' : 'Visa'} Application</h1>
             <p className="customer-status-order-num">Order #{formatOrderNum(order.orderNumber)}</p>
           </div>
           <button className="customer-status-logout" onClick={handleLogout}>Log Out</button>
@@ -470,29 +470,36 @@ export default function StatusPage() {
           </div>
         )}
 
-        {/* eVisa Document — shown when approved and uploaded */}
-        {order.evisaUrl && (
+        {/* Final approved doc — shown when admin uploads it.
+         *  Wording per destination so an Aruba customer doesn't see
+         *  "Your E-Visa" (their product is the ED Card, not an
+         *  electronic visa). */}
+        {order.evisaUrl && (() => {
+          const isAruba = (order.destination || '').toLowerCase() === 'aruba';
+          const docName = isAruba ? 'ED Card' : 'E-Visa';
+          const docPhrase = isAruba ? 'your ED Card' : 'your electronic visa';
+          return (
           <div className="customer-evisa-card">
             <div className="customer-evisa-header">
               <span className="customer-evisa-icon" aria-hidden>
                 <CheckCircle size={28} strokeWidth={1.85} />
               </span>
               <div>
-                <h3 className="customer-evisa-title">Your E-Visa is Ready!</h3>
-                <p className="customer-evisa-sub">Your electronic visa has been approved. Download it below and print a copy for your trip.</p>
+                <h3 className="customer-evisa-title">Your {docName} is Ready!</h3>
+                <p className="customer-evisa-sub">{docPhrase[0].toUpperCase() + docPhrase.slice(1)} has been approved. Download it below and print a copy for your trip.</p>
               </div>
             </div>
             <div className="customer-evisa-content">
               {order.evisaUrl.endsWith('.pdf') ? (
                 <div className="customer-evisa-pdf" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                   <FileText size={20} strokeWidth={1.85} aria-hidden />
-                  E-Visa Document (PDF)
+                  {docName} Document (PDF)
                 </div>
               ) : (
-                <img src={order.evisaUrl} alt="Your E-Visa" className="customer-evisa-img" />
+                <img src={order.evisaUrl} alt={`Your ${docName}`} className="customer-evisa-img" />
               )}
               <div className="customer-evisa-actions">
-                <a href={order.evisaUrl} target="_blank" rel="noopener noreferrer" className="customer-evisa-view">View E-Visa</a>
+                <a href={order.evisaUrl} target="_blank" rel="noopener noreferrer" className="customer-evisa-view">View {docName}</a>
                 <a
                   href={order.evisaUrl}
                   download
@@ -500,12 +507,13 @@ export default function StatusPage() {
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
                 >
                   <Download size={16} strokeWidth={1.85} aria-hidden />
-                  Download E-Visa
+                  Download {docName}
                 </a>
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* CTA — three distinct states (each gets its own message + colour):
             • NEEDS_CORRECTION → handled above by the red banner; nothing here
@@ -523,12 +531,20 @@ export default function StatusPage() {
           if (order.evisaUrl) return null;
           if (order.status === 'NEEDS_CORRECTION') return null;
 
+          // Per-destination wording. Aruba customers shouldn't see
+          // "the Indian government" or "your eVisa is processing" —
+          // their product is the ED Card.
+          const isAruba = (order.destination || '').toLowerCase() === 'aruba';
+          const docName = isAruba ? 'ED Card' : 'eVisa';
+          const applicationPhrase = isAruba ? 'ED Card application' : 'visa application';
+          const submittedAuthority = isAruba ? 'the Aruba Tourism Authority' : 'the Indian government';
+
           if (order.status === 'SUBMITTED') {
             return (
               <div className="customer-status-cta" style={{ background: '#2563eb' }}>
                 <div>
-                  <h3 className="customer-status-cta-title">📬 We&apos;re waiting for your eVisa to arrive!</h3>
-                  <p className="customer-status-cta-text">Your application has been submitted to the Indian government. eVisas typically arrive within 1–3 business days — we&apos;ll email you the moment yours is approved.</p>
+                  <h3 className="customer-status-cta-title">📬 We&apos;re waiting for your {docName} to arrive!</h3>
+                  <p className="customer-status-cta-text">Your application has been submitted to {submittedAuthority}. {docName}s typically arrive within 1–3 business days — we&apos;ll email you the moment yours is approved.</p>
                 </div>
               </div>
             );
@@ -544,7 +560,7 @@ export default function StatusPage() {
               <div className="customer-status-cta" style={{ background: '#16a34a' }}>
                 <div>
                   <h3 className="customer-status-cta-title">Your Application is Processing!</h3>
-                  <p className="customer-status-cta-text">We are reviewing your visa application. You will be notified of any updates.</p>
+                  <p className="customer-status-cta-text">We are reviewing your {applicationPhrase}. You will be notified of any updates.</p>
                 </div>
               </div>
             );
@@ -554,7 +570,7 @@ export default function StatusPage() {
             <div className="customer-status-cta">
               <div>
                 <h3 className="customer-status-cta-title">Continue your application</h3>
-                <p className="customer-status-cta-text">Complete the remaining steps to finalize your visa application.</p>
+                <p className="customer-status-cta-text">Complete the remaining steps to finalize your {applicationPhrase}.</p>
               </div>
               <Link href={`/apply/finish?id=${formatOrderNum(order.orderNumber)}`} className="customer-status-cta-btn">
                 Finish Your Application →
@@ -575,8 +591,8 @@ export default function StatusPage() {
             </h2>
             <p style={{ fontSize: '0.88rem', color: 'var(--slate)', marginBottom: '1rem' }}>
               You didn't add this at checkout. If you change your mind, you can opt in
-              now — if your visa application is rejected for reasons within our
-              control, we'll refund what you paid for the visa.
+              now — if your application is rejected for reasons within our
+              control, we'll refund what you paid for it.
             </p>
             {protectionError && (
               <div style={{

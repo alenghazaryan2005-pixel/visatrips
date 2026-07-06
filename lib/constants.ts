@@ -97,6 +97,7 @@ export function normaliseReligion(input: string | null | undefined): string {
 }
 
 export const VISA_LABELS: Record<string, string> = {
+  // India
   TOURIST_30:  'Tourist – 30 days',
   TOURIST_1Y:  'Tourist – 1 year',
   TOURIST_5Y:  'Tourist – 5 years',
@@ -107,6 +108,9 @@ export const VISA_LABELS: Record<string, string> = {
   'tourist-5y':  'Tourist – 5 years',
   'business-1y': 'Business – 1 year',
   'medical-60':  'Medical – 60 days',
+  // Aruba
+  ED_CARD:    'ED Card',
+  'ed-card':  'ED Card',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -167,6 +171,7 @@ export const VISA_COLORS: Record<string, string> = {
 
 export const COUNTRY_FLAGS: Record<string, string> = {
   'India':          '🇮🇳',
+  'Aruba':          '🇦🇼',
   'Brazil':         '🇧🇷',
   'United States':  '🇺🇸',
   'United Kingdom': '🇬🇧',

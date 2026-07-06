@@ -15,7 +15,7 @@ interface CountryCard {
 
 const COUNTRIES: CountryCard[] = [
   { slug: 'india',    name: 'India',       flag: '🇮🇳', status: 'live',         description: 'Tourist, Business, and Medical eVisas' },
-  { slug: 'aruba',    name: 'Aruba',       flag: '🇦🇼', status: 'coming-soon', description: 'ED-Card / online entry form' },
+  { slug: 'aruba',    name: 'Aruba',       flag: '🇦🇼', status: 'live',         description: 'ED Card online entry form' },
   { slug: 'turkey',   name: 'Turkey',      flag: '🇹🇷', status: 'coming-soon', description: 'eVisa for tourism and transit' },
   { slug: 'egypt',    name: 'Egypt',       flag: '🇪🇬', status: 'coming-soon', description: 'eVisa for single and multiple entry' },
   { slug: 'cambodia', name: 'Cambodia',    flag: '🇰🇭', status: 'coming-soon', description: 'Tourist and Business eVisas' },
@@ -92,6 +92,32 @@ export default function SettingsLandingPage() {
                 <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎨</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.2rem' }}>Color Palette</div>
                 <div style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: '0.75rem' }}>Customize the colors used across the admin panel. Customer-facing pages aren&apos;t affected.</div>
+                <div style={{
+                  display: 'inline-block',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '0.2rem 0.5rem',
+                  borderRadius: '0.3rem',
+                  background: '#d1fae5',
+                  color: '#065f46',
+                  textTransform: 'uppercase',
+                }}>● Live</div>
+              </div>
+            </Link>
+
+            <Link href="/admin/settings/payment" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div className="country-card-live" style={{
+                background: 'white',
+                border: '1px solid #e5e7eb',
+                borderRadius: '0.85rem',
+                padding: '1.25rem',
+                cursor: 'pointer',
+                transition: 'transform 0.15s, box-shadow 0.15s, border-color 0.15s',
+                position: 'relative',
+              }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>💳</div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.2rem' }}>Bot Payment Card</div>
+                <div style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: '0.75rem' }}>The credit card the bot uses to pay for visa applications on gov sites. Encrypted at rest, only the last 4 digits are visible after save.</div>
                 <div style={{
                   display: 'inline-block',
                   fontSize: '0.72rem',
