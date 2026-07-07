@@ -41,7 +41,7 @@
    * /legacy so those pages keep their existing design intact. */
   --ink:     #1E293B;
   --slate:   #475569;
-  --blue:    #3B82F6;  /* was #6C8AFF (periwinkle) */
+  --blue:    #1D4ED8;  /* was #3B82F6 — user asked for a darker, less-purplish blue */
   --blue2:   #60A5FA;  /* was #93ADFF */
   --navy:    #0B2447;  /* was #1A2B5E */
   /* Surfaces */

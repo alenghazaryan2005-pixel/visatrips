@@ -94,7 +94,7 @@ function ProgressBar({ current }: { current: number }) {
       </div>
       <div className="h-1.5 w-full bg-[#EEF2F9] rounded-full overflow-hidden">
         <div
-          className="h-full bg-[#3B82F6] transition-[width] duration-500 ease-out"
+          className="h-full bg-[#1D4ED8] transition-[width] duration-500 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
