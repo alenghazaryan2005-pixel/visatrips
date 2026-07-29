@@ -105,7 +105,14 @@
       "Bash(curl -s \"http://localhost:3000/?nocache=$\\(date +%s\\)\")",
       "Bash(curl -s \"http://localhost:3000/apply?destination=INDIA&x=$\\(date +%s\\)\")",
       "Bash(git check-ignore *)",
-      "Bash(grep -rEn \"sk-[a-zA-Z0-9]{20,}|SECRET|PRIVATE_KEY|API_KEY|BEGIN RSA|password.{0,3}=.{0,3}\\\\\"[a-zA-Z0-9]{6,}\\\\\"\" app/admin/settings/aruba app/admin/settings/payment app/api/admin/settings app/aruba app/legacy lib/cardVault.ts lib/countryConfig.ts lib/loadDotEnv.ts scripts/process-aruba.ts components/CountryFlag.tsx components/LandingFooter.tsx components/LandingNav.tsx app/apply/finish/CustomDropdown.tsx app/apply/finish/SchemaDrivenFinish.tsx)"
+      "Bash(grep -rEn \"sk-[a-zA-Z0-9]{20,}|SECRET|PRIVATE_KEY|API_KEY|BEGIN RSA|password.{0,3}=.{0,3}\\\\\"[a-zA-Z0-9]{6,}\\\\\"\" app/admin/settings/aruba app/admin/settings/payment app/api/admin/settings app/aruba app/legacy lib/cardVault.ts lib/countryConfig.ts lib/loadDotEnv.ts scripts/process-aruba.ts components/CountryFlag.tsx components/LandingFooter.tsx components/LandingNav.tsx app/apply/finish/CustomDropdown.tsx app/apply/finish/SchemaDrivenFinish.tsx)",
+      "Bash(gh auth *)",
+      "Bash(git config *)",
+      "Bash(grep -E \"id_\\(rsa|ed25519|ecdsa\\)\\(\\\\.pub\\)?$\")",
+      "Bash(ssh -T -o StrictHostKeyChecking=no -o BatchMode=yes git@github.com)",
+      "Bash(vercel whoami *)",
+      "Bash(sed -E 's/\\(:[a-zA-Z0-9_]{4}\\)[a-zA-Z0-9_]+\\(@\\)/\\\\1***\\\\2/')",
+      "Bash(git ls-remote *)"
     ]
   }
 }

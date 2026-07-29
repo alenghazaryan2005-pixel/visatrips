@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Nav from '@/components/Nav';
+import LandingNav from '@/components/LandingNav';
+import LandingFooter from '@/components/LandingFooter';
 
 const SECTIONS = [
   {
@@ -230,8 +231,13 @@ export default function PrivacyPage() {
   };
 
   return (
-    <>
-      <Nav />
+    // Same top/bottom shell as `/`, `/apply`, `/apply/finish`, and
+    // `/contact` — navy LandingNav on top, LandingFooter on the
+    // bottom with the "Built for Confidence" trust strip suppressed
+    // (readers of a legal page don't need marketing reassurance in
+    // the middle of the document, just the standard sitewide footer).
+    <div className="min-h-screen flex flex-col bg-white">
+      <LandingNav />
       <div className="legal-page">
         <div className="legal-breadcrumb">
           <Link href="/" className="legal-breadcrumb-link">Home</Link>
@@ -282,6 +288,7 @@ export default function PrivacyPage() {
           </div>
         </div>
       </div>
-    </>
+      <LandingFooter showTrust={false} />
+    </div>
   );
 }
