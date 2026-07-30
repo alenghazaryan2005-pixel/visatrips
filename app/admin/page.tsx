@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
@@ -787,11 +787,16 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   /** Processing-speed chip — single-select since each order has exactly one
    *  speed. Click an active chip again to clear (back to "all speeds"). */
   const [speedFilter, setSpeedFilter] = useState<string | null>(null);
-  /** Country chip — single-select. The set of available chips is derived
-   *  from the destinations actually present in the current order list,
-   *  so as new countries get added (Aruba alongside India today, more
-   *  tomorrow) they appear automatically without code changes. */
-  const [countryFilter, setCountryFilter] = useState<string | null>(null);
+  /** Country scope is URL-driven — /admin (all), /admin/india, /admin/aruba.
+   *  Rendered as top-of-orders tab links (see COUNTRY_TABS below). The
+   *  backend GET /api/orders?destination=INDIA does the actual filtering
+   *  server-side so large accounts don't ship every country's rows over
+   *  the wire on every page load. */
+  const pathname = usePathname() ?? '';
+  const pathCountry: string | null =
+    pathname === '/admin/india' || pathname.startsWith('/admin/india/') ? 'INDIA' :
+    pathname === '/admin/aruba' || pathname.startsWith('/admin/aruba/') ? 'ARUBA' :
+    null;
   const tagCatalog = useOrderTagCatalog();
   const router = useRouter();
   /** Feature flag — when OFF, hides tag UI everywhere on this page. Default off. */
@@ -839,7 +844,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       setDeletingAbandonedId(null);
     }
   };
-  useEffect(() => { setOrdersPage(1); }, [filter, search, photoNeedsApprovalOnly, passportNeedsApprovalOnly, tagFilterId, speedFilter, countryFilter]);
+  useEffect(() => { setOrdersPage(1); }, [filter, search, photoNeedsApprovalOnly, passportNeedsApprovalOnly, tagFilterId, speedFilter, pathCountry]);
   useEffect(() => { setCustomersPage(1); }, [customerSearch]);
   useEffect(() => { setArchivePage(1); }, [activeSection]);
 
@@ -875,9 +880,12 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
    * blips look like permanent data loss on the page.
    */
   const fetchOrders = useCallback(async () => {
+    const url = pathCountry
+      ? `/api/orders?destination=${encodeURIComponent(pathCountry)}`
+      : '/api/orders';
     const attempt = async (): Promise<Order[] | null> => {
       try {
-        const res = await fetch('/api/orders', { cache: 'no-store' });
+        const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) {
           console.warn(`[fetchOrders] /api/orders responded ${res.status}`);
           return null;
@@ -910,7 +918,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       // displayed so a transient failure doesn't blank the screen.
     }
     setLoading(false);
-  }, []);
+  }, [pathCountry]);
 
   useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
@@ -1097,10 +1105,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     if (speedFilter && (o.processingSpeed ?? 'standard') !== speedFilter) {
       return false;
     }
-    // Country filter — single-select; matches by destination string.
-    if (countryFilter && o.destination !== countryFilter) {
-      return false;
-    }
+    // Country scoping now happens server-side via /admin/india + /admin/aruba
+    // routes (see pathCountry above); no client-side country filter needed.
     if (tagsEnabled && tagFilterId) {
       try {
         const ids = o.tags ? JSON.parse(o.tags) : [];
@@ -1153,14 +1159,14 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       if (tag) labels.push(`Tag: ${tag.name}`);
     }
     if (speedFilter) labels.push(`Speed: ${speedFilter}`);
-    if (countryFilter) labels.push(`Country: ${countryFilter}`);
+    if (pathCountry) labels.push(`Country: ${pathCountry}`);
 
     writeQueue('orders', {
       ids: filtered.map(o => formatOrderNum(o.orderNumber)),
       filterLabel: labels.length > 0 ? labels.join(' · ') : null,
     });
     router.push(`/admin/orders/${orderNumberFormatted}`);
-  }, [filter, search, photoNeedsApprovalOnly, passportNeedsApprovalOnly, tagFilterId, speedFilter, countryFilter, tagCatalog.tags, filtered, router]);
+  }, [filter, search, photoNeedsApprovalOnly, passportNeedsApprovalOnly, tagFilterId, speedFilter, pathCountry, tagCatalog.tags, filtered, router]);
 
 
   const stats = {
@@ -1213,6 +1219,51 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <button className="admin-refresh-btn" onClick={fetchOrders}><RefreshCw size={13} strokeWidth={2.25} /><span>Refresh</span></button>
               </div>
             </div>
+
+            {/* Country tabs — URL-driven scope. /admin (all countries),
+             * /admin/india, /admin/aruba. Backend does the actual filter
+             * server-side (see fetchOrders above), so switching tabs
+             * fetches only that country's rows instead of the whole
+             * table. Adding a new country tab is a two-line change:
+             * (1) push an entry into COUNTRY_TABS below, (2) create the
+             * matching thin re-export in app/admin/<slug>/page.tsx. */}
+            {(() => {
+              const COUNTRY_TABS: Array<{ href: string; label: string; countryCode: string | null }> = [
+                { href: '/admin',       label: 'All countries', countryCode: null },
+                { href: '/admin/india', label: 'India',         countryCode: 'INDIA' },
+                { href: '/admin/aruba', label: 'Aruba',         countryCode: 'ARUBA' },
+              ];
+              return (
+                <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--cloud)' }}>
+                  {COUNTRY_TABS.map(tab => {
+                    const isActive = pathCountry === tab.countryCode;
+                    const flag = tab.countryCode ? (COUNTRY_FLAGS[tab.countryCode] ?? '') : '';
+                    return (
+                      <Link
+                        key={tab.href}
+                        href={tab.href}
+                        style={{
+                          fontSize: '0.82rem',
+                          fontWeight: 600,
+                          padding: '0.55rem 0.95rem',
+                          textDecoration: 'none',
+                          borderBottom: '2px solid ' + (isActive ? 'var(--blue)' : 'transparent'),
+                          color: isActive ? 'var(--blue)' : 'var(--slate)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          marginBottom: '-1px',
+                          transition: 'color 0.12s, border-color 0.12s',
+                        }}
+                      >
+                        {flag && <span aria-hidden>{flag}</span>}
+                        {tab.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* Stats */}
             <div className="admin-stats">
@@ -1397,69 +1448,16 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                       </button>
                     );
                   })}
-                  {(photoNeedsApprovalOnly || passportNeedsApprovalOnly || tagFilterId || speedFilter || countryFilter) && (
+                  {(photoNeedsApprovalOnly || passportNeedsApprovalOnly || tagFilterId || speedFilter) && (
                     <button
                       type="button"
-                      onClick={() => { setPhotoNeedsApprovalOnly(false); setPassportNeedsApprovalOnly(false); setTagFilterId(null); setSpeedFilter(null); setCountryFilter(null); }}
+                      onClick={() => { setPhotoNeedsApprovalOnly(false); setPassportNeedsApprovalOnly(false); setTagFilterId(null); setSpeedFilter(null); }}
                       style={{
                         fontSize: '0.72rem', color: '#6b7280', background: 'transparent',
                         border: 'none', cursor: 'pointer', textDecoration: 'underline',
                       }}
                     >Clear</button>
                   )}
-                </div>
-              );
-            })()}
-
-            {/* Country filter — sits below the Tags row. The chip list is
-             * derived from destinations actually present in the current
-             * order list, so adding a new country (e.g. Aruba alongside
-             * India) makes the chip appear automatically without any
-             * config. Only renders if there's more than one country —
-             * a single-country shop doesn't need the affordance. */}
-            {(() => {
-              const countryCounts = new Map<string, number>();
-              for (const o of orders) {
-                if (o.archivedAt) continue;
-                const dest = o.destination || 'Unknown';
-                countryCounts.set(dest, (countryCounts.get(dest) ?? 0) + 1);
-              }
-              if (countryCounts.size <= 1) return null;
-              const countries = Array.from(countryCounts.keys()).sort();
-              return (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', marginTop: '-0.5rem', marginBottom: '0.75rem' }}>
-                  <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--slate)', textTransform: 'uppercase' }}>Country</span>
-                  {countries.map(country => {
-                    const isActive = countryFilter === country;
-                    const count = countryCounts.get(country) ?? 0;
-                    const flag = COUNTRY_FLAGS[country] ?? '';
-                    return (
-                      <button
-                        key={country}
-                        type="button"
-                        onClick={() => setCountryFilter(prev => prev === country ? null : country)}
-                        title={isActive ? `Showing only ${country} orders — click to clear` : `Filter to ${country} orders`}
-                        style={{
-                          fontSize: '0.75rem', fontWeight: 600,
-                          padding: '0.3rem 0.65rem', borderRadius: '0.4rem',
-                          border: '1px solid ' + (isActive ? '#1e3a8a' : '#e5e7eb'),
-                          background: isActive ? '#eef2ff' : 'white',
-                          color: isActive ? '#1e3a8a' : 'var(--slate)',
-                          cursor: 'pointer',
-                          display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                        }}
-                      >
-                        {flag && <span aria-hidden>{flag}</span>}
-                        {country}
-                        <span style={{
-                          fontSize: '0.65rem', fontWeight: 700,
-                          padding: '0 0.35rem', borderRadius: '999px',
-                          background: isActive ? '#1e3a8a' : '#e5e7eb',
-                          color: isActive ? 'white' : 'var(--slate)',
-                        }}>{count}</span>
-                      </button>
-                    );
-                  })}
                 </div>
               );
             })()}
