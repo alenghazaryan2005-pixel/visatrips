@@ -150,49 +150,6 @@ export default function ArubaPage() {
         </div>
       </section>
 
-      {/* ── The ED Card ── */}
-      <section id="ed-card" className="bg-white border-b border-[#EEF2F9]">
-        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
-          <div className="text-center mb-12">
-            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
-              The Product
-            </div>
-            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
-              What You Get
-            </h2>
-            <p className="mt-3 text-[0.9rem] text-[#3B4A6B] max-w-[560px] mx-auto">
-              Aruba has one entry document for tourists — the ED Card. Here&apos;s
-              what&apos;s covered.
-            </p>
-          </div>
-
-          <div className="max-w-[720px] mx-auto bg-white border border-[#dbe3f0] rounded-lg p-8">
-            <div className="text-[0.72rem] uppercase tracking-wide font-semibold text-[#3B82F6] mb-2">
-              {ED_CARD.entries}
-            </div>
-            <h3 className="text-[1.4rem] font-bold text-[#0B2447] mb-3">{ED_CARD.name}</h3>
-            <div className="flex items-baseline gap-2 mb-6">
-              <span className="text-[2rem] font-bold text-[#0B2447]">${ED_CARD.price}</span>
-              <span className="text-[0.85rem] text-[#3B4A6B]">starting fee</span>
-            </div>
-            <ul className="space-y-3 mb-8 list-none p-0">
-              {ED_CARD.bullets.map(b => (
-                <li key={b} className="text-[0.9rem] leading-7 text-[#3B4A6B] flex items-start gap-3">
-                  <span className="mt-2.5 w-1.5 h-1.5 rounded-full bg-[#3B82F6] shrink-0" aria-hidden />
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/apply?destination=ARUBA"
-              className="inline-flex items-center gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white no-underline text-[0.85rem] font-semibold tracking-wide uppercase px-6 py-3 rounded-md transition-colors"
-            >
-              Start Application <ArrowRight size={16} strokeWidth={2.5} />
-            </Link>
-          </div>
-        </div>
-      </section>
-
       {/* ── Requirements ── */}
       <section id="requirements" className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
         <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
