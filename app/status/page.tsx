@@ -336,7 +336,7 @@ export default function StatusPage() {
             <p style={{ color: 'var(--slate)', fontSize: '1rem', maxWidth: '420px', margin: '0 auto 2rem' }}>
               But that&apos;s okay! You can begin your journey with VisaTrips, today!
             </p>
-            <Link href="/apply" style={{ display: 'inline-block', padding: '14px 32px', background: 'var(--blue)', color: 'white', textDecoration: 'none', borderRadius: '12px', fontWeight: 600, fontSize: '1rem' }}>
+            <Link href="/apply" style={{ display: 'inline-block', padding: '14px 32px', background: 'var(--blue)', color: 'white', textDecoration: 'none', borderRadius: '6px', fontWeight: 600, fontSize: '1rem' }}>
               Start Your Application →
             </Link>
           </div>
@@ -614,7 +614,7 @@ export default function StatusPage() {
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               gap: '1rem', flexWrap: 'wrap',
               padding: '0.75rem 0.95rem',
-              border: '1px solid var(--cloud)', borderRadius: '0.65rem',
+              border: '1px solid var(--cloud)', borderRadius: '0.5rem',
               background: 'white',
             }}>
               <div style={{ flex: 1, minWidth: '180px' }}>
@@ -638,7 +638,7 @@ export default function StatusPage() {
                   disabled={addingProtection}
                   style={{
                     background: addingProtection ? '#94a3b8' : 'var(--blue)',
-                    color: 'white', border: 'none', borderRadius: '0.5rem',
+                    color: 'white', border: 'none', borderRadius: '0.375rem',
                     padding: '0.55rem 1.1rem', fontSize: '0.9rem', fontWeight: 600,
                     cursor: addingProtection ? 'wait' : 'pointer',
                     whiteSpace: 'nowrap',
@@ -702,7 +702,7 @@ export default function StatusPage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   gap: '1rem', flexWrap: 'wrap',
                   padding: '0.75rem 0.95rem',
-                  border: '1px solid var(--cloud)', borderRadius: '0.65rem',
+                  border: '1px solid var(--cloud)', borderRadius: '0.5rem',
                   background: 'white',
                 }}>
                   <div style={{ flex: 1, minWidth: '180px' }}>
@@ -728,7 +728,7 @@ export default function StatusPage() {
                       disabled={upgrading !== ''}
                       style={{
                         background: upgrading === target ? '#94a3b8' : 'var(--blue)',
-                        color: 'white', border: 'none', borderRadius: '0.5rem',
+                        color: 'white', border: 'none', borderRadius: '0.375rem',
                         padding: '0.55rem 1.1rem', fontSize: '0.9rem', fontWeight: 600,
                         cursor: upgrading ? 'wait' : 'pointer',
                         opacity: upgrading && upgrading !== target ? 0.5 : 1,

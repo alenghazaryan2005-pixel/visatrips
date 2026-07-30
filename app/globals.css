@@ -2343,7 +2343,7 @@ footer nav a:hover { color: var(--white); }
 
 /* Customer order list cards */
 .customer-order-card {
-  @apply flex items-center justify-between rounded-xl p-4 cursor-pointer;
+  @apply flex items-center justify-between rounded-lg p-4 cursor-pointer;
   border: 1.5px solid var(--cloud);
   transition: border-color 0.15s, background 0.15s;
 }
@@ -2373,7 +2373,7 @@ footer nav a:hover { color: var(--white); }
   color: var(--slate);
 }
 .customer-status-logout {
-  @apply text-[0.85rem] font-medium rounded-lg;
+  @apply text-[0.85rem] font-medium rounded-md;
   padding: 0.5rem 1rem;
   border: 1.5px solid var(--cloud);
   background: white;
@@ -2388,7 +2388,7 @@ footer nav a:hover { color: var(--white); }
 
 /* Correction banner on status page */
 .customer-correction-banner {
-  @apply rounded-2xl p-6 mb-5;
+  @apply rounded-lg p-6 mb-5;
   background: #FEF2F2;
   border: 2px solid #fca5a5;
 }
@@ -2401,13 +2401,13 @@ footer nav a:hover { color: var(--white); }
   color: #dc2626;
 }
 .customer-correction-note {
-  @apply text-[0.9rem] leading-relaxed p-4 rounded-xl mb-4;
+  @apply text-[0.9rem] leading-relaxed p-4 rounded-lg mb-4;
   background: white;
   color: var(--ink);
   border: 1px solid #fecaca;
 }
 .customer-correction-btn {
-  @apply inline-block px-6 py-3 rounded-xl font-semibold text-[0.95rem] text-center;
+  @apply inline-block px-6 py-3 rounded-md font-semibold text-[0.95rem] text-center;
   background: #dc2626;
   color: white;
   text-decoration: none;
@@ -2417,7 +2417,7 @@ footer nav a:hover { color: var(--white); }
 
 /* Document re-upload on status page */
 .customer-reupload-section {
-  @apply rounded-2xl p-6 mb-5;
+  @apply rounded-lg p-6 mb-5;
   background: #FFFBEB;
   border: 2px solid #FDE68A;
 }
@@ -2426,7 +2426,7 @@ footer nav a:hover { color: var(--white); }
   color: #92400E;
 }
 .customer-reupload-item {
-  @apply rounded-xl p-4 mb-3;
+  @apply rounded-lg p-4 mb-3;
   background: white;
   border: 1px solid #FDE68A;
 }
@@ -2439,7 +2439,7 @@ footer nav a:hover { color: var(--white); }
   color: var(--slate);
 }
 .customer-reupload-btn {
-  @apply px-5 py-2.5 rounded-xl font-semibold text-[0.88rem] cursor-pointer;
+  @apply px-5 py-2.5 rounded-md font-semibold text-[0.88rem] cursor-pointer;
   background: var(--blue);
   color: white;
   border: none;
@@ -2449,7 +2449,7 @@ footer nav a:hover { color: var(--white); }
 
 /* eVisa card on status page */
 .customer-evisa-card {
-  @apply rounded-2xl p-6 mb-5;
+  @apply rounded-lg p-6 mb-5;
   background: linear-gradient(135deg, #F0FDF4 0%, #ECFDF5 100%);
   border: 2px solid #86EFAC;
 }
@@ -2469,13 +2469,13 @@ footer nav a:hover { color: var(--white); }
   @apply flex items-start gap-5;
 }
 .customer-evisa-pdf {
-  @apply px-6 py-4 rounded-xl text-[1rem] font-semibold;
+  @apply px-6 py-4 rounded-lg text-[1rem] font-semibold;
   background: white;
   color: var(--ink);
   border: 1px solid #D1FAE5;
 }
 .customer-evisa-img {
-  @apply rounded-xl;
+  @apply rounded-lg;
   max-width: 300px;
   max-height: 220px;
   object-fit: cover;
@@ -2485,7 +2485,7 @@ footer nav a:hover { color: var(--white); }
   @apply flex flex-col gap-2;
 }
 .customer-evisa-view {
-  @apply px-5 py-2.5 rounded-xl text-[0.9rem] font-semibold text-center;
+  @apply px-5 py-2.5 rounded-md text-[0.9rem] font-semibold text-center;
   background: #059669;
   color: white;
   text-decoration: none;
@@ -2493,7 +2493,7 @@ footer nav a:hover { color: var(--white); }
 }
 .customer-evisa-view:hover { background: #047857; }
 .customer-evisa-download {
-  @apply px-5 py-2.5 rounded-xl text-[0.9rem] font-semibold text-center;
+  @apply px-5 py-2.5 rounded-md text-[0.9rem] font-semibold text-center;
   background: white;
   color: #059669;
   border: 1.5px solid #86EFAC;
@@ -2503,7 +2503,7 @@ footer nav a:hover { color: var(--white); }
 .customer-evisa-download:hover { border-color: #059669; }
 
 .customer-status-cta {
-  @apply flex items-center justify-between rounded-2xl mb-6;
+  @apply flex items-center justify-between rounded-lg mb-6;
   padding: 1.5rem 2rem;
   background: linear-gradient(135deg, var(--blue) 0%, var(--navy) 100%);
 }
@@ -2516,7 +2516,7 @@ footer nav a:hover { color: var(--white); }
   color: rgba(255,255,255,0.7);
 }
 .customer-status-cta-btn {
-  @apply text-[0.88rem] font-semibold rounded-xl shrink-0;
+  @apply text-[0.88rem] font-semibold rounded-md shrink-0;
   padding: 0.7rem 1.5rem;
   background: white;
   color: var(--blue);
@@ -2527,7 +2527,7 @@ footer nav a:hover { color: var(--white); }
   background: var(--sky);
 }
 .customer-status-card {
-  @apply rounded-2xl mb-4;
+  @apply rounded-lg mb-4;
   background: white;
   border: 1.5px solid var(--cloud);
   padding: 1.5rem 2rem;
