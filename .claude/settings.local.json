@@ -144,7 +144,25 @@
       "Bash(/usr/bin/curl -s -o /dev/null -w \"%-25s HTTP %s\\\\n\" --max-time 12 \"http://localhost:3000/admin\" -w \"  /admin       → HTTP %{http_code}\\\\n\")",
       "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin/india → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/admin/india\")",
       "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin/aruba → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/admin/aruba\")",
-      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /api/orders?destination=INDIA → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/api/orders?destination=INDIA\")"
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /api/orders?destination=INDIA → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/api/orders?destination=INDIA\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin       → HTTP %{http_code}\\\\n\" --max-time 10 \"http://localhost:3000/admin\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin/india → HTTP %{http_code}\\\\n\" --max-time 10 \"http://localhost:3000/admin/india\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin/aruba → HTTP %{http_code}\\\\n\" --max-time 10 \"http://localhost:3000/admin/aruba\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /api/orders                → HTTP %{http_code}\\\\n\" --max-time 8 \"http://localhost:3000/api/orders\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /api/orders?destination=India → HTTP %{http_code}\\\\n\" --max-time 8 \"http://localhost:3000/api/orders?destination=India\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /api/orders?destination=india → HTTP %{http_code}\\\\n\" --max-time 8 \"http://localhost:3000/api/orders?destination=india\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin/india              → HTTP %{http_code}\\\\n\" --max-time 8 \"http://localhost:3000/admin/india\")",
+      "Bash(/usr/bin/curl -s --max-time 10 \"http://localhost:3000/api/orders\" -H \"Cookie: $\\(cat ~/.claude/expressvisa-admin-cookie 2>/dev/null || echo ''\\)\" -o /tmp/orders-check.json -w \"HTTP:%{http_code}\\\\n\")",
+      "Bash(grep -nE \"^\\\\s*</div>\\\\s*$|^\\\\s*</main>\\\\s*$|^\\\\s*</section>\\\\s*$|^\\\\s*<div className=\\\\\"legacy\" app/india/page.tsx)",
+      "Bash(grep -nE \"^\\\\s*</div>\\\\s*$|^\\\\s*</main>\\\\s*$\" app/aruba/page.tsx)",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /india → HTTP %{http_code}\\\\n\" --max-time 10 \"http://localhost:3000/india\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /aruba → HTTP %{http_code}\\\\n\" --max-time 10 \"http://localhost:3000/aruba\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /india        → HTTP %{http_code}\\\\n\" --max-time 15 \"http://localhost:3000/india\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /india/legacy → HTTP %{http_code}\\\\n\" --max-time 15 \"http://localhost:3000/india/legacy\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /aruba        → HTTP %{http_code}\\\\n\" --max-time 15 \"http://localhost:3000/aruba\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /aruba/legacy → HTTP %{http_code}\\\\n\" --max-time 15 \"http://localhost:3000/aruba/legacy\")",
+      "Bash(/usr/bin/curl -s --max-time 8 \"http://localhost:3000/india\")",
+      "Bash(/usr/bin/curl -s --max-time 8 \"http://localhost:3000/india/legacy\")"
     ]
   }
 }

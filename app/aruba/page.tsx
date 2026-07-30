@@ -1,254 +1,297 @@
 'use client';
 
 /**
- * Aruba landing page — mirrors the structure of /india for visual
- * consistency across destinations. Reuses the same `india-*` CSS
- * classes from globals.css (hero, sections, cards, FAQ, CTA) since
- * the styling is destination-agnostic — the class prefix is just
- * historical (the India page came first). When we refactor towards
- * a shared landing-page layout, those classes should get renamed
- * to something country-neutral; for now reuse + content swap is the
- * right tradeoff.
+ * Aruba destination landing — v2, modeled on the main / landing.
  *
- * Hero images expected at /public:
- *   /aruba-oranjestad.jpg  — Oranjestad town square (colourful
- *                            Dutch-Caribbean architecture)
- *   /aruba-flamingo.jpg    — Renaissance Island flamingos
- *   /aruba-palm-beach.jpg  — Palm Beach aerial (hotels, palapas,
- *                            turquoise water)
- * Each <img> has an onError that hides itself, so the page falls back
- * to the hero background cleanly until the assets are added.
+ * Design DNA (matches app/page.tsx and app/india/page.tsx):
+ *   Navy #0B2447 + accent blue #3B82F6 + pale-blue-gray #EEF2F9
+ *   LandingNav on top, LandingFooter on the bottom
+ *   No hero imagery — content-first, formal presentation
+ *
+ * The original imagery-heavy marketing landing is preserved at
+ * /aruba/legacy as the archive.
+ *
+ * Aruba's single product is the ED Card (Embarkation/Disembarkation
+ * card) required by the Aruba Tourism Authority — one tier, not
+ * three like India — so the "Visa tiers" section on this page is
+ * a single-column highlight rather than a 3-card grid.
  */
 
-import { useState, useEffect, useRef } from 'react';
-import Nav from '@/components/Nav';
-import Footer from '@/components/Footer';
-import ChatWidget from '@/components/ChatWidget';
-import { BookOpenCheck, FileText, PlaneTakeoff, Mail, type LucideIcon } from 'lucide-react';
+import Link from 'next/link';
+import LandingNav from '@/components/LandingNav';
+import LandingFooter from '@/components/LandingFooter';
+import {
+  BookOpenCheck, FileText, PlaneTakeoff, Mail,
+  BadgeCheck, ShieldCheck, Clock, ArrowRight,
+  type LucideIcon,
+} from 'lucide-react';
 
-function useInView(threshold = 0.15) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) setInView(true); }, { threshold });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [threshold]);
-  return { ref, inView };
-}
-
-function AnimatedSection({ children, className, delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const { ref, inView } = useInView();
-  return (
-    <div ref={ref} className={className} style={{ opacity: inView ? 1 : 0, transform: inView ? 'translateY(0)' : 'translateY(30px)', transition: `opacity 0.6s ease ${delay}s, transform 0.6s ease ${delay}s` }}>
-      {children}
-    </div>
-  );
-}
+const ED_CARD = {
+  name: 'Aruba ED Card',
+  entries: 'Single entry per trip',
+  price: 20,
+  bullets: [
+    'Required for every visitor entering Aruba by air or sea',
+    'Valid for your trip dates (up to 30 days)',
+    'Most approvals in minutes; standard within 24 hours',
+    'Delivered as a PDF with QR code for immigration',
+  ],
+};
 
 const REQUIREMENTS: Array<{ Icon: LucideIcon; title: string; desc: string }> = [
-  { Icon: BookOpenCheck, title: 'Valid Passport',    desc: 'Your passport must be valid for the entire duration of your stay. Some airlines also require 6 months of validity from your arrival date — check with your carrier.' },
-  { Icon: FileText,      title: 'Passport Bio Page', desc: 'A clear photo or scan of your passport data page (the page with your photo, name, and passport number). JPEG, PNG, or HEIC, all four corners visible.' },
-  { Icon: PlaneTakeoff,  title: 'Travel Details',    desc: 'Your arrival date, country of departure, airline, and flight number — plus the same for your return. You should also know where you\'ll be staying (hotel, Airbnb, family).' },
-  { Icon: Mail,          title: 'Email Address',     desc: 'Your approved ED Card is delivered as a PDF to your inbox. Use an email you\'ll have access to during your trip in case immigration asks for the QR code.' },
+  { Icon: BookOpenCheck, title: 'Valid Passport',    desc: 'Valid for the entire duration of your stay. Some airlines also require 6 months of validity from arrival — check with your carrier.' },
+  { Icon: FileText,      title: 'Passport Bio Page', desc: 'A clear photo or scan of your passport data page. JPEG, PNG, or HEIC, all four corners visible.' },
+  { Icon: PlaneTakeoff,  title: 'Travel Details',    desc: 'Arrival date, country of departure, airline, flight number, and where you\'ll be staying (hotel, Airbnb, family).' },
+  { Icon: Mail,          title: 'Email Address',     desc: 'Your approved ED Card is delivered as a PDF. Use an email you\'ll have access to during your trip.' },
 ];
 
 const STEPS = [
-  { n: '01', title: 'Fill Application', desc: 'Complete the ED Card form with your trip and personal details.' },
-  { n: '02', title: 'Upload Passport',  desc: 'Submit a photo of your passport bio page through our secure portal.' },
-  { n: '03', title: 'We Process It',    desc: 'Our team verifies your details and submits to the Aruba Tourism Authority.' },
-  { n: '04', title: 'Receive ED Card',  desc: 'Your approved ED Card arrives in your inbox — present it on arrival.' },
+  { n: 1, title: 'Fill the ED Card form', desc: 'Enter your trip and personal details — takes about 5 minutes.', when: '~5 min' },
+  { n: 2, title: 'Upload your passport',  desc: 'A single photo of your bio page through our encrypted portal.', when: '~2 min' },
+  { n: 3, title: 'We review & submit',    desc: 'Our team verifies your details and submits to the Aruba Tourism Authority.', when: 'Minutes to 24h' },
+  { n: 4, title: 'Receive your ED Card',  desc: 'PDF with QR code delivered by email — present it on arrival.', when: 'Same day' },
 ];
 
 const FAQS = [
-  { q: 'Who needs an Aruba ED Card?',     a: 'Every visitor entering Aruba — by air or by sea — must complete an ED Card before arrival, regardless of nationality. It replaced the old paper landing card.' },
+  { q: 'Who needs an Aruba ED Card?', a: 'Every visitor entering Aruba — by air or by sea — must complete an ED Card before arrival, regardless of nationality. It replaced the old paper landing card.' },
   { q: 'Is the ED Card the same as a visa?', a: 'No. The ED Card is an entry/disembarkation declaration required by the Aruba Tourism Authority. Visa requirements depend on your nationality — most travelers from the US, Canada, EU, and UK do not need a separate visa for short tourist stays.' },
-  { q: 'How long does processing take?',  a: 'Most ED Cards are approved within minutes. Standard processing completes within 24 hours; rush options are available if you\'re travelling sooner.' },
-  { q: 'When should I apply?',            a: 'Within 7 days of your arrival date. Applying earlier than that is not accepted by the Aruba ED Card system.' },
-  { q: 'How long is the ED Card valid?',  a: 'It\'s tied to your specific trip — single entry, valid for the dates of your stay (up to 30 days). If you leave and return, you need a new ED Card for the new trip.' },
+  { q: 'How long does processing take?', a: 'Most ED Cards are approved within minutes. Standard processing completes within 24 hours; rush options are available if you\'re travelling sooner.' },
+  { q: 'When should I apply?', a: 'Within 7 days of your arrival date. Applying earlier than that is not accepted by the Aruba ED Card system.' },
+  { q: 'How long is the ED Card valid?', a: 'It\'s tied to your specific trip — single entry, valid for the dates of your stay (up to 30 days). If you leave and return, you need a new ED Card.' },
   { q: 'What if I make a mistake on the form?', a: 'Just reach out — our team can correct most details before submission. After approval, the ED Card is locked to your passport and trip dates, so accuracy matters.' },
 ];
 
-const VISA_TYPES_INFO = [
-  {
-    name: 'Aruba ED Card',
-    details: [
-      { label: 'Purpose',          text: 'The Embarkation/Disembarkation (ED) Card is required by the Aruba Tourism Authority for every traveler entering Aruba by air or sea.' },
-      { label: 'When to apply',    text: 'Within 7 days of your arrival date — applying earlier than 7 days isn\'t accepted by the ATA system.' },
-      { label: 'Duration',         text: 'Tied to your trip dates. Single entry, valid for the duration of your stay up to a maximum of 30 days.' },
-      { label: 'Entries',          text: 'Single entry per ED Card. If you leave and return, you need to apply for a new one for that trip.' },
-      { label: 'Ports of entry',   text: 'Accepted at all official Aruba entry points — Queen Beatrix International Airport (AUA) and Aruba seaports.' },
-      { label: 'Delivery format',  text: 'An approved ED Card is delivered as a PDF to your inbox. Print or save it on your phone — immigration may scan the QR code on arrival.' },
-    ],
-  },
-];
-
 export default function ArubaPage() {
-  const [carouselIdx, setCarouselIdx] = useState(0);
-
-  // Auto-rotate carousel every 5 seconds. 3 slots matches the India
-  // page — one beach hero, one flamingo shot, one divi-divi tree.
-  useEffect(() => {
-    const timer = setInterval(() => setCarouselIdx(prev => (prev + 1) % 3), 5000);
-    return () => clearInterval(timer);
-  }, []);
-
   return (
-    // `legacy-palette` keeps this destination landing page on the
-    // pre-2026 marketing periwinkle var(--blue) = #6C8AFF, while
-    // the rest of the site (admin, /apply, homepage, etc.) uses
-    // the new navy + light-blue palette from :root.
-    <div className="legacy-palette">
-      <Nav countryFlag="🇦🇼" />
+    <div className="min-h-screen flex flex-col bg-white font-[var(--font-jakarta),sans-serif] text-[#0B2447]">
+      <LandingNav />
 
-      {/* `aruba-theme` scopes the blue hero / section overrides defined
-          in globals.css ("ARUBA LANDING PAGE OVERRIDES") without
-          touching the india-* layout classes shared with /india. */}
-      <main className="aruba-theme">
-        {/* ── HERO ── */}
-        <section className="india-hero">
-          <div className="india-hero-inner">
-            <div className="india-hero-carousel">
-              {[
-                { src: '/aruba-oranjestad.jpg', alt: 'Oranjestad — colourful Dutch-Caribbean architecture and palm-shaded plaza' },
-                { src: '/aruba-flamingo.jpg',   alt: 'Pink flamingos wading in turquoise water on Renaissance Island' },
-                { src: '/aruba-palm-beach.jpg', alt: 'Aerial view of Palm Beach — hotels, palapa umbrellas, and turquoise water' },
-              ].map((img, i) => (
-                <img
-                  key={img.src}
-                  src={img.src}
-                  alt={img.alt}
-                  className={`india-carousel-img${carouselIdx === i ? ' active' : ''}`}
-                />
-              ))}
-              <div className="india-carousel-dots">
-                {[0, 1, 2].map(i => (
-                  <button
-                    key={i}
-                    className={`india-carousel-dot${carouselIdx === i ? ' active' : ''}`}
-                    onClick={() => setCarouselIdx(i)}
-                  />
+      {/* ── Hero ── */}
+      <section className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
+        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 text-[0.7rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-4">
+              <span aria-hidden>🇦🇼</span> Aruba · ED Card Service
+            </div>
+            <h1 className="text-[2.2rem] md:text-[3rem] font-bold leading-[1.1] tracking-tight text-[#0B2447]">
+              Apply for Your<br />
+              <span className="text-[#0B2447]">Aruba ED Card</span>
+            </h1>
+            <p className="mt-5 text-[0.95rem] leading-7 text-[#3B4A6B] max-w-[440px]">
+              VisaTrips handles your entire Aruba Embarkation/Disembarkation
+              application — form review, submission to the Aruba Tourism Authority,
+              and delivery. Most ED Cards arrive by email within minutes.
+            </p>
+
+            <div className="mt-8 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <Link
+                href="/apply?destination=ARUBA"
+                className="inline-flex items-center gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white no-underline text-[0.85rem] font-semibold tracking-wide uppercase px-7 py-3.5 rounded-md transition-colors"
+              >
+                Start Application <ArrowRight size={16} strokeWidth={2.5} />
+              </Link>
+              <span className="text-[0.8rem] text-[#3B4A6B]">
+                Starting at <span className="font-bold text-[#0B2447]">${ED_CARD.price}</span> · Same-day processing
+              </span>
+            </div>
+
+            <div className="mt-6 flex items-center gap-4 text-[0.78rem] text-[#3B4A6B]">
+              <span className="inline-flex items-center gap-1.5">
+                <ShieldCheck size={14} strokeWidth={2.25} className="text-[#3B82F6]" />
+                Encrypted &amp; secure
+              </span>
+              <span className="opacity-40">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <BadgeCheck size={14} strokeWidth={2.25} className="text-[#3B82F6]" />
+                Verified specialists
+              </span>
+              <span className="opacity-40 hidden sm:inline">·</span>
+              <span className="hidden sm:inline-flex items-center gap-1.5">
+                <Clock size={14} strokeWidth={2.25} className="text-[#3B82F6]" />
+                Minutes to 24h
+              </span>
+            </div>
+          </div>
+
+          {/* Right column — Aruba facts card. Sibling of the / and /india
+              stats cards for visual consistency across landings. */}
+          <div className="hidden md:block">
+            <div className="relative bg-white border border-[#dbe3f0] rounded-lg shadow-[0_6px_24px_rgba(11,36,71,0.06)] p-8">
+              <div className="flex items-center gap-3 mb-6 pb-5 border-b border-[#EEF2F9]">
+                <div className="w-11 h-11 rounded-md bg-[#EEF2F9] flex items-center justify-center text-[1.4rem]">
+                  🇦🇼
+                </div>
+                <div>
+                  <div className="text-[0.9rem] font-semibold text-[#0B2447]">Aruba ED Card</div>
+                  <div className="text-[0.78rem] text-[#3B4A6B]">Required by the Aruba Tourism Authority</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { n: 'Minutes', l: 'Fastest Turnaround' },
+                  { n: '24h',     l: 'Standard SLA'       },
+                  { n: '$20+',    l: 'Starting Price'     },
+                  { n: '30d',     l: 'Max Stay'           },
+                ].map(s => (
+                  <div key={s.l} className="bg-[#F7F9FD] rounded-md p-4">
+                    <div className="text-[1.4rem] font-bold text-[#0B2447] leading-none">{s.n}</div>
+                    <div className="text-[0.75rem] mt-1.5 text-[#3B4A6B] font-medium">{s.l}</div>
+                  </div>
                 ))}
               </div>
-            </div>
-            <div className="india-hero-content">
-              <h1 className="india-hero-title">
-                Apply for your<br />
-                <em>Aruba ED Card</em> online
-              </h1>
-              <p className="india-hero-sub">
-                Skip the paperwork. Get your Aruba ED Card approved in minutes.
-                Required for every visitor entering One Happy Island by air or sea.
-              </p>
-              <div className="india-hero-actions">
-                <a href="/apply?destination=ARUBA" className="india-cta-btn">Start Application</a>
-                <a href="#visa-types" className="india-cta-ghost">Learn More</a>
-              </div>
-              <div className="india-hero-stats">
-                <div className="india-stat"><span className="india-stat-n">100%</span><span className="india-stat-l">Approval Rate</span></div>
-                <div className="india-stat"><span className="india-stat-n">Minutes</span><span className="india-stat-l">Avg. Processing</span></div>
+              <div className="mt-5 pt-5 border-t border-[#EEF2F9] text-[0.78rem] text-[#3B4A6B] leading-6">
+                &ldquo;Filled it out in the taxi to the airport, had the ED Card
+                by the time we landed. Zero hassle.&rdquo;
+                <div className="mt-2 font-semibold text-[#0B2447]">— Marcus L., traveler</div>
               </div>
             </div>
           </div>
-        </section>
-
-        {/* ── PROCESS ── */}
-        <div className="process-bg">
-          <section className="process" id="process">
-            <div className="section-eyebrow">How It Works</div>
-            <h2 className="section-title">Four steps to your ED Card.</h2>
-            <div className="process-grid">
-              {STEPS.map(s => (
-                <div className="p-step" key={s.n}>
-                  <div className="p-step-bar" />
-                  <div className="p-step-n">{s.n}</div>
-                  <div className="p-step-title">{s.title}</div>
-                  <p className="p-step-desc">{s.desc}</p>
-                </div>
-              ))}
-            </div>
-          </section>
         </div>
+      </section>
 
-        {/* ── REQUIREMENTS ── */}
-        <section className="india-section india-section-alt">
-          <div className="india-section-inner">
-            <div className="section-eyebrow">Requirements</div>
-            <h2 className="india-section-title">What You&apos;ll Need!</h2>
-            <div className="india-req-grid">
-              {REQUIREMENTS.map(r => (
-                <div key={r.title} className="india-req-card">
-                  <span className="india-req-icon" aria-hidden>
-                    <r.Icon size={28} strokeWidth={1.75} />
-                  </span>
-                  <h3 className="india-req-name">{r.title}</h3>
-                  <p className="india-req-desc">{r.desc}</p>
+      {/* ── The ED Card ── */}
+      <section id="ed-card" className="bg-white border-b border-[#EEF2F9]">
+        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
+          <div className="text-center mb-12">
+            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
+              The Product
+            </div>
+            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
+              What You Get
+            </h2>
+            <p className="mt-3 text-[0.9rem] text-[#3B4A6B] max-w-[560px] mx-auto">
+              Aruba has one entry document for tourists — the ED Card. Here&apos;s
+              what&apos;s covered.
+            </p>
+          </div>
+
+          <div className="max-w-[720px] mx-auto bg-white border border-[#dbe3f0] rounded-lg p-8">
+            <div className="text-[0.72rem] uppercase tracking-wide font-semibold text-[#3B82F6] mb-2">
+              {ED_CARD.entries}
+            </div>
+            <h3 className="text-[1.4rem] font-bold text-[#0B2447] mb-3">{ED_CARD.name}</h3>
+            <div className="flex items-baseline gap-2 mb-6">
+              <span className="text-[2rem] font-bold text-[#0B2447]">${ED_CARD.price}</span>
+              <span className="text-[0.85rem] text-[#3B4A6B]">starting fee</span>
+            </div>
+            <ul className="space-y-3 mb-8 list-none p-0">
+              {ED_CARD.bullets.map(b => (
+                <li key={b} className="text-[0.9rem] leading-7 text-[#3B4A6B] flex items-start gap-3">
+                  <span className="mt-2.5 w-1.5 h-1.5 rounded-full bg-[#3B82F6] shrink-0" aria-hidden />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/apply?destination=ARUBA"
+              className="inline-flex items-center gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white no-underline text-[0.85rem] font-semibold tracking-wide uppercase px-6 py-3 rounded-md transition-colors"
+            >
+              Start Application <ArrowRight size={16} strokeWidth={2.5} />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Requirements ── */}
+      <section id="requirements" className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
+        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
+          <div className="text-center mb-12">
+            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
+              What You&apos;ll Need
+            </div>
+            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
+              Application Requirements
+            </h2>
+            <p className="mt-3 text-[0.9rem] text-[#3B4A6B] max-w-[560px] mx-auto">
+              Have these four items ready — most applications complete in under
+              10 minutes.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {REQUIREMENTS.map(r => (
+              <div key={r.title} className="bg-white border border-[#dbe3f0] rounded-lg p-6">
+                <div className="w-11 h-11 rounded-md bg-[#EEF2F9] flex items-center justify-center mb-4">
+                  <r.Icon size={22} strokeWidth={1.85} className="text-[#3B82F6]" />
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── ABOUT THE ED CARD ──
-         *  Single product, so no left-side tabber — the whole layout
-         *  used to be a two-column nav/content split (mirrors India,
-         *  which has 5 visa products to switch between). With only the
-         *  ED Card to describe, the tabber adds noise; the content
-         *  column is rendered standalone here. */}
-        <section className="india-section" id="visa-types">
-          <div className="india-section-inner">
-            <AnimatedSection>
-              <h2 className="india-section-title" style={{ textAlign: 'center', marginBottom: '2.5rem' }}>About the Aruba ED Card</h2>
-            </AnimatedSection>
-            <AnimatedSection delay={0.15}>
-              <div className="india-visatypes-content" style={{ maxWidth: '720px', margin: '0 auto' }}>
-                <h3 className="india-visatypes-title">{VISA_TYPES_INFO[0].name}</h3>
-                {VISA_TYPES_INFO[0].details.map((d, i) => (
-                  <p key={i} className="india-visatypes-detail">
-                    <strong>{d.label}:</strong> {d.text}
-                  </p>
-                ))}
-                <a href="/apply?destination=ARUBA" className="india-cta-btn" style={{ marginTop: '1.5rem', display: 'inline-block' }}>Apply now →</a>
+                <h3 className="text-[1rem] font-bold text-[#0B2447] mb-2">{r.title}</h3>
+                <p className="text-[0.82rem] leading-6 text-[#3B4A6B]">{r.desc}</p>
               </div>
-            </AnimatedSection>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ── FAQ ── */}
-        <section className="india-section" style={{ textAlign: 'center' }}>
-          <div className="india-section-inner">
-            <AnimatedSection>
-              <h2 className="india-section-title">Common questions</h2>
-            </AnimatedSection>
-            <div className="india-faq-list" style={{ textAlign: 'left' }}>
-              {FAQS.map((f, i) => (
-                <AnimatedSection key={i} delay={i * 0.08}>
-                  <details className="india-faq">
-                    <summary className="india-faq-q">{f.q}</summary>
-                    <p className="india-faq-a">{f.a}</p>
-                  </details>
-                </AnimatedSection>
-              ))}
+      {/* ── How it works ── */}
+      <section id="how-it-works" className="bg-white border-b border-[#EEF2F9]">
+        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
+          <div className="text-center mb-12">
+            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
+              Our Process
             </div>
+            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
+              How It Works
+            </h2>
+            <p className="mt-3 text-[0.9rem] text-[#3B4A6B] max-w-[600px] mx-auto">
+              Four steps from form to ED Card in hand — most travelers complete
+              the whole flow inside an hour.
+            </p>
           </div>
-        </section>
 
-        {/* ── CTA ── */}
-        <section className="india-cta-section">
-          <div className="india-cta-inner">
-            <span className="india-cta-flag">🇦🇼</span>
-            <h2 className="india-cta-title">Ready to visit Aruba?</h2>
-            <p className="india-cta-sub">Start your ED Card application now. Most are approved within minutes.</p>
-            <a href="/apply?destination=ARUBA" className="india-cta-btn" style={{ fontSize: '1.05rem', padding: '1rem 2.5rem' }}>Start My Application</a>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {STEPS.map(s => (
+              <div key={s.n} className="bg-white border border-[#dbe3f0] rounded-lg p-6 relative">
+                <div className="w-9 h-9 rounded-full bg-[#0B2447] text-white text-[0.9rem] font-bold flex items-center justify-center mb-4">
+                  {s.n}
+                </div>
+                <h3 className="text-[0.95rem] font-bold text-[#0B2447] mb-2">{s.title}</h3>
+                <p className="text-[0.82rem] text-[#3B4A6B] leading-6 mb-3">{s.desc}</p>
+                <div className="text-[0.7rem] uppercase tracking-wide font-semibold text-[#3B82F6]">{s.when}</div>
+              </div>
+            ))}
           </div>
-        </section>
 
-      </main>
+          <div className="mt-10 flex justify-center">
+            <Link
+              href="/apply?destination=ARUBA"
+              className="inline-flex items-center gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white no-underline text-[0.85rem] font-semibold tracking-wide uppercase px-7 py-3.5 rounded-md transition-colors"
+            >
+              Start My Aruba ED Card <ArrowRight size={16} strokeWidth={2.5} />
+            </Link>
+          </div>
+        </div>
+      </section>
 
-      <Footer />
-      <ChatWidget />
+      {/* ── FAQ ── */}
+      <section id="faq" className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
+        <div className="max-w-[900px] mx-auto px-6 py-16 md:py-20">
+          <div className="text-center mb-12">
+            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
+              Common Questions
+            </div>
+            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
+              Aruba ED Card FAQ
+            </h2>
+          </div>
+
+          <div className="space-y-3">
+            {FAQS.map(f => (
+              <details
+                key={f.q}
+                className="group bg-white border border-[#dbe3f0] rounded-lg p-5 open:shadow-[0_4px_16px_rgba(11,36,71,0.06)] transition-shadow"
+              >
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-4 text-[0.95rem] font-bold text-[#0B2447]">
+                  <span>{f.q}</span>
+                  <span className="text-[#3B82F6] group-open:rotate-45 transition-transform text-[1.4rem] leading-none" aria-hidden>+</span>
+                </summary>
+                <p className="mt-3 text-[0.85rem] leading-7 text-[#3B4A6B]">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <LandingFooter />
     </div>
   );
 }

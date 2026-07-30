@@ -1,329 +1,333 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+/**
+ * India destination landing — v2, modeled on the main / landing.
+ *
+ * Design DNA (matches app/page.tsx):
+ *   Navy #0B2447 + accent blue #3B82F6 + pale-blue-gray #EEF2F9
+ *   LandingNav on top, LandingFooter on the bottom
+ *   No hero imagery — content-first, formal presentation
+ *
+ * The original marketing landing (long-form hero with imagery
+ * carousel, animated sections, /legacy-palette periwinkle palette)
+ * is preserved at /india/legacy as the archive.
+ */
+
 import Link from 'next/link';
-import Nav from '@/components/Nav';
-import { BookOpenCheck, Camera, FileText, PlaneTakeoff, type LucideIcon } from 'lucide-react';
+import LandingNav from '@/components/LandingNav';
+import LandingFooter from '@/components/LandingFooter';
+import {
+  BookOpenCheck, Camera, FileText, PlaneTakeoff,
+  BadgeCheck, ShieldCheck, Clock, ArrowRight,
+  type LucideIcon,
+} from 'lucide-react';
 
-function useInView(threshold = 0.15) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) setInView(true); }, { threshold });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [threshold]);
-  return { ref, inView };
-}
-
-function AnimatedSection({ children, className, delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
-  const { ref, inView } = useInView();
-  return (
-    <div ref={ref} className={className} style={{ opacity: inView ? 1 : 0, transform: inView ? 'translateY(0)' : 'translateY(30px)', transition: `opacity 0.6s ease ${delay}s, transform 0.6s ease ${delay}s` }}>
-      {children}
-    </div>
-  );
-}
-import Footer from '@/components/Footer';
-import ChatWidget from '@/components/ChatWidget';
-
-const VISA_OPTIONS = [
-  { id: 'tourist-30',  label: 'Tourist eVisa – 30 days',  entries: 'Double entry',   price: 25, tag: 'Most Popular' },
-  { id: 'tourist-1y',  label: 'Tourist eVisa – 1 year',   entries: 'Multiple entry', price: 40, tag: '' },
-  { id: 'tourist-5y',  label: 'Tourist eVisa – 5 years',  entries: 'Multiple entry', price: 80, tag: '' },
-  { id: 'business-1y', label: 'Business eVisa – 1 year',  entries: 'Multiple entry', price: 80, tag: '' },
-  { id: 'medical-60',  label: 'Medical eVisa – 60 days',  entries: 'Triple entry',   price: 25, tag: '' },
+/* ── India visa options — starting prices for each tier. Kept in sync
+ *    with app/india/legacy/page.tsx and the apply-page pricing. */
+const VISA_TIERS = [
+  {
+    id: 'tourist-30',
+    name: 'Tourist eVisa · 30 days',
+    entries: 'Double entry',
+    price: 25,
+    tag: 'Most Popular',
+    bullets: [
+      'Stay up to 30 days from arrival',
+      'Two entries within the validity window',
+      'Ideal for short leisure trips and family visits',
+    ],
+  },
+  {
+    id: 'tourist-1y',
+    name: 'Tourist eVisa · 1 year',
+    entries: 'Multiple entry',
+    price: 40,
+    tag: '',
+    bullets: [
+      'Valid for 365 days from issue',
+      'Multiple entries, up to 90 days per stay',
+      'Best for travelers with repeat trips planned',
+    ],
+  },
+  {
+    id: 'tourist-5y',
+    name: 'Tourist eVisa · 5 years',
+    entries: 'Multiple entry',
+    price: 80,
+    tag: 'Best Value',
+    bullets: [
+      'Valid for 5 years — longest tourist tier available',
+      'Multiple entries, up to 90 days per stay',
+      'Skip re-applying every trip; ideal for frequent visitors',
+    ],
+  },
 ];
 
-// Visa IDs that are NOT sold on the customer-facing apply page. The grid
-// of price cards is filtered by this list. Backend, schema, admin, and bot
-// wiring stay intact — re-enable a visa by removing it from this set.
-// Mirrors HIDDEN_VISA_IDS in app/apply/page.tsx.
-const HIDDEN_VISA_IDS = new Set<string>(['business-1y', 'medical-60']);
-// Visa-info entries we DO show on the page (so visitors can read about all
-// types) but whose detail panel renders an "we don't currently offer this"
-// notice instead of an Apply Now button. Match by the `name` field on each
-// entry in VISA_TYPES_INFO. Single source of truth for "shown but disabled".
-const UNAVAILABLE_INFO_NAMES = new Set<string>([
-  'India Business eVisa',
-  'India Medical eVisa',
-  'India e-Medical Attendant Visa',
-]);
-const VISIBLE_VISA_OPTIONS = VISA_OPTIONS.filter(v => !HIDDEN_VISA_IDS.has(v.id));
-
 const REQUIREMENTS: Array<{ Icon: LucideIcon; title: string; desc: string }> = [
-  { Icon: BookOpenCheck, title: 'Valid Passport',    desc: 'Your passport must be valid for at least 6 months from the date of arrival in India, with at least 2 blank pages available for visa stamps. Damaged or expired passports will not be accepted.' },
-  { Icon: Camera,        title: 'Digital Photo',     desc: 'A recent front-facing photograph in JPEG format with a plain white or light background. Must be square dimensions (minimum 350x350px), with no glasses, hats, or shadows. Do not crop a passport photo.' },
-  { Icon: FileText,      title: 'Passport Bio Page', desc: 'A clear, high-quality scan of your passport data page (the page with your photo, name, and passport number). Must be in JPEG or PDF format with all four corners visible and all text clearly readable.' },
-  { Icon: PlaneTakeoff,  title: 'Travel Details',    desc: 'Your confirmed travel dates, port of arrival in India (airport or seaport), and expected departure port. You should also have your accommodation details and a reference contact in India ready.' },
+  { Icon: BookOpenCheck, title: 'Valid Passport',    desc: 'At least 6 months of validity from arrival, with 2 blank pages for visa stamps.' },
+  { Icon: Camera,        title: 'Digital Photo',     desc: 'Front-facing, plain white background, square (min 350×350). No glasses or headwear.' },
+  { Icon: FileText,      title: 'Passport Bio Page', desc: 'High-quality scan or photo of the data page. JPEG or PDF, all four corners visible.' },
+  { Icon: PlaneTakeoff,  title: 'Travel Details',    desc: 'Confirmed arrival date, port of entry, and accommodation or reference contact in India.' },
 ];
 
 const STEPS = [
-  { n: '01', title: 'Fill Application', desc: 'Complete the online form with your personal and travel details.' },
-  { n: '02', title: 'Upload Documents', desc: 'Submit your passport scan and photo through our secure portal.' },
-  { n: '03', title: 'We Process It', desc: 'Our team reviews and submits your application to Indian authorities.' },
-  { n: '04', title: 'Receive eVisa', desc: 'Your approved eVisa arrives in your inbox — print and travel.' },
+  { n: 1, title: 'Pick your visa tier',   desc: 'Choose the tourist eVisa duration that fits your trip.', when: '~1 min' },
+  { n: 2, title: 'Complete the form',     desc: 'We build the exact form the Indian government requires — no portal navigation on your end.', when: '~10 min' },
+  { n: 3, title: 'Upload your documents', desc: 'Passport bio page and photo through our encrypted portal.', when: '~5 min' },
+  { n: 4, title: 'We review & submit',    desc: 'Our team verifies every field before filing with Indian authorities.', when: '1 day' },
+  { n: 5, title: 'Receive your eVisa',    desc: 'Approved eVisa arrives by email — print it and travel.', when: '3–5 days' },
 ];
 
 const FAQS = [
-  { q: 'Who needs an India eVisa?', a: 'Citizens of 150+ countries can apply for an India eVisa. Notable exceptions include Pakistani nationals, who must apply through an Indian embassy.' },
-  { q: 'How long does processing take?', a: 'Standard processing takes 3-5 business days. Rush processing is available for 1-2 days, and Super Rush for urgent applications.' },
+  { q: 'Who needs an India eVisa?', a: 'Citizens of 150+ countries can apply. Notable exceptions include Pakistani nationals, who must apply through an Indian embassy in person.' },
+  { q: 'How long does processing take?', a: 'Standard processing is 3–5 business days. Rush processing is available for 1–2 days, and Super Rush for urgent applications.' },
   { q: 'What is the validity of the Tourist eVisa?', a: 'The 30-day eVisa is valid for 30 days from arrival. The 1-year and 5-year eVisas allow multiple entries with stays up to 90 days per visit.' },
-  { q: 'Can I extend my eVisa?', a: 'India eVisas cannot be extended. You would need to apply for a new visa if you wish to stay longer.' },
-  { q: 'Which airports accept eVisa?', a: 'India eVisa is accepted at 28 designated airports and 5 seaports, including Delhi, Mumbai, Chennai, Kolkata, Bangalore, and Hyderabad.' },
+  { q: 'Can I extend my eVisa?', a: 'India eVisas cannot be extended. If you need to stay longer, you must apply for a new visa.' },
+  { q: 'Which airports accept the eVisa?', a: 'The India eVisa is accepted at 28 designated airports and 5 seaports, including Delhi, Mumbai, Chennai, Kolkata, Bangalore, and Hyderabad.' },
 ];
-
-const VISA_TYPES_INFO = [
-  {
-    name: 'India Tourist eVisa',
-    details: [
-      { label: 'Purpose', text: 'The India Tourist eVisa is for travelers visiting India for tourism activities like sightseeing, holidays, and visiting family.' },
-      { label: 'When to apply', text: "It's recommended to apply at least a week in advance, as processing time is 3-5 working days." },
-      { label: 'Duration and extensions', text: 'Depending on the type selected (30 days, 1 year, or 5 years), the visa allows stays of 30 or 90 days per visit and is generally non-extendable.' },
-      { label: 'Entries', text: 'The visa is issued as a double entry (30-day visa) or multiple entry (1-year and 5-year visas).' },
-      { label: 'Ports of entry', text: 'India e-Tourist visa holders can enter through 31 designated airports (including Delhi, Mumbai, Bengaluru, Chennai, Goa, Kolkata, Hyderabad, Cochin) and 5 major seaports.' },
-      { label: 'Delivery format', text: 'An approved eVisa is electronically linked to your passport, but travelers are advised to carry a printed copy of the approval PDF when entering India.' },
-    ],
-  },
-  {
-    name: 'India e-Arrival Card',
-    details: [
-      { label: 'Purpose', text: 'The e-Arrival Card is an electronic version of the traditional arrival/departure card that passengers fill out before landing in India.' },
-      { label: 'When to apply', text: 'Should be completed online before your flight to India to speed up immigration processing.' },
-      { label: 'Who needs it', text: 'All international travelers arriving in India, regardless of visa type.' },
-    ],
-  },
-  {
-    name: 'India Business eVisa',
-    details: [
-      { label: 'Purpose', text: 'For business activities such as meetings, trade, conferences, recruitment, or establishing industrial/business ventures.' },
-      { label: 'Duration', text: 'Valid for 1 year with multiple entries. Each stay cannot exceed 180 days continuously.' },
-      { label: 'When to apply', text: 'Apply at least 1-2 weeks before your intended travel date.' },
-      { label: 'Requirements', text: 'A letter from the Indian company or organization, along with standard passport and photo requirements.' },
-    ],
-  },
-  {
-    name: 'India Medical eVisa',
-    details: [
-      { label: 'Purpose', text: 'For travelers seeking medical treatment at recognized hospitals and medical centers in India.' },
-      { label: 'Duration', text: 'Valid for 60 days from the date of arrival with triple entry.' },
-      { label: 'Extensions', text: 'Can be extended for up to 6 months by the Foreigners Regional Registration Office (FRRO).' },
-      { label: 'Requirements', text: 'A letter from the hospital in India confirming the medical treatment, along with standard documents.' },
-    ],
-  },
-  {
-    name: 'India e-Medical Attendant Visa',
-    details: [
-      { label: 'Purpose', text: 'For individuals accompanying a patient who holds a Medical eVisa to India. Limited to two attendants per patient.' },
-      { label: 'Duration', text: 'Same validity as the associated Medical eVisa — 60 days with triple entry.' },
-      { label: 'Requirements', text: "Must reference the patient's Medical eVisa application number." },
-    ],
-  },
-];
-
 
 export default function IndiaPage() {
-  const [activeVisaType, setActiveVisaType] = useState(0);
-  const [carouselIdx, setCarouselIdx] = useState(0);
-
-  // Auto-rotate carousel every 5 seconds
-  useEffect(() => {
-    const timer = setInterval(() => setCarouselIdx(prev => (prev + 1) % 3), 5000);
-    return () => clearInterval(timer);
-  }, []);
   return (
-    // `legacy-palette` scope keeps this page on the pre-2026
-    // periwinkle marketing palette (var(--blue) = #6C8AFF), while
-    // the rest of the site — admin, /apply, footer, homepage —
-    // uses the new navy + light-blue palette from :root.
-    <div className="legacy-palette">
-      <Nav countryFlag="🇮🇳" />
+    <div className="min-h-screen flex flex-col bg-white font-[var(--font-jakarta),sans-serif] text-[#0B2447]">
+      <LandingNav />
 
-      <main>
-        {/* ── HERO ── */}
-        <section className="india-hero">
-          <div className="india-hero-inner">
-            <div className="india-hero-carousel">
-              {[
-                { src: '/india-temple.jpg', alt: 'Rishikesh — temples along the Ganges' },
-                { src: '/india-taj-mahal.jpg', alt: 'Taj Mahal — Agra' },
-                { src: '/india-ellora.jpg', alt: 'Ellora Caves — Maharashtra' },
-              ].map((img, i) => (
-                <img
-                  key={i}
-                  src={img.src}
-                  alt={img.alt}
-                  className={`india-carousel-img${carouselIdx === i ? ' active' : ''}`}
-                />
-              ))}
-              <div className="india-carousel-dots">
-                {[0, 1, 2].map(i => (
-                  <button
-                    key={i}
-                    className={`india-carousel-dot${carouselIdx === i ? ' active' : ''}`}
-                    onClick={() => setCarouselIdx(i)}
-                  />
+      {/* ── Hero ── */}
+      <section className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
+        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 text-[0.7rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-4">
+              <span aria-hidden>🇮🇳</span> India · e-Visa Service
+            </div>
+            <h1 className="text-[2.2rem] md:text-[3rem] font-bold leading-[1.1] tracking-tight text-[#0B2447]">
+              Apply for Your<br />
+              <span className="text-[#0B2447]">India eVisa</span>
+            </h1>
+            <p className="mt-5 text-[0.95rem] leading-7 text-[#3B4A6B] max-w-[440px]">
+              VisaTrips handles your entire India eVisa application — document review,
+              submission to the Indian government portal, and delivery. Approved
+              e-visas arrive by email in 3–5 business days.
+            </p>
+
+            <div className="mt-8 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <Link
+                href="/apply?destination=INDIA"
+                className="inline-flex items-center gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white no-underline text-[0.85rem] font-semibold tracking-wide uppercase px-7 py-3.5 rounded-md transition-colors"
+              >
+                Start Application <ArrowRight size={16} strokeWidth={2.5} />
+              </Link>
+              <span className="text-[0.8rem] text-[#3B4A6B]">
+                Starting at <span className="font-bold text-[#0B2447]">$25</span> · Rush available
+              </span>
+            </div>
+
+            <div className="mt-6 flex items-center gap-4 text-[0.78rem] text-[#3B4A6B]">
+              <span className="inline-flex items-center gap-1.5">
+                <ShieldCheck size={14} strokeWidth={2.25} className="text-[#3B82F6]" />
+                Encrypted &amp; secure
+              </span>
+              <span className="opacity-40">·</span>
+              <span className="inline-flex items-center gap-1.5">
+                <BadgeCheck size={14} strokeWidth={2.25} className="text-[#3B82F6]" />
+                Verified specialists
+              </span>
+              <span className="opacity-40 hidden sm:inline">·</span>
+              <span className="hidden sm:inline-flex items-center gap-1.5">
+                <Clock size={14} strokeWidth={2.25} className="text-[#3B82F6]" />
+                3–5 day standard
+              </span>
+            </div>
+          </div>
+
+          {/* Right column — India facts card. Same framed treatment as the
+              homepage stats card so /india and / feel like siblings. */}
+          <div className="hidden md:block">
+            <div className="relative bg-white border border-[#dbe3f0] rounded-lg shadow-[0_6px_24px_rgba(11,36,71,0.06)] p-8">
+              <div className="flex items-center gap-3 mb-6 pb-5 border-b border-[#EEF2F9]">
+                <div className="w-11 h-11 rounded-md bg-[#EEF2F9] flex items-center justify-center text-[1.4rem]">
+                  🇮🇳
+                </div>
+                <div>
+                  <div className="text-[0.9rem] font-semibold text-[#0B2447]">India Tourist eVisa</div>
+                  <div className="text-[0.78rem] text-[#3B4A6B]">Government-authorized digital visa</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { n: '3–5d',  l: 'Processing Time' },
+                  { n: '$25+',  l: 'Starting Price'  },
+                  { n: '150+',  l: 'Eligible Nations'},
+                  { n: '30–1825d', l: 'Stay Options' },
+                ].map(s => (
+                  <div key={s.l} className="bg-[#F7F9FD] rounded-md p-4">
+                    <div className="text-[1.4rem] font-bold text-[#0B2447] leading-none">{s.n}</div>
+                    <div className="text-[0.75rem] mt-1.5 text-[#3B4A6B] font-medium">{s.l}</div>
+                  </div>
                 ))}
               </div>
-            </div>
-            <div className="india-hero-content">
-              <h1 className="india-hero-title">
-                Apply for your<br />
-                <em>India eVisa</em> online
-              </h1>
-              <p className="india-hero-sub">
-                Skip the embassy. Get your electronic visa approved in as little as 72 hours.
-                Tourist, Business &amp; Medical visas available.
-              </p>
-              <div className="india-hero-actions">
-                <a href="/apply" className="india-cta-btn">Start Application</a>
-                <a href="#visa-types" className="india-cta-ghost">View Visa Types</a>
-              </div>
-              <div className="india-hero-stats">
-                <div className="india-stat"><span className="india-stat-n">98.7%</span><span className="india-stat-l">Approval Rate</span></div>
-                <div className="india-stat"><span className="india-stat-n">72hr</span><span className="india-stat-l">Avg. Processing</span></div>
+              <div className="mt-5 pt-5 border-t border-[#EEF2F9] text-[0.78rem] text-[#3B4A6B] leading-6">
+                &ldquo;Everything happened over email — no confusion, no wasted trips.
+                Got my India e-Visa in three days.&rdquo;
+                <div className="mt-2 font-semibold text-[#0B2447]">— Amelia R., traveler</div>
               </div>
             </div>
           </div>
-        </section>
-
-        {/* ── PROCESS ── */}
-        <div className="process-bg">
-          <section className="process" id="process">
-            <div className="section-eyebrow">How It Works</div>
-            <h2 className="section-title">Four steps of approval.</h2>
-            <div className="process-grid">
-              {STEPS.map(s => (
-                <div className="p-step" key={s.n}>
-                  <div className="p-step-bar" />
-                  <div className="p-step-n">{s.n}</div>
-                  <div className="p-step-title">{s.title}</div>
-                  <p className="p-step-desc">{s.desc}</p>
-                </div>
-              ))}
-            </div>
-          </section>
         </div>
+      </section>
 
-        {/* ── REQUIREMENTS ── */}
-        <section className="india-section india-section-alt">
-          <div className="india-section-inner">
-            <div className="section-eyebrow">Requirements</div>
-            <h2 className="india-section-title">What You&apos;ll Need!</h2>
-            <div className="india-req-grid">
-              {REQUIREMENTS.map(r => (
-                <div key={r.title} className="india-req-card">
-                  <span className="india-req-icon" aria-hidden>
-                    <r.Icon size={28} strokeWidth={1.75} />
+      {/* ── Visa tiers ── */}
+      <section id="tiers" className="bg-white border-b border-[#EEF2F9]">
+        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
+          <div className="text-center mb-12">
+            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
+              Available Tiers
+            </div>
+            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
+              Choose Your eVisa Duration
+            </h2>
+            <p className="mt-3 text-[0.9rem] text-[#3B4A6B] max-w-[560px] mx-auto">
+              Three tourist tiers, priced by duration and entries. Pick the one
+              that matches your travel plans.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {VISA_TIERS.map(v => (
+              <div
+                key={v.id}
+                className="bg-white border border-[#dbe3f0] rounded-lg p-6 flex flex-col hover:border-[#0B2447] transition-colors relative"
+              >
+                {v.tag && (
+                  <span className="absolute top-4 right-4 text-[0.62rem] font-bold uppercase tracking-wide text-[#3B82F6] bg-[#DBEAFE] px-2 py-1 rounded">
+                    {v.tag}
                   </span>
-                  <h3 className="india-req-name">{r.title}</h3>
-                  <p className="india-req-desc">{r.desc}</p>
+                )}
+                <div className="text-[0.72rem] uppercase tracking-wide font-semibold text-[#3B82F6] mb-2">
+                  {v.entries}
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── VISA TYPES ── */}
-        <section className="india-section" id="visa-types">
-          <div className="india-section-inner">
-            <div className="section-eyebrow">Visa Types</div>
-            <h2 className="india-section-title">Choose your India eVisa</h2>
-            <div className="india-visa-grid">
-              {VISIBLE_VISA_OPTIONS.map(v => (
-                <div key={v.id} className="india-visa-card">
-                  {v.tag && <span className="india-visa-tag">{v.tag}</span>}
-                  <h3 className="india-visa-name">{v.label}</h3>
-                  <div className="india-visa-meta">
-                    <span>{v.entries}</span>
-                  </div>
-                  <div className="india-visa-price">
-                    <span className="india-visa-amount">${v.price}</span>
-                    <span className="india-visa-per">per person</span>
-                  </div>
-                  <a href="/apply" className="india-visa-btn">Apply Now</a>
+                <h3 className="text-[1.1rem] font-bold text-[#0B2447] mb-2">{v.name}</h3>
+                <div className="flex items-baseline gap-1 mb-4">
+                  <span className="text-[1.6rem] font-bold text-[#0B2447]">${v.price}</span>
+                  <span className="text-[0.78rem] text-[#3B4A6B]">starting fee</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── VISA TYPES INFO ── */}
-        <section className="india-section">
-          <div className="india-section-inner">
-            <AnimatedSection>
-              <h2 className="india-section-title" style={{ textAlign: 'center', marginBottom: '2.5rem' }}>Visa types needed for India</h2>
-            </AnimatedSection>
-            <AnimatedSection delay={0.15}>
-              <div className="india-visatypes-layout">
-                <div className="india-visatypes-nav">
-                  {VISA_TYPES_INFO.map((v, i) => (
-                    <button
-                      key={v.name}
-                      className={`india-visatypes-btn${activeVisaType === i ? ' active' : ''}`}
-                      onClick={() => setActiveVisaType(i)}
-                    >
-                      <span>{v.name}</span>
-                      <span className="india-visatypes-chevron">›</span>
-                    </button>
+                <ul className="space-y-2 mb-6 flex-1 list-none p-0">
+                  {v.bullets.map(b => (
+                    <li key={b} className="text-[0.82rem] leading-6 text-[#3B4A6B] flex items-start gap-2">
+                      <span className="mt-2 w-1 h-1 rounded-full bg-[#3B82F6] shrink-0" aria-hidden />
+                      <span>{b}</span>
+                    </li>
                   ))}
-                </div>
-                <div className="india-visatypes-content" key={activeVisaType}>
-                  <h3 className="india-visatypes-title">{VISA_TYPES_INFO[activeVisaType].name}</h3>
-                  {VISA_TYPES_INFO[activeVisaType].details.map((d, i) => (
-                    <p key={i} className="india-visatypes-detail">
-                      <strong>{d.label}:</strong> {d.text}
-                    </p>
-                  ))}
-                  {UNAVAILABLE_INFO_NAMES.has(VISA_TYPES_INFO[activeVisaType].name) ? (
-                    <p className="india-visatypes-detail india-visatypes-unavailable">
-                      We currently do not provide this service.
-                    </p>
-                  ) : (
-                    <a href="/apply" className="india-cta-btn" style={{ marginTop: '1.5rem', display: 'inline-block' }}>Apply now →</a>
-                  )}
-                </div>
+                </ul>
+                <Link
+                  href={`/apply?destination=INDIA&visaType=${v.id}`}
+                  className="inline-flex items-center gap-1 text-[0.82rem] font-semibold text-[#0B2447] hover:text-[#3B82F6] no-underline transition-colors mt-auto"
+                >
+                  Apply for this tier <ArrowRight size={14} strokeWidth={2.5} />
+                </Link>
               </div>
-            </AnimatedSection>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-
-        {/* ── FAQ ── */}
-        <section className="india-section" style={{ textAlign: 'center' }}>
-          <div className="india-section-inner">
-            <AnimatedSection>
-              <h2 className="india-section-title">Common questions</h2>
-            </AnimatedSection>
-            <div className="india-faq-list" style={{ textAlign: 'left' }}>
-              {FAQS.map((f, i) => (
-                <AnimatedSection key={i} delay={i * 0.08}>
-                  <details className="india-faq">
-                    <summary className="india-faq-q">{f.q}</summary>
-                    <p className="india-faq-a">{f.a}</p>
-                  </details>
-                </AnimatedSection>
-              ))}
+      {/* ── Requirements ── */}
+      <section id="requirements" className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
+        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
+          <div className="text-center mb-12">
+            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
+              What You&apos;ll Need
             </div>
+            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
+              Application Requirements
+            </h2>
+            <p className="mt-3 text-[0.9rem] text-[#3B4A6B] max-w-[560px] mx-auto">
+              Gather these four items before you start — most applications complete
+              in under 15 minutes.
+            </p>
           </div>
-        </section>
 
-        {/* ── CTA ── */}
-        <section className="india-cta-section">
-          <div className="india-cta-inner">
-            <span className="india-cta-flag">🇮🇳</span>
-            <h2 className="india-cta-title">Ready to visit India?</h2>
-            <p className="india-cta-sub">Start your eVisa application now. Most applications are approved within 72 hours.</p>
-            <a href="/apply" className="india-cta-btn" style={{ fontSize: '1.05rem', padding: '1rem 2.5rem' }}>Start My Application</a>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {REQUIREMENTS.map(r => (
+              <div key={r.title} className="bg-white border border-[#dbe3f0] rounded-lg p-6">
+                <div className="w-11 h-11 rounded-md bg-[#EEF2F9] flex items-center justify-center mb-4">
+                  <r.Icon size={22} strokeWidth={1.85} className="text-[#3B82F6]" />
+                </div>
+                <h3 className="text-[1rem] font-bold text-[#0B2447] mb-2">{r.title}</h3>
+                <p className="text-[0.82rem] leading-6 text-[#3B4A6B]">{r.desc}</p>
+              </div>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
 
-      </main>
+      {/* ── How it works ── */}
+      <section id="how-it-works" className="bg-white border-b border-[#EEF2F9]">
+        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
+          <div className="text-center mb-12">
+            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
+              Our Process
+            </div>
+            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
+              How It Works
+            </h2>
+            <p className="mt-3 text-[0.9rem] text-[#3B4A6B] max-w-[600px] mx-auto">
+              From application to visa in hand — every step and how long it takes.
+            </p>
+          </div>
 
-      <Footer />
-      <ChatWidget />
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {STEPS.map(s => (
+              <div key={s.n} className="bg-white border border-[#dbe3f0] rounded-lg p-6 relative">
+                <div className="w-9 h-9 rounded-full bg-[#0B2447] text-white text-[0.9rem] font-bold flex items-center justify-center mb-4">
+                  {s.n}
+                </div>
+                <h3 className="text-[0.95rem] font-bold text-[#0B2447] mb-2">{s.title}</h3>
+                <p className="text-[0.82rem] text-[#3B4A6B] leading-6 mb-3">{s.desc}</p>
+                <div className="text-[0.7rem] uppercase tracking-wide font-semibold text-[#3B82F6]">{s.when}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10 flex justify-center">
+            <Link
+              href="/apply?destination=INDIA"
+              className="inline-flex items-center gap-2 bg-[#3B82F6] hover:bg-[#2563EB] text-white no-underline text-[0.85rem] font-semibold tracking-wide uppercase px-7 py-3.5 rounded-md transition-colors"
+            >
+              Start My India eVisa <ArrowRight size={16} strokeWidth={2.5} />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ── */}
+      <section id="faq" className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
+        <div className="max-w-[900px] mx-auto px-6 py-16 md:py-20">
+          <div className="text-center mb-12">
+            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
+              Common Questions
+            </div>
+            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
+              India eVisa FAQ
+            </h2>
+          </div>
+
+          <div className="space-y-3">
+            {FAQS.map(f => (
+              <details
+                key={f.q}
+                className="group bg-white border border-[#dbe3f0] rounded-lg p-5 open:shadow-[0_4px_16px_rgba(11,36,71,0.06)] transition-shadow"
+              >
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-4 text-[0.95rem] font-bold text-[#0B2447]">
+                  <span>{f.q}</span>
+                  <span className="text-[#3B82F6] group-open:rotate-45 transition-transform text-[1.4rem] leading-none" aria-hidden>+</span>
+                </summary>
+                <p className="mt-3 text-[0.85rem] leading-7 text-[#3B4A6B]">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <LandingFooter />
     </div>
   );
 }
