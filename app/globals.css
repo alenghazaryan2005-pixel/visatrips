@@ -739,9 +739,9 @@ footer nav a:hover { color: var(--white); }
 .apply-select-wrap {
   @apply relative flex items-center justify-between px-4 py-3.5 rounded-2xl cursor-pointer transition-colors select-none;
   background: var(--white);
-  border: 1.5px solid var(--cloud);
+  border: 1.5px solid #cbd5e1;
 }
-.apply-select-wrap:hover { border-color: var(--blue2); }
+.apply-select-wrap:hover { border-color: var(--blue); }
 .apply-select-value { @apply flex items-center gap-3 text-[0.92rem] font-medium; color: var(--ink); }
 .apply-select-flag  { @apply text-xl leading-none; }
 .apply-select-placeholder { @apply text-[0.92rem]; color: var(--slate); }
@@ -779,14 +779,14 @@ footer nav a:hover { color: var(--white); }
 .apply-visa-list { @apply flex flex-col gap-2; }
 .apply-visa-option {
   @apply flex items-center gap-3 px-4 py-3.5 rounded-2xl cursor-pointer transition-all;
-  border: 1.5px solid var(--cloud);
+  border: 1.5px solid #cbd5e1;
   background: var(--white);
 }
-.apply-visa-option:hover { border-color: var(--blue2); }
+.apply-visa-option:hover { border-color: var(--blue); }
 .apply-visa-option.selected { border-color: var(--blue); background: rgba(79,110,247,0.04); }
 .apply-visa-radio {
   @apply flex-shrink-0 w-4 h-4 rounded-full border-2 transition-colors;
-  border-color: var(--cloud);
+  border-color: #cbd5e1;
 }
 .apply-visa-option.selected .apply-visa-radio {
   border-color: var(--blue);
@@ -810,7 +810,7 @@ footer nav a:hover { color: var(--white); }
 .apply-travelers { @apply flex items-center gap-4; }
 .apply-travelers-btn {
   @apply w-10 h-10 rounded-full flex items-center justify-center text-xl font-light transition-all border cursor-pointer;
-  border-color: var(--cloud);
+  border-color: #cbd5e1;
   color: var(--ink);
   background: var(--white);
 }
@@ -1019,7 +1019,10 @@ footer nav a:hover { color: var(--white); }
 .ap-input {
   font-family: var(--font-jakarta), sans-serif;
   @apply w-full px-4 py-3.5 rounded-xl text-[0.92rem] outline-none transition-all;
-  border: 1.5px solid var(--cloud);
+  /* Darker outline than the site default (--cloud is #EDF1F8, almost
+   * invisible on white). slate-300 gives the field a defined edge
+   * without competing with the focus ring. */
+  border: 1.5px solid #cbd5e1;
   color: var(--ink);
   background: var(--white);
 }
@@ -1032,7 +1035,7 @@ footer nav a:hover { color: var(--white); }
 .ap-select {
   font-family: var(--font-jakarta), sans-serif;
   @apply w-full px-4 py-3.5 rounded-xl text-[0.92rem] outline-none transition-all appearance-none cursor-pointer;
-  border: 1.5px solid var(--cloud);
+  border: 1.5px solid #cbd5e1;
   color: var(--ink);
   background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238892B0' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 14px center;
 }
@@ -1200,10 +1203,10 @@ footer nav a:hover { color: var(--white); }
 }
 .processing-option {
   @apply flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all;
-  border: 1.5px solid var(--cloud);
+  border: 1.5px solid #cbd5e1;
   background: var(--white);
 }
-.processing-option:hover { border-color: var(--blue2); }
+.processing-option:hover { border-color: var(--blue); }
 .processing-option.selected {
   border-color: var(--blue);
   background: #eef2ff;
@@ -1656,10 +1659,10 @@ footer nav a:hover { color: var(--white); }
 .cdd-trigger {
   font-family: var(--font-jakarta), sans-serif;
   @apply w-full px-4 py-3.5 rounded-xl text-[0.92rem] outline-none transition-all cursor-pointer flex items-center justify-between;
-  border: 1.5px solid var(--cloud);
+  border: 1.5px solid #cbd5e1;
   background: var(--white);
 }
-.cdd-trigger:hover { border-color: var(--blue2); }
+.cdd-trigger:hover { border-color: var(--blue); }
 .cdd-trigger:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(79,110,247,0.1); }
 .cdd-placeholder { color: var(--slate); }
 .cdd-value { color: var(--ink); }
@@ -1675,7 +1678,7 @@ footer nav a:hover { color: var(--white); }
 .cdd-search {
   font-family: var(--font-jakarta), sans-serif;
   @apply w-full px-3 py-2 rounded-lg text-[0.85rem] outline-none;
-  border: 1.5px solid var(--cloud);
+  border: 1.5px solid #cbd5e1;
   color: var(--ink);
 }
 .cdd-search:focus { border-color: var(--blue); }
@@ -1765,11 +1768,11 @@ footer nav a:hover { color: var(--white); }
 .finish-radio-btn {
   font-family: var(--font-jakarta), sans-serif;
   @apply flex items-center gap-3 px-6 py-3 rounded-xl text-[0.92rem] cursor-pointer transition-all;
-  border: 1.5px solid var(--cloud);
+  border: 1.5px solid #cbd5e1;
   background: var(--white);
   color: var(--ink);
 }
-.finish-radio-btn:hover { border-color: var(--blue2); }
+.finish-radio-btn:hover { border-color: var(--blue); }
 .finish-radio-btn.selected { border-color: var(--blue); background: rgba(79,110,247,0.04); }
 
 /* Radio buttons - stacked full width */
@@ -1779,11 +1782,11 @@ footer nav a:hover { color: var(--white); }
 .finish-radio-btn-full {
   font-family: var(--font-jakarta), sans-serif;
   @apply flex items-center gap-3 w-full px-5 py-3.5 rounded-xl text-[0.92rem] cursor-pointer transition-all;
-  border: 1.5px solid var(--cloud);
+  border: 1.5px solid #cbd5e1;
   background: var(--white);
   color: var(--ink);
 }
-.finish-radio-btn-full:hover { border-color: var(--blue2); }
+.finish-radio-btn-full:hover { border-color: var(--blue); }
 .finish-radio-btn-full.selected { border-color: var(--blue); background: rgba(79,110,247,0.04); }
 
 /* Radio circle indicator */
