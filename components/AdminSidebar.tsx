@@ -20,6 +20,7 @@ import {
   Settings as SettingsIcon,
   AlertTriangle,
   FileText,
+  Flag,
   Palette,
   UserCog,
   LogOut,
@@ -69,7 +70,17 @@ const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
   {
     label: 'Orders',
     items: [
-      { key: 'orders',    Icon: ClipboardList, label: 'Orders',            href: '/admin',                     description: 'All visa orders' },
+      {
+        key: 'orders',    Icon: ClipboardList, label: 'Orders',            href: '/admin',                     description: 'All visa orders',
+        // India / Aruba appear as indented children so they're one click
+        // from anywhere in the admin (Customers page, Settings, etc.),
+        // not just from the country tabs inside the Orders view. Same
+        // pattern as "Canned Responses" under Customer Emails below.
+        children: [
+          { key: 'india', label: 'India', href: '/admin/india', Icon: Flag },
+          { key: 'aruba', label: 'Aruba', href: '/admin/aruba', Icon: Flag },
+        ],
+      },
       { key: 'customers', Icon: Users,         label: 'Customer Accounts', href: '/admin?section=customers',   description: 'Customer directory' },
       { key: 'refunds',   Icon: Undo2,         label: 'Refunds',           href: '/admin?section=refunds',     description: 'Refunded orders' },
       { key: 'abandoned', Icon: Ban,           label: 'Abandoned',         href: '/admin?section=abandoned',   description: 'Checkouts that bailed' },
