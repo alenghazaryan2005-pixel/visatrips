@@ -504,12 +504,12 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                           <div className="canned-picker-search" style={{
                             display: 'flex', alignItems: 'center', gap: '0.4rem',
                             fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                            color: '#4338ca', fontWeight: 600,
+                            color: 'var(--blue)', fontWeight: 600,
                           }}>
-                            <span style={{ background: '#eef2ff', padding: '0.15rem 0.4rem', borderRadius: '0.3rem', fontSize: '0.78rem' }}>
+                            <span style={{ background: '#DBEAFE', padding: '0.15rem 0.4rem', borderRadius: '0.3rem', fontSize: '0.78rem' }}>
                               /{slashRange.query || '…'}
                             </span>
-                            <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontFamily: 'inherit', fontWeight: 400 }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--slate)', fontFamily: 'inherit', fontWeight: 400 }}>
                               keep typing or pick below
                             </span>
                           </div>
@@ -564,7 +564,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                                     <span style={{
                                       fontSize: '0.65rem', fontWeight: 700,
                                       fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                                      background: '#eef2ff', color: '#4338ca',
+                                      background: '#DBEAFE', color: 'var(--blue)',
                                       padding: '0.05rem 0.3rem', borderRadius: '0.25rem',
                                     }}>
                                       /{c.shortcut}

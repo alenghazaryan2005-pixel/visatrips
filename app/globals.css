@@ -1280,12 +1280,18 @@ footer nav a:hover { color: var(--white); }
 
 /* ── LEGAL PAGES ─────────────────────────────────────────────────────────── */
 .legal-page {
-  @apply mx-auto pl-[2%] pr-[5%] pt-28 pb-20;
+  /* Matches .apply-page: fixed 32px gutters instead of asymmetric
+   * percentage padding, and `w-full` is load-bearing because /privacy
+   * and /refund live inside a `<div class="flex flex-col">` shell —
+   * without it, `mx-auto` inside a flex parent gets treated as
+   * "consume free space" and the container shrinks to content width
+   * with big auto-margin gutters. Same fix as .apply-page. */
+  @apply mx-auto px-8 pt-28 pb-20 w-full;
   max-width: 1440px;
 }
 .legal-breadcrumb {
   @apply flex items-center gap-2 text-[0.8rem] mb-10;
-  color: #000;
+  color: var(--slate);
 }
 .legal-breadcrumb-link { @apply no-underline transition-colors; color: var(--blue); }
 .legal-breadcrumb-link:hover { color: var(--navy); }
@@ -1308,17 +1314,17 @@ footer nav a:hover { color: var(--white); }
 .legal-title {
   font-family: 'DM Serif Display', serif;
   @apply text-[2.8rem] font-normal leading-tight mb-3;
-  color: #000;
+  color: var(--ink);
 }
 .legal-meta {
   font-family: var(--font-jakarta), sans-serif;
   @apply text-[0.82rem] mb-5;
-  color: #000;
+  color: var(--slate);
 }
 .legal-intro {
   font-family: var(--font-jakarta), sans-serif;
   @apply text-[0.95rem] leading-7 pb-8 mb-8;
-  color: #000;
+  color: var(--ink);
   border-bottom: 1px solid var(--cloud);
 }
 
@@ -1332,12 +1338,12 @@ footer nav a:hover { color: var(--white); }
 .legal-section-title {
   font-family: var(--font-sora), sans-serif;
   @apply text-[1rem] font-bold mb-3;
-  color: #000;
+  color: var(--ink);
 }
 .legal-section-body {
   font-family: var(--font-jakarta), sans-serif;
   @apply text-[0.92rem] leading-[1.85];
-  color: #000;
+  color: var(--ink);
 }
 
 /* Sidebar */
@@ -1350,14 +1356,14 @@ footer nav a:hover { color: var(--white); }
 .legal-sidebar-title {
   font-family: var(--font-sora), sans-serif;
   @apply text-[0.72rem] font-bold tracking-[0.12em] uppercase pb-2;
-  color: #000;
+  color: var(--ink);
   border-bottom: 1px solid var(--cloud);
 }
 .legal-sidebar-list { @apply list-none flex flex-col gap-0.5; }
 .legal-sidebar-btn {
   font-family: var(--font-jakarta), sans-serif;
   @apply text-[0.8rem] text-left w-full px-3 py-2 rounded-lg transition-all bg-transparent border-none cursor-pointer leading-snug;
-  color: #000;
+  color: var(--slate);
 }
 .legal-sidebar-btn:hover { background: var(--mist); color: var(--blue); }
 .legal-sidebar-btn.active {
@@ -1368,7 +1374,7 @@ footer nav a:hover { color: var(--white); }
 .legal-sidebar-contact p {
   font-family: var(--font-jakarta), sans-serif;
   @apply text-[0.82rem] leading-6;
-  color: #000;
+  color: var(--slate);
 }
 .legal-contact-btn {
   font-family: var(--font-sora), sans-serif;
@@ -2157,7 +2163,12 @@ footer nav a:hover { color: var(--white); }
   @apply flex-1 flex items-center justify-center;
   position: relative;
   padding: 3rem;
-  background: linear-gradient(135deg, var(--ink) 0%, #0f172a 100%);
+  /* Navy gradient to match LandingNav / LandingFooter — every other
+   * dark chrome on the site uses --navy (#0B2447), so a slate-gray
+   * gradient here read as a different palette. Anchored at --navy
+   * top-left, fading a couple of shades darker at bottom-right for
+   * some depth. */
+  background: linear-gradient(135deg, var(--navy) 0%, #061530 100%);
   overflow: hidden;
 }
 /* Subtle dot grid + radial-fade overlay so the dark panel reads as

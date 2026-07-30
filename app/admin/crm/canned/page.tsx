@@ -265,7 +265,7 @@ export default function CannedResponsesPage() {
               <p className="crm-page-sub">
                 {responses.length} response{responses.length !== 1 ? 's' : ''}
                 {' · '}
-                Type <code style={{ background: '#f1f5f9', padding: '0.05rem 0.3rem', borderRadius: '0.25rem', fontSize: '0.78rem' }}>/shortcut</code> in any reply to insert quickly
+                Type <code style={{ background: 'var(--mist)', padding: '0.05rem 0.3rem', borderRadius: '0.25rem', fontSize: '0.78rem' }}>/shortcut</code> in any reply to insert quickly
               </p>
             </div>
             <button className="crm-new-btn" onClick={startNew} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -279,7 +279,7 @@ export default function CannedResponsesPage() {
             <Search
               size={16}
               strokeWidth={1.85}
-              style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }}
+              style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--slate)', pointerEvents: 'none' }}
             />
             <input
               className="crm-search"
@@ -354,7 +354,7 @@ export default function CannedResponsesPage() {
                     {r.shortcut && (
                       <span style={{
                         fontSize: '0.7rem', fontWeight: 700, fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                        background: '#eef2ff', color: '#4338ca',
+                        background: '#DBEAFE', color: 'var(--blue)',
                         padding: '0.1rem 0.4rem', borderRadius: '0.3rem',
                       }}>
                         /{r.shortcut}
@@ -544,8 +544,8 @@ export default function CannedResponsesPage() {
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
                       padding: '0.3rem 0.55rem', borderRadius: '999px',
-                      border: '1px solid #e5e7eb', background: '#f8fafc',
-                      fontSize: '0.74rem', fontWeight: 600, color: '#334155',
+                      border: '1px solid var(--cloud)', background: 'var(--sky)',
+                      fontSize: '0.74rem', fontWeight: 600, color: 'var(--ink)',
                       cursor: 'pointer', fontFamily: 'ui-monospace, SFMono-Regular, monospace',
                     }}
                   >
@@ -581,7 +581,7 @@ Thanks for reaching out about {{ticket}}. ..."
                   Preview <span style={{ color: 'var(--slate)', fontSize: '0.72rem', fontWeight: 400 }}>(with sample data)</span>
                 </label>
                 <div style={{
-                  background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: '0.5rem',
+                  background: 'var(--sky)', border: '1px solid var(--cloud)', borderRadius: '0.5rem',
                   padding: '0.7rem 0.85rem', fontSize: '0.85rem', lineHeight: 1.55,
                   whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                   color: 'var(--ink)', maxHeight: '200px', overflowY: 'auto',
@@ -638,7 +638,7 @@ Thanks for reaching out about {{ticket}}. ..."
             {editing && (
               <div style={{
                 marginTop: '1rem', padding: '0.6rem 0.8rem',
-                background: '#f8fafc', borderRadius: '0.5rem',
+                background: 'var(--sky)', borderRadius: '0.5rem',
                 fontSize: '0.72rem', color: 'var(--slate)', lineHeight: 1.55,
               }}>
                 Used <strong>{editing.usageCount}</strong> time{editing.usageCount === 1 ? '' : 's'}
