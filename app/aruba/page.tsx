@@ -150,36 +150,6 @@ export default function ArubaPage() {
         </div>
       </section>
 
-      {/* ── Requirements ── */}
-      <section id="requirements" className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
-        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
-          <div className="text-center mb-12">
-            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
-              What You&apos;ll Need
-            </div>
-            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
-              Application Requirements
-            </h2>
-            <p className="mt-3 text-[0.9rem] text-[#3B4A6B] max-w-[560px] mx-auto">
-              Have these four items ready — most applications complete in under
-              10 minutes.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {REQUIREMENTS.map(r => (
-              <div key={r.title} className="bg-white border border-[#dbe3f0] rounded-lg p-6">
-                <div className="w-11 h-11 rounded-md bg-[#EEF2F9] flex items-center justify-center mb-4">
-                  <r.Icon size={22} strokeWidth={1.85} className="text-[#3B82F6]" />
-                </div>
-                <h3 className="text-[1rem] font-bold text-[#0B2447] mb-2">{r.title}</h3>
-                <p className="text-[0.82rem] leading-6 text-[#3B4A6B]">{r.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── How it works ── */}
       <section id="how-it-works" className="bg-white border-b border-[#EEF2F9]">
         <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
@@ -216,6 +186,36 @@ export default function ArubaPage() {
             >
               Start My Aruba ED Card <ArrowRight size={16} strokeWidth={2.5} />
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Requirements ── */}
+      <section id="requirements" className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
+        <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-20">
+          <div className="text-center mb-12">
+            <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
+              What You&apos;ll Need
+            </div>
+            <h2 className="text-[1.75rem] md:text-[2.25rem] font-bold tracking-tight text-[#0B2447]">
+              Application Requirements
+            </h2>
+            <p className="mt-3 text-[0.9rem] text-[#3B4A6B] max-w-[560px] mx-auto">
+              Have these four items ready — most applications complete in under
+              10 minutes.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {REQUIREMENTS.map(r => (
+              <div key={r.title} className="bg-white border border-[#dbe3f0] rounded-lg p-6">
+                <div className="w-11 h-11 rounded-md bg-[#EEF2F9] flex items-center justify-center mb-4">
+                  <r.Icon size={22} strokeWidth={1.85} className="text-[#3B82F6]" />
+                </div>
+                <h3 className="text-[1rem] font-bold text-[#0B2447] mb-2">{r.title}</h3>
+                <p className="text-[0.82rem] leading-6 text-[#3B4A6B]">{r.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
