@@ -20,6 +20,7 @@
 import Link from 'next/link';
 import LandingNav from '@/components/LandingNav';
 import LandingFooter from '@/components/LandingFooter';
+import CountryFlag from '@/components/CountryFlag';
 import {
   BookOpenCheck, FileText, PlaneTakeoff, Mail,
   BadgeCheck, ShieldCheck, Clock, ArrowRight,
@@ -64,14 +65,14 @@ const FAQS = [
 export default function ArubaPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white font-[var(--font-jakarta),sans-serif] text-[#0B2447]">
-      <LandingNav />
+      <LandingNav countryFlag="aruba" />
 
       {/* ── Hero ── */}
       <section className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
         <div className="max-w-[1280px] mx-auto px-6 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center">
           <div>
             <div className="inline-flex items-center gap-2 text-[0.7rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-4">
-              <span aria-hidden>🇦🇼</span> Aruba · ED Card Service
+              Aruba · ED Card Service
             </div>
             <h1 className="text-[2.2rem] md:text-[3rem] font-bold leading-[1.1] tracking-tight text-[#0B2447]">
               Apply for Your<br />
@@ -118,8 +119,8 @@ export default function ArubaPage() {
           <div className="hidden md:block">
             <div className="relative bg-white border border-[#dbe3f0] rounded-lg shadow-[0_6px_24px_rgba(11,36,71,0.06)] p-8">
               <div className="flex items-center gap-3 mb-6 pb-5 border-b border-[#EEF2F9]">
-                <div className="w-11 h-11 rounded-md bg-[#EEF2F9] flex items-center justify-center text-[1.4rem]">
-                  🇦🇼
+                <div className="w-11 h-11 rounded-md bg-[#EEF2F9] flex items-center justify-center">
+                  <CountryFlag slug="aruba" size="1.6em" />
                 </div>
                 <div>
                   <div className="text-[0.9rem] font-semibold text-[#0B2447]">Aruba ED Card</div>

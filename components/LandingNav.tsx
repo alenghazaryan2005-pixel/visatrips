@@ -19,15 +19,30 @@
  */
 
 import Link from 'next/link';
+import CountryFlag from '@/components/CountryFlag';
 
-export default function LandingNav() {
+/**
+ * @param countryFlag — optional CountryFlag slug ("india" / "aruba").
+ *   When set, renders the country's SVG flag next to the logo with
+ *   a subtle vertical separator, so destination landings (/india,
+ *   /aruba) communicate their scope right in the chrome instead of
+ *   relying on a flag emoji in the hero eyebrow.
+ */
+export default function LandingNav({ countryFlag }: { countryFlag?: string } = {}) {
   return (
     <header className="bg-[#0B2447] border-b border-[#0B2447]">
       <nav className="max-w-[1280px] mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-baseline gap-1.5 no-underline">
-          <span className="text-[1.4rem] font-extrabold tracking-tight text-white">VisaTrips</span>
-          <sup className="text-[0.7rem] text-[#3B82F6] font-bold">®</sup>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-baseline gap-1.5 no-underline">
+            <span className="text-[1.4rem] font-extrabold tracking-tight text-white">VisaTrips</span>
+            <sup className="text-[0.7rem] text-[#3B82F6] font-bold">®</sup>
+          </Link>
+          {countryFlag && (
+            <span className="pl-3 border-l border-white/20 flex items-center">
+              <CountryFlag slug={countryFlag} size="1.3em" />
+            </span>
+          )}
+        </div>
         {/* Nav links pushed to the right — the Get Started CTA
             button previously sat here to the right of the links,
             but every top-level customer flow (`/`, `/apply`,
