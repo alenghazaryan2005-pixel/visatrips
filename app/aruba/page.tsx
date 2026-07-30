@@ -221,7 +221,7 @@ export default function ArubaPage() {
       </section>
 
       {/* ── FAQ ── */}
-      <section id="faq" className="bg-[#EEF2F9] border-b border-[#dbe3f0]">
+      <section id="faq" className="bg-white border-b border-[#EEF2F9]">
         <div className="max-w-[900px] mx-auto px-6 py-16 md:py-20">
           <div className="text-center mb-12">
             <div className="text-[0.72rem] uppercase tracking-[0.16em] font-semibold text-[#3B82F6] mb-2">
