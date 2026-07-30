@@ -96,15 +96,20 @@ export async function GET(req: NextRequest) {
   const auth = await requireAdmin();
   if (isErrorResponse(auth)) return auth;
 
-  // Optional `?destination=INDIA` (case-insensitive) filter — used by the
-  // per-country admin tabs (/admin/india, /admin/aruba) so the API only
-  // returns the rows that view actually needs instead of the whole table.
-  // Kept optional so /admin (all countries) still fetches everything.
-  const destination = new URL(req.url).searchParams.get('destination')?.toUpperCase() || undefined;
+  // Optional `?destination=India` filter — used by the per-country admin
+  // tabs (/admin/india, /admin/aruba) so the API only returns rows that
+  // view actually needs instead of the whole table. Kept optional so
+  // /admin (all countries) still fetches everything.
+  //
+  // Case-insensitive match so we're not coupled to how the destination
+  // was capitalized when the order was saved (front-end sends "India",
+  // COUNTRY_FLAGS keys are "India", but a bot script or older order
+  // could conceivably have shipped a different case).
+  const destination = new URL(req.url).searchParams.get('destination') || undefined;
 
   try {
     const orders = await prisma.order.findMany({
-      where: destination ? { destination } : undefined,
+      where: destination ? { destination: { equals: destination, mode: 'insensitive' } } : undefined,
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(orders);

@@ -793,9 +793,15 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
    *  server-side so large accounts don't ship every country's rows over
    *  the wire on every page load. */
   const pathname = usePathname() ?? '';
+  // pathCountry matches the DB destination format exactly (Title Case),
+  // NOT uppercase — the Order.destination column stores "India" / "Aruba",
+  // not "INDIA" / "ARUBA". Case-mismatch here was why the country tabs
+  // rendered empty tables — Prisma's `where: { destination }` does an
+  // exact match. Also the value looks up into COUNTRY_FLAGS so the tab
+  // flag emoji renders (COUNTRY_FLAGS keys are Title Case).
   const pathCountry: string | null =
-    pathname === '/admin/india' || pathname.startsWith('/admin/india/') ? 'INDIA' :
-    pathname === '/admin/aruba' || pathname.startsWith('/admin/aruba/') ? 'ARUBA' :
+    pathname === '/admin/india' || pathname.startsWith('/admin/india/') ? 'India' :
+    pathname === '/admin/aruba' || pathname.startsWith('/admin/aruba/') ? 'Aruba' :
     null;
   const tagCatalog = useOrderTagCatalog();
   const router = useRouter();
@@ -1230,8 +1236,8 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             {(() => {
               const COUNTRY_TABS: Array<{ href: string; label: string; countryCode: string | null }> = [
                 { href: '/admin',       label: 'All countries', countryCode: null },
-                { href: '/admin/india', label: 'India',         countryCode: 'INDIA' },
-                { href: '/admin/aruba', label: 'Aruba',         countryCode: 'ARUBA' },
+                { href: '/admin/india', label: 'India',         countryCode: 'India' },
+                { href: '/admin/aruba', label: 'Aruba',         countryCode: 'Aruba' },
               ];
               return (
                 <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--cloud)' }}>
