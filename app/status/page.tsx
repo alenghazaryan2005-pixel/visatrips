@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Nav from '@/components/Nav';
+import LandingNav from '@/components/LandingNav';
+import LandingFooter from '@/components/LandingFooter';
 import { formatOrderNum, VISA_LABELS, STATUS_COLORS } from '@/lib/constants';
 import {
   SPEED_ORDER,
@@ -15,7 +16,7 @@ import {
 // Lucide icons — same vocabulary as the admin panel (see app/admin/orders/[id]/page.tsx)
 // so the customer-facing status page reads as part of the same product family.
 import {
-  AlertTriangle, Upload, FileText, CheckCircle, Shield, Zap, Download,
+  AlertTriangle, Upload, FileText, CheckCircle, Shield, Zap, Download, Globe,
 } from 'lucide-react';
 
 interface Order {
@@ -317,8 +318,8 @@ export default function StatusPage() {
   // No orders found
   if (orders.length === 0) {
     return (
-      <>
-        <Nav />
+      <div className="min-h-screen flex flex-col bg-white">
+        <LandingNav />
         <div className="customer-status-page">
           <div className="customer-status-header">
             <div>
@@ -328,25 +329,28 @@ export default function StatusPage() {
           </div>
 
           <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🌍</div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#1E293B', marginBottom: '0.5rem' }}>No Orders Found</h2>
-            <p style={{ color: '#94A3B8', fontSize: '1rem', maxWidth: '420px', margin: '0 auto 2rem' }}>
+            <div style={{ marginBottom: '1.25rem', display: 'flex', justifyContent: 'center' }}>
+              <Globe size={48} strokeWidth={1.5} style={{ color: 'var(--blue)' }} aria-hidden />
+            </div>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--ink)', marginBottom: '0.5rem' }}>No Orders Found</h2>
+            <p style={{ color: 'var(--slate)', fontSize: '1rem', maxWidth: '420px', margin: '0 auto 2rem' }}>
               But that&apos;s okay! You can begin your journey with VisaTrips, today!
             </p>
-            <Link href="/apply" style={{ display: 'inline-block', padding: '14px 32px', background: '#6C8AFF', color: 'white', textDecoration: 'none', borderRadius: '12px', fontWeight: 600, fontSize: '1rem' }}>
+            <Link href="/apply" style={{ display: 'inline-block', padding: '14px 32px', background: 'var(--blue)', color: 'white', textDecoration: 'none', borderRadius: '12px', fontWeight: 600, fontSize: '1rem' }}>
               Start Your Application →
             </Link>
           </div>
         </div>
-      </>
+        <LandingFooter showTrust={false} />
+      </div>
     );
   }
 
   // Order list view (when multiple orders and none selected)
   if (!order && orders.length > 1) {
     return (
-      <>
-        <Nav />
+      <div className="min-h-screen flex flex-col bg-white">
+        <LandingNav />
         <div className="customer-status-page">
           <div className="customer-status-header">
             <div>
@@ -375,7 +379,8 @@ export default function StatusPage() {
             })}
           </div>
         </div>
-      </>
+        <LandingFooter showTrust={false} />
+      </div>
     );
   }
 
@@ -384,8 +389,8 @@ export default function StatusPage() {
   const createdDate = new Date(order.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
-    <>
-      <Nav />
+    <div className="min-h-screen flex flex-col bg-white">
+      <LandingNav />
       <div className="customer-status-page">
         <div className="customer-status-header">
           <div>
@@ -541,7 +546,7 @@ export default function StatusPage() {
 
           if (order.status === 'SUBMITTED') {
             return (
-              <div className="customer-status-cta" style={{ background: '#2563eb' }}>
+              <div className="customer-status-cta" style={{ background: 'var(--blue)' }}>
                 <div>
                   <h3 className="customer-status-cta-title">📬 We&apos;re waiting for your {docName} to arrive!</h3>
                   <p className="customer-status-cta-text">Your application has been submitted to {submittedAuthority}. {docName}s typically arrive within 1–3 business days — we&apos;ll email you the moment yours is approved.</p>
@@ -651,8 +656,8 @@ export default function StatusPage() {
             add-on is in effect and there's nothing to do. */}
         {order?.rejectionProtection && (
           <div className="customer-status-card" style={{
-            background: 'rgba(108,138,255,0.05)',
-            border: '1px solid var(--blue2, #c7d2fe)',
+            background: 'rgba(29,78,216,0.05)',
+            border: '1px solid var(--blue2)',
           }}>
             <h2 className="customer-status-section-title" style={{
               marginBottom: '0.4rem',
@@ -939,6 +944,7 @@ export default function StatusPage() {
           </div>
         ))}
       </div>
-    </>
+      <LandingFooter showTrust={false} />
+    </div>
   );
 }
