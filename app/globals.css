@@ -83,9 +83,12 @@
   }
   ::-webkit-scrollbar        { width: 10px; }
   ::-webkit-scrollbar-track  { background: var(--cloud); }
-  ::-webkit-scrollbar-thumb  { background: var(--blue2); border-radius: 99px; border: 2px solid var(--cloud); }
-  ::-webkit-scrollbar-thumb:hover { background: var(--blue); }
-  *                          { scrollbar-width: thin; scrollbar-color: var(--blue2) var(--cloud); }
+  /* Thumb color matches LandingFooter (--navy = #0B2447) so the browser
+   * scrollbar feels like part of the site chrome rather than the old
+   * periwinkle blue leftover from the pre-2026 palette. */
+  ::-webkit-scrollbar-thumb  { background: var(--navy); border-radius: 99px; border: 2px solid var(--cloud); }
+  ::-webkit-scrollbar-thumb:hover { background: #061530; }
+  *                          { scrollbar-width: thin; scrollbar-color: var(--navy) var(--cloud); }
 }
 
 /* ── CONTAINER ───────────────────────────────────────────────────────────── */
