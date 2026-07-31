@@ -20,7 +20,16 @@ import type { NextRequest } from 'next/server';
  *  2. Security headers on every response.
  */
 
-const SUPPORT_HOSTS = ['support.visatrips.com', 'support.localhost:3000', 'support.localhost'];
+// Hosts that get treated as the CRM subdomain. The .vercel.app entry
+// is a free Vercel-provided subdomain used as a temporary preview URL
+// while support.visatrips.com DNS gets wired up — safe to leave in
+// afterwards so old links keep working.
+const SUPPORT_HOSTS = [
+  'support.visatrips.com',
+  'visatrips-support.vercel.app',
+  'support.localhost:3000',
+  'support.localhost',
+];
 
 /** Whitelisted paths on the support subdomain → their internal target. */
 function rewriteTarget(path: string): string | null {
