@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { CrmSidebar } from '@/components/CrmSidebar';
+import { crmPath } from '@/lib/urls';
 import {
   Search, Plus, Trash2, Folder, Eye, Hash,
   User as UserIcon, Mail as MailIcon, Receipt, Calendar, UserCog,
@@ -654,7 +655,7 @@ Thanks for reaching out about {{ticket}}. ..."
               <p style={{
                 marginTop: '0.75rem', fontSize: '0.72rem', color: 'var(--slate)',
               }}>
-                <Link href="/admin/crm" style={{ color: 'var(--blue)' }}>← Back to tickets</Link>
+                <Link href={crmPath('inbox')} style={{ color: 'var(--blue)' }}>← Back to tickets</Link>
               </p>
             </div>
           </div>

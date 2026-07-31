@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CrmSidebar } from '@/components/CrmSidebar';
+import { crmPath } from '@/lib/urls';
 
 interface Ticket {
   id: string;
@@ -455,7 +456,7 @@ export default function CrmPage() {
                   const worstSla = frSla === 'breached' || resSla === 'breached' ? 'breached' : frSla === 'warning' || resSla === 'warning' ? 'warning' : 'ok';
                   const unread = isUnread(t);
                   return (
-                    <tr key={t.id} className={`crm-tr${selected.includes(t.id) ? ' selected' : ''}`} onClick={() => window.location.href = `/admin/crm/${t.id}`}>
+                    <tr key={t.id} className={`crm-tr${selected.includes(t.id) ? ' selected' : ''}`} onClick={() => window.location.href = crmPath('ticket', t.id)}>
                       <td className="crm-td" onClick={e => { e.stopPropagation(); toggleSelect(t.id); }}>
                         <input type="checkbox" checked={selected.includes(t.id)} readOnly />
                       </td>

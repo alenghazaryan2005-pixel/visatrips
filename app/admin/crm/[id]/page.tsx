@@ -4,6 +4,7 @@ import { useState, useEffect, use, useRef } from 'react';
 import Link from 'next/link';
 import { formatOrderNum } from '@/lib/constants';
 import { CrmSidebar } from '@/components/CrmSidebar';
+import { crmPath } from '@/lib/urls';
 
 interface TicketMessage {
   id: string;
@@ -324,7 +325,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mergeInto: mergeTicketId }),
       });
-      window.location.href = `/admin/crm/${mergeTicketId}`;
+      window.location.href = crmPath('ticket', mergeTicketId);
     } catch {} finally { setMerging(false); }
   };
 
@@ -388,7 +389,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
         {/* Top bar */}
         <div className="tkt2-topbar">
           <div className="tkt2-topbar-left">
-            <Link href="/admin/crm" className="tkt2-back">←</Link>
+            <Link href={crmPath('inbox')} className="tkt2-back">←</Link>
             <span className="tkt2-topbar-status" style={{ color: statusColor[ticket.status] || '#6B7280' }}>{ticket.status.replace('_', ' ')}</span>
             <span className="tkt2-topbar-time">{timeStr(ticket.updatedAt)}</span>
           </div>
@@ -527,7 +528,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
                               return (
                                 <div className="canned-picker-empty">
                                   {cannedResponses.length === 0
-                                    ? <>No canned responses yet. <Link href="/admin/crm/canned" style={{ color: 'var(--blue)' }}>Create one</Link></>
+                                    ? <>No canned responses yet. <Link href={crmPath('canned')} style={{ color: 'var(--blue)' }}>Create one</Link></>
                                     : 'No matches.'}
                                 </div>
                               );
@@ -698,7 +699,7 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
 
             {/* Contact */}
             <div className="tkt2-prop-divider" />
-            <Link href={`/admin/crm/contact/${encodeURIComponent(ticket.contactEmail)}`} className="tkt2-contact" style={{ textDecoration: 'none' }}>
+            <Link href={crmPath('contact', encodeURIComponent(ticket.contactEmail))} className="tkt2-contact" style={{ textDecoration: 'none' }}>
               <div className="tkt2-contact-avatar">{ticket.contactName.charAt(0).toUpperCase()}</div>
               <div>
                 <div className="tkt2-contact-name">{ticket.contactName}</div>

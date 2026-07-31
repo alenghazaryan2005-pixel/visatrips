@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { formatOrderNum } from '@/lib/constants';
 import { CrmSidebar } from '@/components/CrmSidebar';
+import { crmPath } from '@/lib/urls';
 
 interface Order {
   id: string;
@@ -79,7 +80,7 @@ export default function ContactPage({ params }: { params: Promise<{ email: strin
           <div className="admin-empty">Loading contact...</div>
         ) : (
           <>
-            <Link href="/admin/crm" style={{ color: 'var(--blue)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 500 }}>← Back to CRM</Link>
+            <Link href={crmPath('inbox')} style={{ color: 'var(--blue)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 500 }}>← Back to CRM</Link>
 
             {/* Contact Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '1.5rem 0' }}>
@@ -147,7 +148,7 @@ export default function ContactPage({ params }: { params: Promise<{ email: strin
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {tickets.map(t => (
-                  <Link key={t.id} href={`/admin/crm/${t.id}`} style={{
+                  <Link key={t.id} href={crmPath('ticket', t.id)} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '0.75rem 1rem', borderRadius: '0.75rem', border: '1px solid var(--cloud)',
                     textDecoration: 'none', color: 'var(--ink)', transition: 'border-color 0.15s',
