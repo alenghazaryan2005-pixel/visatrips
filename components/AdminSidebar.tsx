@@ -16,10 +16,9 @@ import {
   Undo2,
   Ban,
   Archive,
-  Mail,
+  Inbox,
   Settings as SettingsIcon,
   AlertTriangle,
-  FileText,
   Flag,
   Palette,
   UserCog,
@@ -76,8 +75,7 @@ const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
         key: 'orders',    Icon: ClipboardList, label: 'Orders',            href: '/admin',                     description: 'All visa orders',
         // India / Aruba appear as indented children so they're one click
         // from anywhere in the admin (Customers page, Settings, etc.),
-        // not just from the country tabs inside the Orders view. Same
-        // pattern as "Canned Responses" under Customer Emails below.
+        // not just from the country tabs inside the Orders view.
         children: [
           { key: 'india', label: 'India', href: '/admin/india', Icon: Flag },
           { key: 'aruba', label: 'Aruba', href: '/admin/aruba', Icon: Flag },
@@ -93,16 +91,18 @@ const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
     label: 'Tools',
     items: [
       {
-        // Customer Emails and its Canned Responses child point at the CRM
-        // subdomain (support.visatrips.com in prod / localhost:3002 in dev
-        // — see CRM_BASE above). Clicking either navigates out to the
-        // CRM origin. The old /admin/crm route on the primary origin
-        // is still served (backward-compat via app/admin/crm/*) but
-        // isn't linked from the sidebar anymore.
-        key: 'emails', Icon: Mail, label: 'Customer Emails', href: `${CRM_BASE}/tickets`, description: 'Customer communications',
-        children: [
-          { key: 'canned', label: 'Canned Responses', href: `${CRM_BASE}/canned`, Icon: FileText },
-        ],
+        // "Inbox" is the single sidebar handle to the CRM (support
+        // subdomain — CRM_BASE resolves to localhost:3002 in dev /
+        // visatrips-support.vercel.app in prod / support.visatrips.com
+        // via NEXT_PUBLIC_CRM_URL once that's set up).
+        //
+        // The previous "Customer Emails" + nested "Canned Responses"
+        // pair got collapsed to one label so employees have a single
+        // obvious destination — they'll get to canned responses from
+        // within the CRM UI itself, not from the primary admin
+        // sidebar. Icon changed to Inbox to match the same-named
+        // header button on /admin.
+        key: 'emails', Icon: Inbox, label: 'Inbox', href: `${CRM_BASE}/tickets`, description: 'Customer messages and support tickets',
       },
       // Country-specific settings pages (India, Turkey, …) are NOT listed here —
       // they'd clutter the sidebar. Pick a country from the /admin/settings landing.
