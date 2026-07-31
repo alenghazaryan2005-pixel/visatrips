@@ -46,12 +46,20 @@ export async function POST(req: NextRequest) {
 
     const role = admin.role === 'owner' ? 'owner' : 'employee';
     const cookieStore = await cookies();
+    const isProd = process.env.NODE_ENV === 'production';
     cookieStore.set(SESSION_TOKEN, JSON.stringify({ name: admin.name, email: admin.email, role }), {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProd,
       sameSite: 'strict',
       maxAge: 60 * 60 * 4, // 4 hours
       path: '/',
+      // In production, scope the cookie to the whole apex so a login
+      // on visatrips.com shares the session with support.visatrips.com
+      // (the CRM subdomain — see middleware.ts). No domain attribute
+      // in dev so `localhost` and `support.localhost` still get the
+      // cookie; the browser rules only allow explicit Domain= for
+      // public suffixes, not for localhost.
+      ...(isProd ? { domain: '.visatrips.com' } : {}),
     });
 
     return NextResponse.json({ success: true, name: admin.name, role });
