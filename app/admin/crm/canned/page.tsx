@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
-import { AdminSidebar } from '@/components/AdminSidebar';
+import { CrmSidebar } from '@/components/CrmSidebar';
 import {
   Search, Plus, Trash2, Folder, Eye, Hash,
   User as UserIcon, Mail as MailIcon, Receipt, Calendar, UserCog,
@@ -253,7 +253,7 @@ export default function CannedResponsesPage() {
   /* ── Render ───────────────────────────────────────────────────────── */
   return (
     <div className="admin-shell">
-      <AdminSidebar active="emails" />
+      <CrmSidebar />
 
       <div className="admin-main" style={{ maxWidth: '100%' }}>
 

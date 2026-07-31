@@ -3,6 +3,7 @@
 import { useState, useEffect, use, useRef } from 'react';
 import Link from 'next/link';
 import { formatOrderNum } from '@/lib/constants';
+import { CrmSidebar } from '@/components/CrmSidebar';
 
 interface TicketMessage {
   id: string;
@@ -66,7 +67,6 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
   const [isInternal, setIsInternal] = useState(false);
   const [sendEmailCheck, setSendEmailCheck] = useState(true);
   const [sending, setSending] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mergeTicketId, setMergeTicketId] = useState('');
   const [merging, setMerging] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
@@ -352,11 +352,6 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     fetchTicket();
   };
 
-  const handleLogout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' });
-    window.location.href = '/admin';
-  };
-
   const timeStr = (d: string) => {
     const date = new Date(d);
     const now = new Date();
@@ -369,26 +364,11 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     return `${ago} (${date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })})`;
   };
 
-  const sidebar = (
-    <aside className={`admin-sidebar${sidebarCollapsed ? ' collapsed' : ''}`}>
-      <div className="admin-sidebar-logo">
-        <Link href="/" className="logo" style={{ color: 'white', fontSize: '1rem' }}>
-          {sidebarCollapsed ? 'V' : <>VisaTrips<sup style={{ color: 'var(--blue2)' }}>®</sup></>}
-        </Link>
-        {!sidebarCollapsed && <span className="admin-sidebar-badge">Admin</span>}
-      </div>
-      <nav className="admin-nav">
-        {!sidebarCollapsed && <div className="admin-nav-section-label">Admin Panel</div>}
-        <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '📋' : '📋 Orders'}</Link>
-        {!sidebarCollapsed && <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>}
-        <Link href="/admin/crm" className="admin-nav-item active" style={{ textDecoration: 'none' }}>{sidebarCollapsed ? '💬' : '💬 Emails'}</Link>
-      </nav>
-      <button className="sidebar-toggle" onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
-        {sidebarCollapsed ? '→' : '← Collapse'}
-      </button>
-      <button className="admin-logout-btn" onClick={handleLogout}>{sidebarCollapsed ? '←' : '← Sign Out'}</button>
-    </aside>
-  );
+  // Was a hand-rolled inline sidebar with a collapse toggle and its own
+  // Orders/Emails nav — replaced with the shared CrmSidebar so the CRM
+  // origin uses one consistent chrome (simple "Back to Admin Panel" +
+  // sign-out), see components/CrmSidebar.tsx.
+  const sidebar = <CrmSidebar />;
 
   if (loading) return (
     <div className="admin-shell">{sidebar}<div className="admin-main"><div className="admin-empty">Loading ticket...</div></div></div>

@@ -47,7 +47,8 @@ import { TagChip, useOrderTagCatalog, type OrderTag as OrderTagDef } from '@/com
 import { writeQueue } from '@/lib/admin-queue';
 import { toast } from '@/lib/admin-toast';
 import { useFeatureFlag } from '@/lib/useFeatureFlag';
-import { Zap, X as XIcon, Mail as MailIcon, StickyNote, Palette, AlertTriangle, RefreshCw, CheckCircle, XCircle, Undo2, Trash2, Camera, FileText, Rocket, type LucideIcon } from 'lucide-react';
+import { CRM_BASE } from '@/lib/urls';
+import { Zap, X as XIcon, Mail as MailIcon, StickyNote, Palette, AlertTriangle, RefreshCw, CheckCircle, XCircle, Undo2, Trash2, Camera, FileText, Rocket, Inbox, type LucideIcon } from 'lucide-react';
 
 /* ── Login Screen ──────────────────────────────────────────────────────────── */
 
@@ -1202,6 +1203,22 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <p className="admin-sub">Manage and review incoming visa applications</p>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                {/* Inbox — jumps to the CRM on the support subdomain
+                    (see lib/urls.ts CRM_BASE). Anchor tag (not next/link)
+                    since it navigates to a different origin. */}
+                <a
+                  href={`${CRM_BASE}/tickets`}
+                  className="admin-refresh-btn"
+                  style={{
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <Inbox size={14} strokeWidth={2} />
+                  <span>Inbox</span>
+                </a>
                 <Link
                   href="/admin/errors"
                   className="admin-refresh-btn"

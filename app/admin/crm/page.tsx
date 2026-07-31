@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { AdminSidebar } from '@/components/AdminSidebar';
+import { CrmSidebar } from '@/components/CrmSidebar';
 
 interface Ticket {
   id: string;
@@ -222,7 +222,7 @@ export default function CrmPage() {
 
   return (
     <div className="admin-shell">
-      <AdminSidebar active="emails" />
+      <CrmSidebar />
       <div className="admin-main" style={{ maxWidth: '100%' }}>
 
         {/* Header */}

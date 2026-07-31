@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { formatOrderNum } from '@/lib/constants';
+import { CrmSidebar } from '@/components/CrmSidebar';
 
 interface Order {
   id: string;
@@ -69,26 +70,9 @@ export default function ContactPage({ params }: { params: Promise<{ email: strin
 
   const totalSpent = orders.reduce((s, o) => s + o.totalUSD, 0);
 
-  const handleLogout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' });
-    window.location.href = '/admin';
-  };
-
   return (
     <div className="admin-shell">
-      <aside className="admin-sidebar">
-        <div className="admin-sidebar-logo">
-          <Link href="/" className="logo" style={{ color: 'white', fontSize: '1rem' }}>VisaTrips<sup style={{ color: 'var(--blue2)' }}>®</sup></Link>
-          <span className="admin-sidebar-badge">Admin</span>
-        </div>
-        <nav className="admin-nav">
-          <div className="admin-nav-section-label">Admin Panel</div>
-          <Link href="/admin" className="admin-nav-item" style={{ textDecoration: 'none' }}>📋 Orders</Link>
-          <div className="admin-nav-section-label" style={{ marginTop: '1rem' }}>Dashboard</div>
-          <Link href="/admin/crm" className="admin-nav-item active" style={{ textDecoration: 'none' }}>💬 Emails</Link>
-        </nav>
-        <button className="admin-logout-btn" onClick={handleLogout}>← Sign Out</button>
-      </aside>
+      <CrmSidebar />
 
       <div className="admin-main" style={{ maxWidth: '100%' }}>
         {loading ? (
