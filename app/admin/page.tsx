@@ -1175,12 +1175,16 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   }, [filter, search, photoNeedsApprovalOnly, passportNeedsApprovalOnly, tagFilterId, speedFilter, pathCountry, tagCatalog.tags, filtered, router]);
 
 
-  const stats = {
-    total:    orders.length,
-    pending:  orders.filter(o => o.status === 'UNFINISHED' || o.status === 'PENDING').length,
-    approved: orders.filter(o => o.status === 'COMPLETED' || o.status === 'APPROVED').length,
-    revenue:  orders.reduce((s, o) => s + o.totalUSD, 0),
-  };
+  // Per-status counts feed the badge next to each filter tab.
+  // Non-archived only — matches what the filter tabs actually surface.
+  // "ALL" gets the total; every other tab gets its exact-status count.
+  const statusCounts = new Map<string, number>();
+  let activeTotal = 0;
+  for (const o of orders) {
+    if (o.archivedAt) continue;
+    activeTotal++;
+    statusCounts.set(o.status, (statusCounts.get(o.status) ?? 0) + 1);
+  }
 
   return (
     <>
@@ -1271,36 +1275,38 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               );
             })()}
 
-            {/* Stats */}
-            <div className="admin-stats">
-              <div className="admin-stat-card">
-                <div className="admin-stat-label">Unfinished</div>
-                <div className="admin-stat-value admin-stat-pending">{stats.pending}</div>
-              </div>
-              <div className="admin-stat-card">
-                <div className="admin-stat-label">Processing</div>
-                <div className="admin-stat-value admin-stat-pending">{orders.filter(o => o.status === 'PROCESSING' || o.status === 'UNDER_REVIEW').length}</div>
-              </div>
-              <div className="admin-stat-card">
-                <div className="admin-stat-label">Submitted</div>
-                <div className="admin-stat-value admin-stat-pending">{orders.filter(o => o.status === 'SUBMITTED').length}</div>
-              </div>
-              <div className="admin-stat-card">
-                <div className="admin-stat-label">Completed</div>
-                <div className="admin-stat-value admin-stat-pending">{stats.approved}</div>
-              </div>
-            </div>
-
-            {/* Filters */}
+            {/* Filters — the four "Unfinished / Processing / Submitted /
+                Completed" stat cards that used to sit above got merged
+                into the filter tabs as inline count badges. Every tab
+                (not just the four that had cards) shows its non-archived
+                count, matching what clicking the tab would surface. */}
             <div className="admin-filters">
               <input className="admin-search" placeholder="Search by order number, name, email, destination..."
                 value={search} onChange={e => setSearch(e.target.value)} />
               <div className="admin-filter-tabs">
-                {(['ALL','UNFINISHED','PROCESSING','NEEDS_CORRECTION','SUBMITTED','COMPLETED','ON_HOLD','REJECTED','REFUNDED', ...customStatusCodes].filter(s => s === 'ALL' || !isDeletedBuiltIn(s))).map(s => (
-                  <button key={s} className={`admin-filter-tab${filter === s ? ' active' : ''}`} onClick={() => setFilter(s)}>
-                    {s === 'ALL' ? 'All' : (customStatusesMap.get(s)?.label ?? s.replace('_',' '))}
-                  </button>
-                ))}
+                {(['ALL','UNFINISHED','PROCESSING','NEEDS_CORRECTION','SUBMITTED','COMPLETED','ON_HOLD','REJECTED','REFUNDED', ...customStatusCodes].filter(s => s === 'ALL' || !isDeletedBuiltIn(s))).map(s => {
+                  const isActive = filter === s;
+                  const count = s === 'ALL' ? activeTotal : (statusCounts.get(s) ?? 0);
+                  return (
+                    <button
+                      key={s}
+                      className={`admin-filter-tab${isActive ? ' active' : ''}`}
+                      onClick={() => setFilter(s)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                    >
+                      <span>{s === 'ALL' ? 'All' : (customStatusesMap.get(s)?.label ?? s.replace('_',' '))}</span>
+                      <span style={{
+                        fontSize: '0.68rem', fontWeight: 700,
+                        padding: '0.05rem 0.4rem', borderRadius: '999px',
+                        background: isActive ? 'rgba(255,255,255,0.22)' : 'var(--cloud)',
+                        color: isActive ? 'white' : 'var(--slate)',
+                        lineHeight: 1.5,
+                      }}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
