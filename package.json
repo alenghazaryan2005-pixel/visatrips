@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:crm": "tsx scripts/dev-support-proxy.ts",
     "dev:clean": "rm -rf .next && next dev",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
