@@ -117,17 +117,7 @@ export default function CrmPage() {
     } catch {} finally { setLoading(false); }
   }, []);
 
-  const [slaBreaches, setSlaBreaches] = useState<{ breached: any[]; warning: any[] }>({ breached: [], warning: [] });
-
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
-
-  // Check SLA breaches every 60 seconds
-  useEffect(() => {
-    const checkSla = () => fetch('/api/tickets/sla-check').then(r => r.ok ? r.json() : { breached: [], warning: [] }).then(setSlaBreaches).catch(() => {});
-    checkSla();
-    const interval = setInterval(checkSla, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   const createTicket = async () => {
     if (!newSubject || !newEmail || !newName) return;
@@ -344,43 +334,6 @@ export default function CrmPage() {
             <button className="admin-refresh-btn" onClick={fetchTickets}>↻</button>
           </div>
         </div>
-
-        {/* Filters */}
-        {/* SLA Breach Notifications */}
-        {(slaBreaches.breached.length > 0 || slaBreaches.warning.length > 0) && (
-          <div className="sla-breach-banner">
-            {slaBreaches.breached.length > 0 && (
-              <div className="sla-breach-section breached">
-                <span className="sla-breach-icon">🔴</span>
-                <div>
-                  <strong>{slaBreaches.breached.length} SLA Breached</strong>
-                  <div className="sla-breach-list">
-                    {slaBreaches.breached.map((b: any) => (
-                      <a key={`${b.id}-${b.type}`} href={`/admin/crm/${b.id}`} className="sla-breach-item">
-                        #{b.ticketNumber} — {b.type} ({b.overdueBy} overdue)
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-            {slaBreaches.warning.length > 0 && (
-              <div className="sla-breach-section warning">
-                <span className="sla-breach-icon">🟡</span>
-                <div>
-                  <strong>{slaBreaches.warning.length} SLA At Risk</strong>
-                  <div className="sla-breach-list">
-                    {slaBreaches.warning.map((w: any) => (
-                      <a key={`${w.id}-${w.type}`} href={`/admin/crm/${w.id}`} className="sla-breach-item">
-                        #{w.ticketNumber} — {w.type} ({w.timeLeft} left)
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         <div className="crm-filters">
           <div style={{ display: 'flex', gap: '0.5rem' }}>
