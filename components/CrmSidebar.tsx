@@ -2,34 +2,46 @@
 
 /**
  * Simplified sidebar for CRM pages served on the support subdomain
- * (see middleware.ts + scripts/dev-support-proxy.ts). The full nav
- * from AdminSidebar doesn't belong here — the support subdomain is
- * scoped to CRM work, and cross-origin sidebar links create their
- * own set of edge cases. So this version shows only:
+ * (see middleware.ts + scripts/dev-support-proxy.ts). Employees on
+ * the primary admin panel don't see Canned Responses in the nav
+ * anymore — they see just "Inbox" that jumps here. Once here, the
+ * CRM's own tools (Inbox + Canned Responses) live in this sidebar,
+ * and "Back to Admin Panel" is the escape hatch.
  *
- *   Top     — VisaTrips® Support branding
- *   Body    — a single "Back to Admin Panel" link that jumps to the
- *             primary admin origin (env-aware, see PRIMARY_BASE)
- *   Bottom  — signed-in identity + sign-out
+ *   Top     — VisaTrips® Support badge
+ *   Body    — Inbox, Canned Responses (nav for CRM tools)
+ *           — Back to Admin Panel (escape hatch, visually separated)
+ *   Bottom  — signed-in identity + Sign out
  *
- * `PRIMARY_BASE` mirrors the CRM_BASE constant in AdminSidebar.tsx:
- *   dev build  → http://localhost:3000
- *   prod build → https://visatrips.vercel.app
- *   override   → NEXT_PUBLIC_APP_URL beats both
+ * Nav links use RELATIVE URLs (/tickets, /canned) — middleware.ts
+ * rewrites those to /admin/crm and /admin/crm/canned when the
+ * hostname is the support subdomain, so no origin prefix is
+ * needed and the sidebar renders correctly whether we're on
+ * localhost:3002 or visatrips-support.vercel.app.
  *
- * When visatrips.com is eventually attached to the Vercel project,
- * set NEXT_PUBLIC_APP_URL=https://visatrips.com in the Vercel env
- * so the back button jumps to the real domain — no code change.
+ * Sign-out redirects to PRIMARY_BASE/admin — the CRM origin is a
+ * work surface, not a landing surface, and the primary admin is
+ * where signed-out employees should be sent.
  */
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { ChevronLeft, LogOut } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { ChevronLeft, LogOut, Inbox, FileText } from 'lucide-react';
 import { PRIMARY_BASE } from '@/lib/urls';
+
+const NAV: Array<{ label: string; href: string; Icon: typeof Inbox; matchPrefix: string }> = [
+  { label: 'Inbox',            href: '/tickets', Icon: Inbox,    matchPrefix: '/admin/crm' },
+  { label: 'Canned Responses', href: '/canned',  Icon: FileText, matchPrefix: '/admin/crm/canned' },
+];
 
 export function CrmSidebar() {
   const [name, setName] = useState<string>('');
   const [role, setRole] = useState<'owner' | 'employee'>('employee');
+  // Middleware rewrites /tickets → /admin/crm and /canned → /admin/crm/canned
+  // before the app sees the path, so `usePathname()` here returns the
+  // INTERNAL path (starts with /admin/crm/...) — match against that.
+  const pathname = usePathname() ?? '';
 
   useEffect(() => {
     let cancelled = false;
@@ -48,12 +60,22 @@ export function CrmSidebar() {
 
   const handleLogout = async () => {
     try { await fetch('/api/admin/logout', { method: 'POST' }); } catch {}
-    // Send them home on the primary origin — logging out on the CRM
-    // subdomain and landing on the CRM's own login flow would be
-    // confusing (they came here from the admin panel; that's where
-    // they belong after signing out).
     window.location.href = `${PRIMARY_BASE}/admin`;
   };
+
+  // Longest matching prefix wins so /admin/crm/canned highlights
+  // "Canned Responses" (not both Inbox + Canned).
+  const activeHref = (() => {
+    let best: { href: string; len: number } | null = null;
+    for (const item of NAV) {
+      if (pathname === item.matchPrefix || pathname.startsWith(item.matchPrefix + '/')) {
+        if (!best || item.matchPrefix.length > best.len) {
+          best = { href: item.href, len: item.matchPrefix.length };
+        }
+      }
+    }
+    return best?.href;
+  })();
 
   return (
     <aside className="admin-sidebar">
@@ -65,12 +87,34 @@ export function CrmSidebar() {
       </div>
 
       <nav className="admin-nav">
+        {NAV.map(item => {
+          const isActive = activeHref === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`admin-nav-item${isActive ? ' active' : ''}`}
+              style={{
+                textDecoration: 'none',
+                display: 'inline-flex', alignItems: 'center', gap: '0.55rem',
+              }}
+            >
+              <item.Icon size={16} strokeWidth={2} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+
+        {/* Escape hatch — visually separated so it doesn't read as
+            "another CRM section". */}
+        <div style={{ margin: '1rem 0 0.5rem 0', borderTop: '1px solid rgba(255,255,255,0.08)' }} />
         <Link
           href={`${PRIMARY_BASE}/admin`}
           className="admin-nav-item"
           style={{
             textDecoration: 'none',
             display: 'inline-flex', alignItems: 'center', gap: '0.55rem',
+            opacity: 0.75,
           }}
         >
           <ChevronLeft size={16} strokeWidth={2} />
