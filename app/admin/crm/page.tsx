@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CrmSidebar } from '@/components/CrmSidebar';
 import { crmPath } from '@/lib/urls';
+import { writeQueue } from '@/lib/admin-queue';
 
 interface Ticket {
   id: string;
@@ -456,7 +457,23 @@ export default function CrmPage() {
                   const worstSla = frSla === 'breached' || resSla === 'breached' ? 'breached' : frSla === 'warning' || resSla === 'warning' ? 'warning' : 'ok';
                   const unread = isUnread(t);
                   return (
-                    <tr key={t.id} className={`crm-tr${selected.includes(t.id) ? ' selected' : ''}`} onClick={() => window.location.href = crmPath('ticket', t.id)}>
+                    <tr key={t.id} className={`crm-tr${selected.includes(t.id) ? ' selected' : ''}`} onClick={() => {
+                      // Snapshot the full filtered list (not just current page)
+                      // so Prev/Next on the detail page walk the whole queue,
+                      // matching the same UX the orders queue provides.
+                      const parts: string[] = [];
+                      if (view === 'mine') parts.push('My Tickets');
+                      else if (view === 'all') parts.push('All Tickets');
+                      else parts.push('Inbox');
+                      if (filter !== 'ALL') parts.push(`Status: ${filter}`);
+                      if (filterPriority) parts.push(`Priority: ${filterPriority}`);
+                      if (filterType) parts.push(`Type: ${filterType}`);
+                      if (filterGroup) parts.push(`Group: ${filterGroup}`);
+                      if (filterAgent) parts.push(`Agent: ${filterAgent}`);
+                      if (search) parts.push(`Search: "${search}"`);
+                      writeQueue('tickets', { ids: filtered.map(x => x.id), filterLabel: parts.join(' · ') || null });
+                      window.location.href = crmPath('ticket', t.id);
+                    }}>
                       <td className="crm-td" onClick={e => { e.stopPropagation(); toggleSelect(t.id); }}>
                         <input type="checkbox" checked={selected.includes(t.id)} readOnly />
                       </td>

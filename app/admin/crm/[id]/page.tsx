@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, use, useRef } from 'react';
+import { useState, useEffect, use, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { formatOrderNum } from '@/lib/constants';
 import { crmPath } from '@/lib/urls';
+import { getQueuePosition } from '@/lib/admin-queue';
 
 interface TicketMessage {
   id: string;
@@ -400,6 +401,69 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     } catch {}
   };
 
+  // Queue navigation — mirrors the pattern from /admin/orders/[id]. The
+  // CRM list page snapshots the current filtered order of ticket IDs +
+  // a filter description into sessionStorage right before navigating
+  // into the detail view. We read that snapshot here to render Prev /
+  // Next chrome + a position counter ("Ticket 12 of 47 in 'Inbox'"),
+  // and to know what "next" means for the Close-and-next action.
+  const [queuePos, setQueuePos] = useState<ReturnType<typeof getQueuePosition> | null>(null);
+  useEffect(() => { setQueuePos(getQueuePosition('tickets', id)); }, [id]);
+
+  const navigateTo = useCallback((targetId: string | null) => {
+    if (!targetId) return;
+    window.location.href = crmPath('ticket', targetId);
+  }, []);
+
+  // Arrow keys jump between tickets when a queue is loaded. Same
+  // safeguards as the orders detail page: don't hijack keys while
+  // typing (input / textarea / select / contenteditable) and leave
+  // modifier-combos alone (Cmd+← etc. are browser back).
+  useEffect(() => {
+    if (!queuePos) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as Element | null;
+      if (t) {
+        const tag = t.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+        if ((t as HTMLElement).isContentEditable) return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'ArrowLeft' && queuePos.prevId) { e.preventDefault(); navigateTo(queuePos.prevId); }
+      else if (e.key === 'ArrowRight' && queuePos.nextId) { e.preventDefault(); navigateTo(queuePos.nextId); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [queuePos, navigateTo]);
+
+  // Close-and-next: PATCH status → CLOSED, then jump to the next
+  // ticket in the queue (or back to the inbox if this was the last).
+  // The button that fires this lives in the top bar (see below).
+  const [closing, setClosing] = useState(false);
+  const closeAndNext = async () => {
+    if (!ticket || closing) return;
+    setClosing(true);
+    try {
+      const res = await fetch(`/api/tickets/${ticket.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CLOSED' }),
+      });
+      if (!res.ok) {
+        alert('Failed to close ticket.');
+        setClosing(false);
+        return;
+      }
+      if (queuePos?.nextId) {
+        window.location.href = crmPath('ticket', queuePos.nextId);
+      } else {
+        window.location.href = crmPath('inbox');
+      }
+    } catch {
+      setClosing(false);
+    }
+  };
+
   // Sidebar on ticket detail is the ORDERS panel — all orders linked to
   // this ticket (auto-matched by email + manually attached via "Link
   // Order"). Navigation back to the inbox is via the ← button in the
@@ -518,7 +582,54 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
           </div>
           <div className="tkt2-topbar-right">
             <button className="tkt2-forward-btn" onClick={() => setShowForward(!showForward)}>↗ Forward</button>
-            <span className="tkt2-topbar-nav">Ticket #{ticket.ticketNumber}</span>
+
+            {/* Close-and-next: closes this ticket, jumps to the next in
+                queue (or back to inbox if this was the last). Hidden
+                when ticket is already CLOSED. */}
+            {ticket.status !== 'CLOSED' && (
+              <button
+                className="tkt2-forward-btn"
+                onClick={closeAndNext}
+                disabled={closing}
+                title="Close this ticket and move to the next one"
+                style={{ background: '#DC2626', color: 'white', borderColor: '#DC2626' }}
+              >
+                {closing ? 'Closing…' : (queuePos?.nextId ? '✓ Close & Next' : '✓ Close')}
+              </button>
+            )}
+
+            {/* Queue chrome — Prev/Next arrows + position counter.
+                Only renders when we know a queue (list-page → detail
+                navigation). Direct URL loads hide it. Arrow keys
+                mirror these buttons; see keydown effect. */}
+            {queuePos && (
+              <>
+                <button
+                  className="tkt2-forward-btn"
+                  onClick={() => navigateTo(queuePos.prevId)}
+                  disabled={!queuePos.prevId}
+                  title={queuePos.prevId ? 'Previous ticket (←)' : 'No previous ticket'}
+                  style={{ padding: '0.35rem 0.65rem', fontWeight: 700 }}
+                >
+                  ‹
+                </button>
+                <span className="tkt2-topbar-nav" title={queuePos.filterLabel ?? undefined}>
+                  {queuePos.index + 1} of {queuePos.total}
+                </span>
+                <button
+                  className="tkt2-forward-btn"
+                  onClick={() => navigateTo(queuePos.nextId)}
+                  disabled={!queuePos.nextId}
+                  title={queuePos.nextId ? 'Next ticket (→)' : 'No more tickets'}
+                  style={{ padding: '0.35rem 0.65rem', fontWeight: 700 }}
+                >
+                  ›
+                </button>
+              </>
+            )}
+            {!queuePos && (
+              <span className="tkt2-topbar-nav">Ticket #{ticket.ticketNumber}</span>
+            )}
           </div>
         </div>
 
