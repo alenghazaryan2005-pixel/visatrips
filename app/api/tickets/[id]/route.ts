@@ -19,20 +19,37 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     });
     if (!ticket) return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
 
-    // Find linked orders by email
+    // Linked orders come from two sources:
+    //  1. AUTO — orders whose billingEmail or any traveler email matches
+    //     the ticket's contactEmail. Not persisted, computed on read.
+    //  2. MANUAL — orders explicitly attached via the "Link Order" button
+    //     in the ticket detail sidebar; stored as comma-separated ids in
+    //     ticket.manualLinkedOrderIds.
+    //
+    // We tag each order with linkSource so the UI can (a) show a "×"
+    // unlink control on manual links only and (b) render auto vs manual
+    // differently if it wants to.
     const allOrders = await prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
       select: { id: true, orderNumber: true, status: true, destination: true, visaType: true, totalUSD: true, createdAt: true, billingEmail: true, travelers: true },
     });
 
     const contactLower = ticket.contactEmail.toLowerCase();
-    const linkedOrders = allOrders.filter(o => {
-      if (o.billingEmail.toLowerCase() === contactLower) return true;
-      try {
-        const travelers = JSON.parse(o.travelers);
-        return travelers.some((t: any) => t.email?.toLowerCase() === contactLower);
-      } catch { return false; }
-    }).map(({ travelers, billingEmail, ...rest }) => rest);
+    const manualIds = new Set((ticket.manualLinkedOrderIds ?? '').split(',').map(s => s.trim()).filter(Boolean));
+
+    const linkedOrders = allOrders
+      .map(o => {
+        const emailMatch =
+          o.billingEmail.toLowerCase() === contactLower
+          || (() => { try { const ts = JSON.parse(o.travelers); return Array.isArray(ts) && ts.some((t: any) => t.email?.toLowerCase() === contactLower); } catch { return false; } })();
+        const manual = manualIds.has(o.id);
+        if (!emailMatch && !manual) return null;
+        // Manual links shown as "manual"; both-conditions = "email" (email is the stronger signal — if there's an email match the link is safe to auto-render even if the user unlinks the manual pointer).
+        const linkSource: 'email' | 'manual' = emailMatch ? 'email' : 'manual';
+        const { travelers, billingEmail, ...rest } = o;
+        return { ...rest, linkSource };
+      })
+      .filter(Boolean);
 
     return NextResponse.json({ ...ticket, linkedOrders });
   } catch {
@@ -80,6 +97,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // Get current ticket for comparison
     const current = await prisma.ticket.findUnique({ where: { id } });
     if (!current) return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
+
+    // Handle manual order link/unlink. Body shape:
+    //   { linkOrderNumber: 12858 }   → look up order by that number,
+    //                                   append its id to manualLinkedOrderIds
+    //   { unlinkOrderId: "cuid..." } → remove that id from the list
+    if (typeof body.linkOrderNumber === 'number' || typeof body.linkOrderNumber === 'string') {
+      const num = Number(String(body.linkOrderNumber).replace(/\D/g, ''));
+      if (!Number.isFinite(num) || num <= 0) {
+        return NextResponse.json({ error: 'Invalid order number' }, { status: 400 });
+      }
+      const order = await prisma.order.findFirst({ where: { orderNumber: num }, select: { id: true, orderNumber: true } });
+      if (!order) {
+        return NextResponse.json({ error: `Order #${num} not found` }, { status: 404 });
+      }
+      const existing = new Set((current.manualLinkedOrderIds ?? '').split(',').map(s => s.trim()).filter(Boolean));
+      existing.add(order.id);
+      await prisma.ticket.update({ where: { id }, data: { manualLinkedOrderIds: [...existing].join(',') || null } });
+      await prisma.ticketActivity.create({ data: { ticketId: id, action: 'order_linked', details: `Linked order #${order.orderNumber}`, performedBy: auth.name } });
+      return NextResponse.json({ success: true });
+    }
+    if (typeof body.unlinkOrderId === 'string' && body.unlinkOrderId) {
+      const existing = new Set((current.manualLinkedOrderIds ?? '').split(',').map(s => s.trim()).filter(Boolean));
+      if (!existing.has(body.unlinkOrderId)) {
+        // Idempotent — if the manual link isn't there, treat as OK (it might be
+        // an auto/email link, which has no manual entry to remove).
+        return NextResponse.json({ success: true, noop: true });
+      }
+      existing.delete(body.unlinkOrderId);
+      await prisma.ticket.update({ where: { id }, data: { manualLinkedOrderIds: existing.size > 0 ? [...existing].join(',') : null } });
+      await prisma.ticketActivity.create({ data: { ticketId: id, action: 'order_unlinked', details: `Manually-linked order removed`, performedBy: auth.name } });
+      return NextResponse.json({ success: true });
+    }
 
     const data: Record<string, any> = {};
     const allowed = ['status', 'priority', 'group', 'assignedTo', 'subject', 'tags', 'lastViewedBy', 'lastViewedAt'];

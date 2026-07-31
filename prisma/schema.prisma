@@ -158,6 +158,7 @@ model Ticket {
   resolvedAt       DateTime?
   mergedIntoId     String?        // if merged, points to parent ticket
   tags             String?        // comma-separated tags
+  manualLinkedOrderIds String?    // comma-separated Order.id values manually attached via the "Link Order" button on the ticket detail sidebar (in addition to whatever we auto-link by email match)
   lastViewedBy     String?        // for collision detection
   lastViewedAt     DateTime?      // for collision detection
   createdAt        DateTime       @default(now())

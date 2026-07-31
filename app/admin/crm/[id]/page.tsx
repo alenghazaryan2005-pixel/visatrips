@@ -3,7 +3,6 @@
 import { useState, useEffect, use, useRef } from 'react';
 import Link from 'next/link';
 import { formatOrderNum } from '@/lib/constants';
-import { CrmSidebar } from '@/components/CrmSidebar';
 import { crmPath } from '@/lib/urls';
 
 interface TicketMessage {
@@ -23,6 +22,7 @@ interface LinkedOrder {
   visaType: string;
   totalUSD: number;
   createdAt: string;
+  linkSource: 'email' | 'manual';   // 'email' = auto-matched by ticket contact; 'manual' = added via Link Order
 }
 
 interface TicketActivity {
@@ -365,11 +365,134 @@ export default function TicketDetailPage({ params }: { params: Promise<{ id: str
     return `${ago} (${date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} at ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })})`;
   };
 
-  // Was a hand-rolled inline sidebar with a collapse toggle and its own
-  // Orders/Emails nav — replaced with the shared CrmSidebar so the CRM
-  // origin uses one consistent chrome (simple "Back to Admin Panel" +
-  // sign-out), see components/CrmSidebar.tsx.
-  const sidebar = <CrmSidebar />;
+  // Manual order link/unlink handlers — POST to PATCH /api/tickets/[id]
+  // with the appropriate action body. See app/api/tickets/[id]/route.ts.
+  const [linking, setLinking] = useState(false);
+  const linkOrder = async () => {
+    const raw = window.prompt('Order number to link (e.g. 12858 or 012858):');
+    if (raw == null) return;
+    const num = raw.trim().replace(/\D/g, '');
+    if (!num) return;
+    setLinking(true);
+    try {
+      const res = await fetch(`/api/tickets/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkOrderNumber: num }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as any));
+        alert(data.error || `Failed to link order (HTTP ${res.status})`);
+      } else {
+        await fetchTicket();
+      }
+    } finally { setLinking(false); }
+  };
+  const unlinkOrder = async (orderId: string, orderNumber: number) => {
+    if (!window.confirm(`Unlink order #${formatOrderNum(orderNumber)} from this ticket?`)) return;
+    try {
+      await fetch(`/api/tickets/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ unlinkOrderId: orderId }),
+      });
+      await fetchTicket();
+    } catch {}
+  };
+
+  // Sidebar on ticket detail is the ORDERS panel — all orders linked to
+  // this ticket (auto-matched by email + manually attached via "Link
+  // Order"). Navigation back to the inbox is via the ← button in the
+  // top bar, so the CRM nav (Inbox/My Tickets/etc.) doesn't need to be
+  // in the sidebar here.
+  const sidebar = (
+    <aside className="admin-sidebar" style={{ overflow: 'auto', padding: '1rem 0.85rem' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 0.15rem 0.75rem', marginBottom: '0.5rem',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+      }}>
+        <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>
+          Orders {ticket ? `(${ticket.linkedOrders.length})` : ''}
+        </div>
+        <button
+          type="button"
+          onClick={linkOrder}
+          disabled={linking}
+          title="Link an order by order number"
+          style={{
+            background: 'transparent', border: '1px solid rgba(255,255,255,0.2)',
+            color: 'white', width: 22, height: 22, borderRadius: 4,
+            fontSize: '0.9rem', lineHeight: '1', cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {linking ? '…' : '+'}
+        </button>
+      </div>
+
+      {ticket && ticket.linkedOrders.length === 0 && (
+        <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.55)', padding: '1rem 0.15rem', lineHeight: 1.5 }}>
+          No orders linked. Orders whose billing email matches this ticket appear here automatically; use <strong>+</strong> above to add one manually.
+        </div>
+      )}
+
+      {ticket?.linkedOrders.map(o => (
+        <div key={o.id} style={{
+          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 6, padding: '0.75rem 0.85rem', marginBottom: '0.6rem',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <Link
+              href={`/admin/orders/${o.id}`}
+              style={{ color: 'white', fontSize: '0.85rem', fontWeight: 700, textDecoration: 'none' }}
+              title="Open in admin"
+            >
+              #{formatOrderNum(o.orderNumber)}
+            </Link>
+            {o.linkSource === 'manual' && (
+              <button
+                type="button"
+                onClick={() => unlinkOrder(o.id, o.orderNumber)}
+                title="Unlink from ticket"
+                style={{
+                  background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)',
+                  cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1, padding: '0 0.25rem',
+                }}
+              >×</button>
+            )}
+            {o.linkSource === 'email' && (
+              <span title="Auto-linked (email match)" style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.4)' }}>auto</span>
+            )}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginBottom: '0.2rem' }}>
+            {o.destination} · {o.visaType.replace(/_/g, ' ')}
+          </div>
+          <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)' }}>
+            <span className={`admin-status ${o.status}`} style={{
+              display: 'inline-block', padding: '0.05rem 0.4rem', borderRadius: 3,
+              background: 'rgba(255,255,255,0.1)', marginRight: '0.4rem',
+            }}>
+              {o.status.replace(/_/g, ' ')}
+            </span>
+            ${o.totalUSD} · {new Date(o.createdAt).toLocaleDateString()}
+          </div>
+        </div>
+      ))}
+
+      <div style={{ margin: '1rem 0 0.5rem 0', borderTop: '1px solid rgba(255,255,255,0.08)' }} />
+      <Link
+        href={crmPath('inbox')}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+          color: 'rgba(255,255,255,0.7)', textDecoration: 'none',
+          fontSize: '0.82rem', padding: '0.5rem 0.15rem',
+        }}
+      >
+        ← Back to tickets
+      </Link>
+    </aside>
+  );
 
   if (loading) return (
     <div className="admin-shell">{sidebar}<div className="admin-main"><div className="admin-empty">Loading ticket...</div></div></div>
