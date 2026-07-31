@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (isErrorResponse(auth)) return auth;
 
   try {
-    const { subject, contactEmail, contactName, priority, group, message, assignedTo, sendNotification } = await req.json();
+    const { subject, contactEmail, contactName, priority, group, type, message, assignedTo, sendNotification } = await req.json();
 
     if (!subject || !contactEmail || !contactName) {
       return NextResponse.json({ error: 'Subject, contact email, and name are required' }, { status: 400 });
@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
         contactName,
         priority: prio,
         group: group || 'Miscellaneous',
+        type: type || 'General',
         assignedTo: assignedTo || auth.name,
         firstResponseDue,
         resolutionDue,

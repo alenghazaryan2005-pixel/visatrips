@@ -147,6 +147,7 @@ model Ticket {
   subject      String
   status       TicketStatus   @default(NEW)
   priority     TicketPriority @default(LOW)
+  type         String         @default("General")   // General / Question / Refund / Status Check / Payment Issue / Application Help / Document Issue / Call Request — free-form so admins can add new categories without a migration
   group        String         @default("Miscellaneous")
   contactEmail String
   contactName  String

@@ -26,13 +26,39 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { ChevronLeft, LogOut, Inbox, FileText } from 'lucide-react';
+import { usePathname, useSearchParams } from 'next/navigation';
+import { ChevronLeft, LogOut, Inbox, User, Layers, FileText } from 'lucide-react';
 import { PRIMARY_BASE } from '@/lib/urls';
 
-const NAV: Array<{ label: string; href: string; Icon: typeof Inbox; matchPrefix: string }> = [
-  { label: 'Inbox',            href: '/tickets', Icon: Inbox,    matchPrefix: '/admin/crm' },
-  { label: 'Canned Responses', href: '/canned',  Icon: FileText, matchPrefix: '/admin/crm/canned' },
+/**
+ * Views (query-param driven, so all three land on the same route):
+ *   Inbox       → /tickets              → tickets whose status ≠ CLOSED
+ *   My Tickets  → /tickets?view=mine    → tickets assignedTo the current agent
+ *   All Tickets → /tickets?view=all     → every ticket, including closed
+ *
+ * The view logic itself lives in app/admin/crm/page.tsx; the sidebar
+ * just deep-links to the right query state and shows which one is
+ * active. matchPrefix values compare against the middleware-rewritten
+ * internal path (/admin/crm/...).
+ */
+type NavItem = {
+  label: string;
+  href: string;
+  Icon: typeof Inbox;
+  matchPrefix: string;
+  /** Optional query param this entry expects. When set, active state
+   *  requires both the path AND the query to match. */
+  view?: 'mine' | 'all';
+};
+
+const VIEW_NAV: NavItem[] = [
+  { label: 'Inbox',       href: '/tickets',            Icon: Inbox,  matchPrefix: '/admin/crm' },
+  { label: 'My Tickets',  href: '/tickets?view=mine',  Icon: User,   matchPrefix: '/admin/crm', view: 'mine' },
+  { label: 'All Tickets', href: '/tickets?view=all',   Icon: Layers, matchPrefix: '/admin/crm', view: 'all' },
+];
+
+const MANAGE_NAV: NavItem[] = [
+  { label: 'Canned Responses', href: '/canned', Icon: FileText, matchPrefix: '/admin/crm/canned' },
 ];
 
 export function CrmSidebar() {
@@ -42,6 +68,8 @@ export function CrmSidebar() {
   // before the app sees the path, so `usePathname()` here returns the
   // INTERNAL path (starts with /admin/crm/...) — match against that.
   const pathname = usePathname() ?? '';
+  const searchParams = useSearchParams();
+  const currentView = searchParams?.get('view');
 
   useEffect(() => {
     let cancelled = false;
@@ -63,19 +91,22 @@ export function CrmSidebar() {
     window.location.href = `${PRIMARY_BASE}/admin`;
   };
 
-  // Longest matching prefix wins so /admin/crm/canned highlights
-  // "Canned Responses" (not both Inbox + Canned).
-  const activeHref = (() => {
-    let best: { href: string; len: number } | null = null;
-    for (const item of NAV) {
-      if (pathname === item.matchPrefix || pathname.startsWith(item.matchPrefix + '/')) {
-        if (!best || item.matchPrefix.length > best.len) {
-          best = { href: item.href, len: item.matchPrefix.length };
-        }
-      }
+  // Highlight rules:
+  //  - Manage entries (Canned Responses): plain longest-prefix on path.
+  //  - View entries (Inbox / My Tickets / All Tickets): all live at the
+  //    same path (/admin/crm), so the query-string view param decides
+  //    which one lights up. Inbox is active when no view param is set.
+  const isActive = (item: NavItem): boolean => {
+    const pathMatches = pathname === item.matchPrefix || pathname.startsWith(item.matchPrefix + '/');
+    if (!pathMatches) return false;
+    if (item === VIEW_NAV[0]) {
+      // Inbox: only when we're on the tickets list root AND no view param
+      return pathname === '/admin/crm' && !currentView;
     }
-    return best?.href;
-  })();
+    if (item.view) return pathname === '/admin/crm' && currentView === item.view;
+    // Manage entries: pure prefix match
+    return true;
+  };
 
   return (
     <aside className="admin-sidebar">
@@ -87,23 +118,37 @@ export function CrmSidebar() {
       </div>
 
       <nav className="admin-nav">
-        {NAV.map(item => {
-          const isActive = activeHref === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`admin-nav-item${isActive ? ' active' : ''}`}
-              style={{
-                textDecoration: 'none',
-                display: 'inline-flex', alignItems: 'center', gap: '0.55rem',
-              }}
-            >
-              <item.Icon size={16} strokeWidth={2} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        <div className="admin-nav-section-label">Views</div>
+        {VIEW_NAV.map(item => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`admin-nav-item${isActive(item) ? ' active' : ''}`}
+            style={{
+              textDecoration: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: '0.55rem',
+            }}
+          >
+            <item.Icon size={16} strokeWidth={2} />
+            <span>{item.label}</span>
+          </Link>
+        ))}
+
+        <div className="admin-nav-section-label" style={{ marginTop: '0.75rem' }}>Manage</div>
+        {MANAGE_NAV.map(item => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`admin-nav-item${isActive(item) ? ' active' : ''}`}
+            style={{
+              textDecoration: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: '0.55rem',
+            }}
+          >
+            <item.Icon size={16} strokeWidth={2} />
+            <span>{item.label}</span>
+          </Link>
+        ))}
 
         {/* Escape hatch — visually separated so it doesn't read as
             "another CRM section". */}

@@ -176,7 +176,8 @@
       "Bash(/usr/bin/curl -s -o /dev/null -w \"  /apply       → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/apply?nc=$\\(date +%s\\)\")",
       "Bash(/usr/bin/curl -s -o /dev/null -w \"  /apply/finish → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/apply/finish?nc=$\\(date +%s\\)\")",
       "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin       → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/admin?nc=$\\(date +%s\\)\")",
-      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin/india → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/admin/india?nc=$\\(date +%s\\)\")"
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin/india → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/admin/india?nc=$\\(date +%s\\)\")",
+      "Bash(/usr/bin/head -15)"
     ]
   }
 }
