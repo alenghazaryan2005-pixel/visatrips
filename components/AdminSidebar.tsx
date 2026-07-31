@@ -27,6 +27,28 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+/**
+ * Where the CRM lives. Resolved once at build time via
+ * `process.env.NEXT_PUBLIC_*` (Next inlines these into the client
+ * bundle) so the sidebar's "Customer Emails" link points at the
+ * right origin depending on where the build ran:
+ *
+ *   dev build     → http://localhost:3002        (see scripts/dev-support-proxy.ts)
+ *   prod build    → https://visatrips-support.vercel.app
+ *   override      → NEXT_PUBLIC_CRM_URL env var beats both defaults
+ *                    (use this when support.visatrips.com goes live —
+ *                    set NEXT_PUBLIC_CRM_URL=https://support.visatrips.com
+ *                    in the Vercel project env and redeploy, no code
+ *                    change needed).
+ *
+ * The value is a full origin (no trailing slash). Path segments
+ * (/tickets, /canned) get appended below in NAV_SECTIONS.
+ */
+const CRM_BASE = process.env.NEXT_PUBLIC_CRM_URL
+  || (process.env.NODE_ENV === 'production'
+    ? 'https://visatrips-support.vercel.app'
+    : 'http://localhost:3002');
+
 export type AdminNavKey =
   | 'orders'
   | 'customers'
@@ -91,9 +113,15 @@ const NAV_SECTIONS: Array<{ label: string; items: NavItem[] }> = [
     label: 'Tools',
     items: [
       {
-        key: 'emails', Icon: Mail, label: 'Customer Emails', href: '/admin/crm', description: 'Customer communications',
+        // Customer Emails and its Canned Responses child point at the CRM
+        // subdomain (support.visatrips.com in prod / localhost:3002 in dev
+        // — see CRM_BASE above). Clicking either navigates out to the
+        // CRM origin. The old /admin/crm route on the primary origin
+        // is still served (backward-compat via app/admin/crm/*) but
+        // isn't linked from the sidebar anymore.
+        key: 'emails', Icon: Mail, label: 'Customer Emails', href: `${CRM_BASE}/tickets`, description: 'Customer communications',
         children: [
-          { key: 'canned', label: 'Canned Responses', href: '/admin/crm/canned', Icon: FileText },
+          { key: 'canned', label: 'Canned Responses', href: `${CRM_BASE}/canned`, Icon: FileText },
         ],
       },
       // Country-specific settings pages (India, Turkey, …) are NOT listed here —

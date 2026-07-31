@@ -162,7 +162,21 @@
       "Bash(/usr/bin/curl -s -o /dev/null -w \"  /aruba        → HTTP %{http_code}\\\\n\" --max-time 15 \"http://localhost:3000/aruba\")",
       "Bash(/usr/bin/curl -s -o /dev/null -w \"  /aruba/legacy → HTTP %{http_code}\\\\n\" --max-time 15 \"http://localhost:3000/aruba/legacy\")",
       "Bash(/usr/bin/curl -s --max-time 8 \"http://localhost:3000/india\")",
-      "Bash(/usr/bin/curl -s --max-time 8 \"http://localhost:3000/india/legacy\")"
+      "Bash(/usr/bin/curl -s --max-time 8 \"http://localhost:3000/india/legacy\")",
+      "Bash(/usr/bin/curl -s --max-time 8 \"http://localhost:3000/aruba\")",
+      "Bash(/usr/bin/curl -s --max-time 12 \"http://localhost:3000/aruba?nocache=$\\(date +%s\\)\")",
+      "Bash(/usr/bin/curl -s --max-time 12 \"http://localhost:3000/aruba?nc=$\\(date +%s\\)\")",
+      "Bash(/usr/bin/curl -s --max-time 15 \"http://localhost:3000/aruba?nc=$\\(date +%s\\)\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /aruba → HTTP %{http_code}\\\\n\" --max-time 10 \"http://localhost:3000/aruba?nc=$\\(date +%s\\)\")",
+      "Bash(grep -nE \"^\\\\.status-|#000|color:\\\\s*'?#[0-9a-fA-F]{3,8}|#6C8AFF|#93ADFF|#1A2B5E\" app/status/page.tsx)",
+      "Bash(grep -nE \"^\\\\s*</?div\\\\s*className=\\\\\"customer-status-page|^\\\\s*</?>\\\\s*$|^\\\\s*</main>|^\\\\s*</\\\\.>$|^}\\\\s*$\" app/status/page.tsx)",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /status → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/status?nc=$\\(date +%s\\)\")",
+      "Bash(awk '/^\\\\.customer-\\(status|order\\)-/,/^}/' app/globals.css)",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /apply → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/apply?nc=$\\(date +%s\\)\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /apply       → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/apply?nc=$\\(date +%s\\)\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /apply/finish → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/apply/finish?nc=$\\(date +%s\\)\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin       → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/admin?nc=$\\(date +%s\\)\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"  /admin/india → HTTP %{http_code}\\\\n\" --max-time 12 \"http://localhost:3000/admin/india?nc=$\\(date +%s\\)\")"
     ]
   }
 }
