@@ -51,12 +51,28 @@ export const THEME_KEYS: ThemeKey[] = [
   'success', 'warning', 'danger', 'info',
 ];
 
+/**
+ * MUST stay in sync with the `:root` block in app/globals.css.
+ *
+ * ThemeStyleInjector renders these as a `:root{…}` <style> in the body of
+ * every admin page — i.e. AFTER globals.css in document order — so at equal
+ * specificity these values WIN. Any token that drifts from globals.css
+ * silently reverts the admin panel to the stale value, and (because the
+ * "Default Blue" built-in preset spreads DEFAULT_THEME) makes that preset
+ * stop matching the brand.
+ *
+ * That is exactly what happened during the 2026 navy/blue migration:
+ * globals.css moved blue/blue2/navy but this object didn't, so the admin
+ * panel stayed on the old marketing periwinkle. tests/lib/theme.test.ts
+ * now parses globals.css and asserts these match — if you change a brand
+ * colour, change it in both places or that test fails.
+ */
 export const DEFAULT_THEME: ThemeColors = {
   ink:     '#1E293B',
   slate:   '#475569',
-  blue:    '#6C8AFF',
-  blue2:   '#93ADFF',
-  navy:    '#1A2B5E',
+  blue:    '#1D4ED8',
+  blue2:   '#60A5FA',
+  navy:    '#0B2447',
   sky:     '#F8FAFF',
   white:   '#FDFEFF',
   cloud:   '#EDF1F8',

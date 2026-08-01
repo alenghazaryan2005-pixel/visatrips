@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   BUILT_IN_PRESETS,
@@ -68,6 +70,52 @@ describe('DEFAULT_THEME + TOKEN_META', () => {
     for (const k of THEME_KEYS) {
       const meta = TOKEN_META[k];
       expect(['brand', 'surface', 'admin', 'status']).toContain(meta.group);
+    }
+  });
+
+  /**
+   * Drift guard. ThemeStyleInjector renders DEFAULT_THEME as a `:root{…}`
+   * <style> in the body of every admin page — after globals.css in document
+   * order — so at equal specificity these values win. When a token drifts,
+   * the admin panel silently reverts to the stale colour and the built-in
+   * "Default Blue" preset (which spreads DEFAULT_THEME) stops matching the
+   * brand. That regression shipped once already during the navy/blue
+   * migration, when globals.css moved blue/blue2/navy and lib/theme.ts
+   * didn't. This parses the real stylesheet so the two can't diverge again.
+   */
+  it('matches the :root palette in app/globals.css', () => {
+    const css = readFileSync(resolve(__dirname, '../../app/globals.css'), 'utf8');
+
+    // Pick the `:root` block that actually declares the brand palette.
+    // globals.css has more than one: an earlier shadcn-style block using
+    // HSL triplets (--background: 228 60% 98%), then the brand hex block.
+    // We also must NOT match `.legacy-palette`, which deliberately
+    // redefines blue/blue2/navy with the old marketing periwinkles for
+    // /india, /aruba and /legacy.
+    let rootBlock = '';
+    for (const m of css.matchAll(/:root\s*\{/g)) {
+      const from = m.index! + m[0].length;
+      const body = css.slice(from, css.indexOf('}', from));
+      if (body.includes('--ink')) { rootBlock = body; break; }
+    }
+    expect(rootBlock, 'could not find the :root block declaring --ink in globals.css').not.toBe('');
+
+    const cssTokens: Record<string, string> = {};
+    for (const m of rootBlock.matchAll(/--([a-z0-9]+)\s*:\s*(#[0-9A-Fa-f]{6})/g)) {
+      if (!(m[1] in cssTokens)) cssTokens[m[1]] = m[2].toUpperCase();
+    }
+
+    // Sanity-check the parse itself, so a globals.css restructure that
+    // breaks extraction fails loudly instead of vacuously passing.
+    expect(Object.keys(cssTokens).length).toBeGreaterThanOrEqual(THEME_KEYS.length);
+
+    for (const k of THEME_KEYS) {
+      expect(cssTokens[k], `--${k} missing from the :root block in globals.css`).toBeDefined();
+      expect(
+        DEFAULT_THEME[k].toUpperCase(),
+        `DEFAULT_THEME.${k} (${DEFAULT_THEME[k]}) !== globals.css --${k} (${cssTokens[k]}). ` +
+        `Change it in BOTH places — otherwise the admin panel renders the stale value.`,
+      ).toBe(cssTokens[k]);
     }
   });
 });
