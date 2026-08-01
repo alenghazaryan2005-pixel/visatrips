@@ -860,7 +860,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('overview')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('overview')}>
                 ← Back
               </button>
               {arrMonth && arrDay && arrYear && (() => {
@@ -1080,7 +1080,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('trip')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('trip')}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedPersonal ? ' ready' : ''}`} disabled={!canProceedPersonal} onClick={() => saveProgress('address')}>
@@ -1183,7 +1183,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('personal')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('personal')}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceed ? ' ready' : ''}`} disabled={!canProceed} onClick={() => saveProgress('employment')}>
@@ -1312,7 +1312,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('address')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('address')}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedEmp ? ' ready' : ''}`} disabled={!canProceedEmp} onClick={() => saveProgress(stepAfterEmployment)}>
@@ -1388,7 +1388,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('employment')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('employment')}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedBiz ? ' ready' : ''}`} disabled={!canProceedBiz} onClick={() => saveProgress('family')}>
@@ -1528,7 +1528,7 @@ function FinishContent() {
             )}
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep(stepBeforeFamily)}>
+              <button className="finish-back-btn" onClick={() => saveProgress(stepBeforeFamily)}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedFamily ? ' ready' : ''}`} disabled={!canProceedFamily} onClick={() => saveProgress('photo-guide')}>
@@ -1600,7 +1600,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('family')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('family')}>
                 ← Back
               </button>
               <button className="finish-next-btn ready" onClick={() => saveProgress('photo-upload')}>
@@ -1663,7 +1663,7 @@ function FinishContent() {
             )}
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('photo-guide')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('photo-guide')}>
                 ← Back
               </button>
               <button className={`finish-next-btn${travelerPhoto ? ' ready' : ''}`} disabled={!travelerPhoto} onClick={async () => {
@@ -1716,10 +1716,10 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('photo-upload')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('photo-upload')}>
                 ← Back
               </button>
-              <button className="finish-next-btn ready" onClick={() => setStep('passport-bio-upload')}>
+              <button className="finish-next-btn ready" onClick={() => saveProgress('passport-bio-upload')}>
                 Continue
               </button>
             </div>
@@ -1788,7 +1788,7 @@ function FinishContent() {
             )}
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('passport-bio-guide')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('passport-bio-guide')}>
                 ← Back
               </button>
               <button className={`finish-next-btn${passportBio ? ' ready' : ''}`} disabled={!passportBio} onClick={async () => {
@@ -2118,7 +2118,7 @@ function FinishContent() {
               ))}
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => setStep('passport-bio-upload')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('passport-bio-upload')}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedAdditional ? ' ready' : ''}`} disabled={!canProceedAdditional} onClick={() => saveProgress('verify')}>
@@ -2276,7 +2276,7 @@ function FinishContent() {
             )}
 
             <div className="finish-nav" style={{ marginTop: '2rem' }}>
-              <button className="finish-back-btn" onClick={() => setStep('additional')}>
+              <button className="finish-back-btn" onClick={() => saveProgress('additional')}>
                 ← Back
               </button>
               <button className="finish-next-btn ready" onClick={handleFinalSubmit} style={{ background: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>

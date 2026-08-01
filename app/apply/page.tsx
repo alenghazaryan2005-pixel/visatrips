@@ -471,8 +471,22 @@ function TravelerCard({ country, index, data, onChange, expanded, onToggle }: an
   );
 }
 
-function Step2({ country, travelers, visaId, onBack, onNext }: any) {
-  const [data,     setData]     = useState<Traveler[]>(Array.from({length:travelers},emptyTraveler));
+/** Resize a saved array to `n` entries without losing what's already there:
+ *  keeps the first `n` filled entries, pads with blanks if the traveler
+ *  count grew. Used when seeding a step from previously-entered data —
+ *  the customer may have changed the traveler count on Step 1 after
+ *  filling this step in, so lengths can disagree. */
+function reconcile<T>(saved: T[] | undefined, n: number, make: () => T): T[] {
+  const prev = Array.isArray(saved) ? saved : [];
+  return Array.from({ length: n }, (_, i) => prev[i] ?? make());
+}
+
+function Step2({ country, travelers, visaId, initialData, onBack, onNext }: any) {
+  // Seeded from the parent's saved travelerData so returning to this step
+  // (via "← Previous" from Step 2b, or forward again afterwards) restores
+  // everything the customer already typed. This component unmounts on every
+  // step change — without the seed, all ~13 fields per traveler were lost.
+  const [data,     setData]     = useState<Traveler[]>(() => reconcile<Traveler>(initialData, travelers, emptyTraveler));
   const [expanded, setExpanded] = useState<number[]>([0]);
   const update = (i:number,f:keyof Traveler,v:string) => setData(prev=>prev.map((t,idx)=>idx===i?{...t,[f]:v}:t));
   const toggle = (i:number) => setExpanded(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i]);
@@ -509,7 +523,10 @@ function Step2({ country, travelers, visaId, onBack, onNext }: any) {
           {data.map((t,i)=><TravelerCard key={i} country={country} index={i} data={t} onChange={(f:keyof Traveler,v:string)=>update(i,f,v)} expanded={expanded.includes(i)} onToggle={()=>toggle(i)}/>)}
         </div>
         <div className="apply-step2-actions">
-          <button className="apply-back-btn" onClick={onBack}>← Previous</button>
+          {/* Hands the current (possibly incomplete) data up so the parent
+              can hold it — otherwise going back would discard edits made
+              since this step was entered. */}
+          <button className="apply-back-btn" onClick={()=>onBack(data)}>← Previous</button>
           <button className={`apply-submit${allFilled?' active':''}`} disabled={!allFilled}
             onClick={()=>onNext(data.map(t=>t.firstName), data)}>
             {allFilled?'Continue to Passport Details →':'Complete all traveler details'}
@@ -576,8 +593,9 @@ function PassportCard({ index, travelerName, data, onChange, expanded, onToggle,
   );
 }
 
-function Step2b({ country, travelers, travelerNames, travelerData, visaId, onBack, onNext }: any) {
-  const [data,     setData]     = useState<PassportInfo[]>(Array.from({length:travelers},emptyPassportInfo));
+function Step2b({ country, travelers, travelerNames, travelerData, visaId, initialData, onBack, onNext }: any) {
+  // Seeded from the parent's saved passportData — see the note on Step2.
+  const [data,     setData]     = useState<PassportInfo[]>(() => reconcile<PassportInfo>(initialData, travelers, emptyPassportInfo));
   const [expanded, setExpanded] = useState<number[]>([0]);
   const update = (i:number,f:keyof PassportInfo,v:string|boolean) => setData(prev=>prev.map((p,idx)=>idx===i?{...p,[f]:v}:p));
   const toggle = (i:number) => setExpanded(prev=>prev.includes(i)?prev.filter(x=>x!==i):[...prev,i]);
@@ -620,7 +638,7 @@ function Step2b({ country, travelers, travelerNames, travelerData, visaId, onBac
             onChange={(f:keyof PassportInfo,v:string|boolean)=>update(i,f,v)} expanded={expanded.includes(i)} onToggle={()=>toggle(i)} expiryError={checkPassportExpiry(p, i)}/>)}
         </div>
         <div className="apply-step2-actions">
-          <button className="apply-back-btn" onClick={onBack}>← Previous</button>
+          <button className="apply-back-btn" onClick={()=>onBack(data)}>← Previous</button>
           <button className={`apply-submit${allDone?' active':''}`} disabled={!allDone} onClick={()=>onNext(data)}>
             {allDone?'Continue to Checkout →':'Complete passport details to continue'}
           </button>
@@ -632,7 +650,7 @@ function Step2b({ country, travelers, travelerNames, travelerData, visaId, onBac
 }
 
 /* ── Step 3: Checkout ── */
-function Step3({ country, visaId, travelers, travelerData, passportData, purposeOfVisit, onBack }: { country: CountryConfig; visaId:string; travelers:number; travelerData:any[]; passportData:PassportInfo[]; purposeOfVisit:string; onBack:()=>void }) {
+function Step3({ country, visaId, travelers, travelerData, passportData, purposeOfVisit, initialCheckout, onBack }: { country: CountryConfig; visaId:string; travelers:number; travelerData:any[]; passportData:PassportInfo[]; purposeOfVisit:string; initialCheckout?: { processing?: string; rejectionProtection?: boolean; email?: string; cardName?: string }; onBack:(c:{processing:string;rejectionProtection:boolean;email:string;cardName:string})=>void }) {
   const router = useRouter();
   const visa = country.visaProducts.find(v => v.id === visaId) ?? country.visaProducts[0];
 
@@ -680,8 +698,11 @@ function Step3({ country, visaId, travelers, travelerData, passportData, purpose
     { id: 'super',    label: 'Super Rush', surcharge: liveSurcharges?.super ?? 60 },
   ];
 
-  const [processing, setProcessing] = useState('standard');
-  const [rejectionProtection, setRejectionProtection] = useState(false);
+  // Seeded from the parent so a trip back to Step 2b and forward again
+  // doesn't silently drop a paid upgrade (Rush / Super Rush) or the
+  // rejection-protection add-on — both of which change the total.
+  const [processing, setProcessing] = useState(initialCheckout?.processing ?? 'standard');
+  const [rejectionProtection, setRejectionProtection] = useState(initialCheckout?.rejectionProtection ?? false);
   const surcharge = PROCESSING_OPTIONS.find(p=>p.id===processing)!.surcharge;
   // Breakdown: (visa + surcharge + govFee) × travelers + once-per-order
   // add-ons + transactionFee × subtotal. Add-on is included in subtotal so
@@ -691,11 +712,15 @@ function Step3({ country, visaId, travelers, travelerData, passportData, purpose
   const txFee     = subtotal * (txPct / 100);
   const total     = +(subtotal + txFee).toFixed(2);
 
-  const [cardName,   setCardName]   = useState('');
+  const [cardName,   setCardName]   = useState(initialCheckout?.cardName ?? '');
+  // Deliberately NOT restored across step navigation: keeping a PAN / CVV
+  // alive in memory longer than the step it's typed on is needless
+  // exposure, and re-entering a card is a normal checkout expectation.
+  // Everything non-sensitive above IS restored.
   const [cardNumber, setCardNumber] = useState('');
   const [expiry,     setExpiry]     = useState('');
   const [cvv,        setCvv]        = useState('');
-  const [email,      setEmail]      = useState('');
+  const [email,      setEmail]      = useState(initialCheckout?.email ?? '');
   const [agreed,     setAgreed]     = useState(false);
   const [loading,    setLoading]    = useState(false);
   const [submitted,  setSubmitted]  = useState(false);
@@ -875,7 +900,7 @@ function Step3({ country, visaId, travelers, travelerData, passportData, purpose
         )}
 
         <div className="apply-step2-actions">
-          <button className="apply-back-btn" onClick={onBack}>← Previous</button>
+          <button className="apply-back-btn" onClick={()=>onBack({ processing, rejectionProtection, email, cardName })}>← Previous</button>
           <button className={`apply-submit${canSubmit?' active':''}`} disabled={!canSubmit||loading} onClick={handleSubmit}>
             {loading?'Submitting...':(canSubmit?`Pay $${total.toFixed(2)} USD →`:'Complete payment details')}
           </button>
@@ -951,6 +976,10 @@ function ApplyForm({ country, initialPassport }: { country: CountryConfig; initi
   const [travelerNames, setTravelerNames] = useState<string[]>([]);
   const [travelerData,  setTravelerData]  = useState<any[]>([]);
   const [passportData,  setPassportData]  = useState<PassportInfo[]>([]);
+  // Non-sensitive checkout choices, held here so they survive a trip back
+  // to an earlier step. Card number / expiry / CVV are intentionally NOT
+  // kept — see the note in Step3.
+  const [checkoutPrefs, setCheckoutPrefs] = useState<{ processing?: string; rejectionProtection?: boolean; email?: string; cardName?: string }>({});
 
   return (
     // Top/bottom now come from the landing-shared components so the
@@ -970,18 +999,18 @@ function ApplyForm({ country, initialPassport }: { country: CountryConfig; initi
           saveAbandoned({ destination: country.destination, visaType: visaId, lastStep: 'step1' });
           setStep(1);
         }}/>}
-        {step===1 && <Step2 country={country} travelers={travelers} visaId={visaId} onBack={()=>setStep(0)} onNext={(names:string[], data:any[])=>{
+        {step===1 && <Step2 country={country} travelers={travelers} visaId={visaId} initialData={travelerData} onBack={(data:any[])=>{ setTravelerData(data); setStep(0); }} onNext={(names:string[], data:any[])=>{
           setTravelerNames(names); setTravelerData(data);
           const firstEmail = data[0]?.email || '';
           saveAbandoned({ destination: country.destination, visaType: visaId, travelers: data, email: firstEmail, lastStep: 'step2' });
           setStep(2);
         }}/>}
-        {step===2 && <Step2b country={country} travelers={travelers} travelerNames={travelerNames} travelerData={travelerData} visaId={visaId} onBack={()=>setStep(1)} onNext={(pData:PassportInfo[])=>{
+        {step===2 && <Step2b country={country} travelers={travelers} travelerNames={travelerNames} travelerData={travelerData} visaId={visaId} initialData={passportData} onBack={(pData:PassportInfo[])=>{ setPassportData(pData); setStep(1); }} onNext={(pData:PassportInfo[])=>{
           setPassportData(pData);
           saveAbandoned({ destination: country.destination, visaType: visaId, passportData: pData, lastStep: 'step2b' });
           setStep(3);
         }}/>}
-        {step===3 && <Step3 country={country} visaId={visaId} travelers={travelers} travelerData={travelerData} passportData={passportData} purposeOfVisit={purposeOfVisit} onBack={()=>setStep(2)}/>}
+        {step===3 && <Step3 country={country} visaId={visaId} travelers={travelers} travelerData={travelerData} passportData={passportData} purposeOfVisit={purposeOfVisit} initialCheckout={checkoutPrefs} onBack={(c)=>{ setCheckoutPrefs(c); setStep(2); }}/>}
       </div>
       <LandingFooter showTrust={false} />
     </div>
