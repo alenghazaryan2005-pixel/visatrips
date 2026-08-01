@@ -137,6 +137,8 @@ function FinishContent() {
   const [travelers, setTravelers] = useState<Traveler[]>([]);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<FinishStep>('overview');
+  /* Guards against overlapping saveProgress PATCHes — see saveProgress. */
+  const savingRef = useRef(false);
 
   /* Admin-defined custom sections (from /admin/settings/india → Application tab) */
   const [customSchema, setCustomSchema] = useState<ApplicationSchema>({ country: 'INDIA', sections: [] });
@@ -447,9 +449,28 @@ function FinishContent() {
     } catch { return ''; }
   };
 
-  /* Save progress to the order by updating the travelers JSON with extended data */
-  const saveProgress = async (nextStep: FinishStep) => {
+  /* Save progress to the order by updating the travelers JSON with extended data.
+   *
+   * `opts.persistFlags` — when false, the PATCH omits `flaggedFields`. Used by
+   * backward navigation. `clearFlag` drops a flag from local state the moment
+   * the customer *touches* a field, so persisting that list on a Back click
+   * would let someone tap a flagged input, go back, abandon — and leave the
+   * order NEEDS_CORRECTION with zero flags. The status page gates its "Fix
+   * Your Application" button on `flaggedFields.length > flaggedDocs.length`,
+   * so an emptied list removes the customer's only way back in while the red
+   * error banner still shows. Flags now persist only on gated forward steps,
+   * where the customer has actually satisfied the step's validation.
+   */
+  const saveProgress = async (nextStep: FinishStep, opts?: { persistFlags?: boolean }) => {
     if (!order) return;
+    // In-flight guard: these fire from unawaited onClick handlers, and the UI
+    // doesn't change until the PATCH resolves. Without this, a customer on a
+    // slow connection clicks Back (nothing happens), edits a field, clicks
+    // Next — and the first request lands last, reverting the edit and rewinding
+    // finishStep. Dropping the second click is the safe direction: the first
+    // is already committing the state the customer saw when they clicked.
+    if (savingRef.current) return;
+    savingRef.current = true;
     const extendedTravelers = travelers.map((t, i) => {
       if (i !== 0) return t; // Only extend first traveler for now
       return {
@@ -567,16 +588,40 @@ function FinishContent() {
     });
 
     try {
+      const body: Record<string, string> = { travelers: JSON.stringify(extendedTravelers) };
+      if (opts?.persistFlags !== false) body.flaggedFields = JSON.stringify(orderFlaggedFields);
       await fetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ travelers: JSON.stringify(extendedTravelers), flaggedFields: JSON.stringify(orderFlaggedFields) }),
+        body: JSON.stringify(body),
       });
     } catch (err) {
       console.error('Failed to save progress:', err);
+    } finally {
+      savingRef.current = false;
     }
 
     setStep(nextStep);
+  };
+
+  /* Backward navigation.
+   *
+   * `isValid` is the same predicate that gates the step's Next button. Back
+   * buttons are never disabled, so routing them straight through saveProgress
+   * turned Back into an unguarded write path around every validation gate —
+   * a customer could type a partial phone number over a previously-valid one,
+   * click Back, abandon, and leave the bad value committed with no flag on it.
+   *
+   * So: save on the way back only when the step's own gate is satisfied. That
+   * still fixes the reported bug (valid work is persisted, not lost) without
+   * letting Back overwrite good stored data with half-typed input. When the
+   * step is invalid we navigate without writing — the in-memory state is kept
+   * either way, since this component never unmounts, so nothing visible is
+   * lost within the session.
+   */
+  const goBack = (target: FinishStep, isValid: boolean = true) => {
+    if (isValid) saveProgress(target, { persistFlags: false });
+    else setStep(target);
   };
 
   const isFlagged = (field: string) => orderFlaggedFields.includes(field);
@@ -860,7 +905,18 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('overview')}>
+              {/* Same predicate the Next button below is gated on, hoisted so
+                  backward navigation can reuse it instead of duplicating the
+                  date-window arithmetic a third time. */}
+              <button className="finish-back-btn" onClick={() => goBack('overview', (() => {
+                if (!arrMonth || !arrDay || !arrYear || !arrivalPoint) return false;
+                const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+                const arrDate = new Date(parseInt(arrYear), months.indexOf(arrMonth), parseInt(arrDay));
+                const today = new Date(); today.setHours(0,0,0,0);
+                const minDate = new Date(today.getTime() + 4 * 24*60*60*1000);
+                const maxDate = new Date(today.getTime() + 120 * 24*60*60*1000);
+                return arrDate >= minDate && arrDate <= maxDate;
+              })())}>
                 ← Back
               </button>
               {arrMonth && arrDay && arrYear && (() => {
@@ -1080,7 +1136,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('trip')}>
+              <button className="finish-back-btn" onClick={() => goBack('trip', !!canProceedPersonal)}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedPersonal ? ' ready' : ''}`} disabled={!canProceedPersonal} onClick={() => saveProgress('address')}>
@@ -1183,7 +1239,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('personal')}>
+              <button className="finish-back-btn" onClick={() => goBack('personal', !!canProceed)}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceed ? ' ready' : ''}`} disabled={!canProceed} onClick={() => saveProgress('employment')}>
@@ -1312,7 +1368,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('address')}>
+              <button className="finish-back-btn" onClick={() => goBack('address', !!canProceedEmp)}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedEmp ? ' ready' : ''}`} disabled={!canProceedEmp} onClick={() => saveProgress(stepAfterEmployment)}>
@@ -1388,7 +1444,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('employment')}>
+              <button className="finish-back-btn" onClick={() => goBack('employment', !!canProceedBiz)}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedBiz ? ' ready' : ''}`} disabled={!canProceedBiz} onClick={() => saveProgress('family')}>
@@ -1528,7 +1584,7 @@ function FinishContent() {
             )}
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress(stepBeforeFamily)}>
+              <button className="finish-back-btn" onClick={() => goBack(stepBeforeFamily, !!canProceedFamily)}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedFamily ? ' ready' : ''}`} disabled={!canProceedFamily} onClick={() => saveProgress('photo-guide')}>
@@ -1600,7 +1656,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('family')}>
+              <button className="finish-back-btn" onClick={() => goBack('family')}>
                 ← Back
               </button>
               <button className="finish-next-btn ready" onClick={() => saveProgress('photo-upload')}>
@@ -1663,7 +1719,7 @@ function FinishContent() {
             )}
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('photo-guide')}>
+              <button className="finish-back-btn" onClick={() => goBack('photo-guide')}>
                 ← Back
               </button>
               <button className={`finish-next-btn${travelerPhoto ? ' ready' : ''}`} disabled={!travelerPhoto} onClick={async () => {
@@ -1716,7 +1772,7 @@ function FinishContent() {
             </div>
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('photo-upload')}>
+              <button className="finish-back-btn" onClick={() => goBack('photo-upload')}>
                 ← Back
               </button>
               <button className="finish-next-btn ready" onClick={() => saveProgress('passport-bio-upload')}>
@@ -1788,7 +1844,7 @@ function FinishContent() {
             )}
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('passport-bio-guide')}>
+              <button className="finish-back-btn" onClick={() => goBack('passport-bio-guide')}>
                 ← Back
               </button>
               <button className={`finish-next-btn${passportBio ? ' ready' : ''}`} disabled={!passportBio} onClick={async () => {
@@ -2118,7 +2174,7 @@ function FinishContent() {
               ))}
 
             <div className="finish-nav">
-              <button className="finish-back-btn" onClick={() => saveProgress('passport-bio-upload')}>
+              <button className="finish-back-btn" onClick={() => goBack('passport-bio-upload', !!canProceedAdditional)}>
                 ← Back
               </button>
               <button className={`finish-next-btn${canProceedAdditional ? ' ready' : ''}`} disabled={!canProceedAdditional} onClick={() => saveProgress('verify')}>
@@ -2276,7 +2332,7 @@ function FinishContent() {
             )}
 
             <div className="finish-nav" style={{ marginTop: '2rem' }}>
-              <button className="finish-back-btn" onClick={() => saveProgress('additional')}>
+              <button className="finish-back-btn" onClick={() => goBack('additional')}>
                 ← Back
               </button>
               <button className="finish-next-btn ready" onClick={handleFinalSubmit} style={{ background: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
