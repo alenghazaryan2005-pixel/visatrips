@@ -184,7 +184,8 @@
       "Bash(/usr/bin/tail -3)",
       "Bash(/usr/bin/grep -iE \"queue|arrow|next|prev|shortcut|keydown\")",
       "Bash(node -e ' *)",
-      "Bash(awk -F: '$1<450')"
+      "Bash(awk -F: '$1<450')",
+      "Bash(pnpm dev:crm)"
     ]
   }
 }
