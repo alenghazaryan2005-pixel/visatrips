@@ -47,6 +47,13 @@ import { PrismaClient } from '@prisma/client';
 import { loadBotOverrides, createBotRunLogger, BotRunLogger } from '../lib/botRuntime';
 import { getDecryptedCard, type DecryptedCard } from '../lib/cardVault';
 import {
+  parseDocumentRef,
+  refForBlobPathname,
+  orderIdFromBlobPathname,
+  findNewestOrderDocument,
+  resolveDocumentToLocalFile,
+} from '../lib/documents';
+import {
   defaultSchema,
   mergeWithDefaults,
   schemaSettingKey,
@@ -963,6 +970,62 @@ async function applyField(opts: {
         const path = await import('path');
         const fs = await import('fs/promises');
         const projectRoot = path.resolve(__dirname, '..');
+
+        // Aruba's form accepts only image formats — no PDFs, even though
+        // /api/upload allows them.
+        const ARUBA_ACCEPTS_EXT = ['jpg', 'jpeg', 'png', 'heic', 'gif'];
+
+        // Shared tail for both storage backends: hand the local file to the
+        // form's file input. Find the FIRST matching input — the selector is
+        // a comma-list of heuristic patterns and `.first()` picks whichever
+        // resolves. setInputFiles on a hidden input is fine; Playwright
+        // doesn't require visibility for file inputs.
+        const uploadLocalFile = async (localPath: string) => {
+          try {
+            await page.locator(selector).first().setInputFiles(localPath, { timeout: 3_000 });
+            // Wait for Aruba's OCR to read the passport image and
+            // auto-populate the surrounding readonly fields. Without this,
+            // the next field (Country of Birth) might be attempted before
+            // the form has settled, so the bot's look-ahead check would
+            // miss it. 3s is empirically enough for the OCR endpoint.
+            await delay(3_000);
+            return { success: true, resolvedValue: path.basename(localPath) };
+          } catch (e: any) {
+            return { success: false, errorMsg: `setInputFiles failed: ${e?.message || e}` };
+          }
+        };
+
+        // ── Blob-stored documents ──────────────────────────────────────
+        // Documents now live in private Blob storage, so there's no local
+        // directory to scan. findNewestOrderDocument reproduces the same
+        // "newest acceptable image for this order" heuristic against the
+        // blob prefix, then we download it to a temp file for
+        // setInputFiles. Legacy /uploads refs fall through to the
+        // directory scan below unchanged.
+        {
+          const parsed = parseDocumentRef(valueStr);
+          if (parsed.kind === 'blob') {
+            const orderRef = orderIdFromBlobPathname(parsed.pathname);
+            const newest = orderRef
+              ? await findNewestOrderDocument(orderRef, ARUBA_ACCEPTS_EXT)
+              : null;
+            const chosen = newest ?? parsed.pathname;
+            if (newest && newest !== parsed.pathname) {
+              console.log(`     ↻  Stored ref points to "${parsed.pathname}" — using newer image "${newest}".`);
+            }
+            const localFromBlob = await resolveDocumentToLocalFile(refForBlobPathname(chosen), { projectRoot });
+            if (!localFromBlob) {
+              return { success: false, errorMsg: `Could not download document ${chosen} from Blob storage` };
+            }
+            const extOk = ARUBA_ACCEPTS_EXT.includes((chosen.split('.').pop() || '').toLowerCase());
+            if (!extOk) {
+              return { success: false, errorMsg: `No image file for this order (Aruba needs jpg/png/heic/gif; found ${chosen})` };
+            }
+            return await uploadLocalFile(localFromBlob);
+          }
+        }
+
+        // ── Legacy on-disk documents ───────────────────────────────────
         // The URL gives us the upload DIRECTORY for this order; we'll
         // scan it for the newest image. Filename in the URL may be
         // stale (older re-upload), so we don't trust it.
@@ -1005,23 +1068,7 @@ async function applyField(opts: {
           return { success: false, errorMsg: `Could not read upload directory ${uploadDir}` };
         }
 
-        // Find the FIRST matching file input. The selector is a
-        // comma-list of heuristic patterns; `locator(...).first()`
-        // picks whichever resolves. setInputFiles on a hidden input
-        // is fine — Playwright doesn't require visibility for files.
-        try {
-          await page.locator(selector).first().setInputFiles(localPath, { timeout: 3_000 });
-          // Wait for Aruba's OCR to read the passport image and
-          // auto-populate the surrounding readonly fields. Without
-          // this, the next field (Country of Birth) might end up
-          // being attempted before the form has settled, so the
-          // bot's look-ahead check would miss it. 3s is empirically
-          // enough for the OCR endpoint to return.
-          await delay(3_000);
-          return { success: true, resolvedValue: path.basename(localPath) };
-        } catch (e: any) {
-          return { success: false, errorMsg: `setInputFiles failed: ${e?.message || e}` };
-        }
+        return await uploadLocalFile(localPath);
       }
       case 'skip':
         // Explicit "the bot should not touch this field" — common for

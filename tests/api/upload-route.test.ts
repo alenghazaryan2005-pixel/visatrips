@@ -2,14 +2,21 @@
  * Tests for /api/upload — file upload endpoint (photos + passport PDFs).
  *
  * Security-critical surface: MIME validation, size limit, path-traversal
- * defense, magic-byte check for images. We mock fs/promises so nothing
- * actually writes to disk.
+ * defense, magic-byte check for images.
+ *
+ * Storage is Vercel Blob (private) rather than local disk — the old
+ * `public/uploads` scheme never persisted on Vercel, so every document
+ * uploaded through production was lost. We mock `@vercel/blob` so nothing
+ * leaves the test process, and assert on the pathname the route asks for,
+ * which is where the traversal and collision defenses live.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const mockFs = {
-  writeFile: vi.fn().mockResolvedValue(undefined),
-  mkdir:     vi.fn().mockResolvedValue(undefined),
+const mockBlob = {
+  put: vi.fn(async (pathname: string) => ({ pathname, url: `https://blob.test/${pathname}` })),
+  get: vi.fn(),
+  del: vi.fn(),
+  list: vi.fn(async () => ({ blobs: [] })),
 };
 
 const mockAuth = {
@@ -22,9 +29,13 @@ const mockErrorLog = {
   extractRequestContext:  vi.fn(() => ({})),
 };
 
-vi.mock('fs/promises',       () => mockFs);
+vi.mock('@vercel/blob',      () => mockBlob);
 vi.mock('@/lib/auth',        () => mockAuth);
 vi.mock('@/lib/error-log',   () => mockErrorLog);
+
+// lib/documents refuses to store anything without this, by design — a
+// silent fallback to disk is what hid the original data loss.
+process.env.BLOB_READ_WRITE_TOKEN = 'test-token';
 
 const { POST } = await import('@/app/api/upload/route');
 
@@ -55,8 +66,7 @@ function asReq(entries: Record<string, any>): any {
 }
 
 beforeEach(() => {
-  mockFs.writeFile.mockClear();
-  mockFs.mkdir.mockClear();
+  mockBlob.put.mockClear();
   mockAuth.getAdminSession.mockReset();
   mockAuth.getCustomerSession.mockReset();
   mockErrorLog.logError.mockClear();
@@ -76,7 +86,7 @@ describe('POST /api/upload — auth', () => {
       file: makeFile({}), orderId: 'abc', type: 'photo',
     }));
     expect(res.status).toBe(401);
-    expect(mockFs.writeFile).not.toHaveBeenCalled();
+    expect(mockBlob.put).not.toHaveBeenCalled();
   });
 
   it('allows customer auth in addition to admin', async () => {
@@ -221,11 +231,9 @@ describe('POST /api/upload — path safety', () => {
       file: makeFile({}), orderId: '../../etc/passwd', type: 'photo',
     }));
     expect(res.status).toBe(200);
-    const dirArg = mockFs.mkdir.mock.calls[0][0] as string;
-    // The sanitizer leaves only alphanum/-/_ — path has NO literal ".." traversal.
-    expect(dirArg).not.toMatch(/\.\./);
-    // It should also not escape the uploads root
-    expect(dirArg).toMatch(/\/public\/uploads\//);
+    const pathname = mockBlob.put.mock.calls[0][0] as string;
+    expect(pathname).not.toMatch(/\.\./);
+    expect(pathname).toMatch(/^orders\//);
   });
 
   it('rejects an orderId that sanitises to empty string', async () => {
@@ -236,21 +244,59 @@ describe('POST /api/upload — path safety', () => {
     expect((await res.json()).error).toMatch(/Invalid order ID/i);
   });
 
-  it('writes under the expected order-scoped directory', async () => {
+  /**
+   * Regression: the old route sanitised `orderId` but then used `file.name`
+   * verbatim, so an upload named `../00042/passport.jpg` escaped its own
+   * order folder and could overwrite a document an admin had approved on a
+   * DIFFERENT order. The filename must never influence the directory.
+   */
+  it('ignores traversal in the FILENAME, not just the orderId', async () => {
+    const res = await POST(asReq({
+      file: makeFile({ name: '../../00042/passport.jpg' }), orderId: 'ord_abc', type: 'photo',
+    }));
+    expect(res.status).toBe(200);
+    const pathname = mockBlob.put.mock.calls[0][0] as string;
+    expect(pathname).not.toMatch(/\.\./);
+    expect(pathname).not.toContain('00042');
+    expect(pathname.startsWith('orders/ord_abc/')).toBe(true);
+  });
+
+  it('stores under the expected order-scoped prefix', async () => {
     await POST(asReq({
       file: makeFile({ name: 'photo.jpg' }), orderId: 'ord_abc', type: 'photo',
     }));
-    const filepath = mockFs.writeFile.mock.calls[0][0] as string;
-    expect(filepath).toContain('/public/uploads/ord_abc/');
-    expect(filepath).toMatch(/photo\.jpg$/);
+    const pathname = mockBlob.put.mock.calls[0][0] as string;
+    expect(pathname).toMatch(/^orders\/ord_abc\/photo-[0-9a-f]{8}\.jpg$/);
   });
 
-  it('returns a URL-encoded public URL', async () => {
+  /**
+   * Regression: filenames used to be stored as-is, so two travelers on one
+   * order who both uploaded `IMG_0042.jpg` (the iPhone default) silently
+   * overwrote each other and both records pointed at one image.
+   */
+  it('gives identical filenames distinct paths', async () => {
+    await POST(asReq({ file: makeFile({ name: 'IMG_0042.jpg' }), orderId: 'ord_abc', type: 'photo' }));
+    await POST(asReq({ file: makeFile({ name: 'IMG_0042.jpg' }), orderId: 'ord_abc', type: 'photo' }));
+    const first  = mockBlob.put.mock.calls[0][0] as string;
+    const second = mockBlob.put.mock.calls[1][0] as string;
+    expect(first).not.toBe(second);
+  });
+
+  it('stores privately, never publicly', async () => {
+    await POST(asReq({
+      file: makeFile({ name: 'photo.jpg' }), orderId: 'ord_abc', type: 'photo',
+    }));
+    const opts = mockBlob.put.mock.calls[0][2] as { access: string };
+    expect(opts.access).toBe('private');
+  });
+
+  it('returns an authenticated /api/documents reference, not a public URL', async () => {
     const res = await POST(asReq({
       file: makeFile({ name: 'my photo (1).jpg' }), orderId: 'ord_abc', type: 'photo',
     }));
     expect(res.status).toBe(200);
     const { url } = await res.json();
-    expect(url).toBe('/uploads/ord_abc/my%20photo%20(1).jpg');
+    expect(url).toMatch(/^\/api\/documents\/orders\/ord_abc\/photo-[0-9a-f]{8}\.jpg$/);
+    expect(url).not.toContain('/uploads/');
   });
 });

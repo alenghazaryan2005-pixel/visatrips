@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 import { getAdminSession, getCustomerSession } from '@/lib/auth';
 import { logError, extractRequestContext } from '@/lib/error-log';
+import { storeDocument, isBlobConfigured } from '@/lib/documents';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -76,18 +75,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Create order-specific directory
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', safeOrderId);
-    await mkdir(uploadDir, { recursive: true });
+    // Store in private Blob storage.
+    //
+    // Previously this wrote to `public/uploads/<orderId>/<file.name>` on
+    // local disk — which never persisted on Vercel (read-only FS, ephemeral
+    // containers, and `public/` is only served as built), so every document
+    // uploaded through production was silently lost. It also used the
+    // customer's filename verbatim, which allowed both path traversal into
+    // another order's folder and same-name collisions between travelers.
+    // `storeDocument` handles the sanitising and unique naming; see
+    // lib/documents.ts.
+    if (!isBlobConfigured()) {
+      // Fail loudly rather than writing somewhere that disappears. A silent
+      // fallback is exactly how the original data loss went unnoticed.
+      return NextResponse.json(
+        { error: 'Document storage is not configured. Set BLOB_READ_WRITE_TOKEN.' },
+        { status: 503 },
+      );
+    }
 
-    // Save raw file with its exact original name
-    const filename = file.name;
-    const filepath = path.join(uploadDir, filename);
+    const { ref } = await storeDocument(safeOrderId, type, file.name, buffer, file.type);
 
-    await writeFile(filepath, buffer);
-
-    const url = `/uploads/${safeOrderId}/${encodeURIComponent(filename)}`;
-    return NextResponse.json({ url });
+    // `ref` is URL-shaped (/api/documents/...), so existing consumers that
+    // drop it straight into <img src> keep working — they now hit an
+    // authenticated route instead of a public static file.
+    return NextResponse.json({ url: ref });
   } catch (err) {
     await logError(err, {
       ...extractRequestContext(req),

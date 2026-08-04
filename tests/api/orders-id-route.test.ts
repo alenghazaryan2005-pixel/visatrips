@@ -476,8 +476,29 @@ describe('PATCH /api/orders/[id] — customer allowlist', () => {
     customerCtx(order);
     await PATCH(asRequest({ status: 'PROCESSING', travelers: '[]' }), params('00042'));
     const { data } = mockPrisma.order.update.mock.calls[0][0];
-    // status field isn't even in CUSTOMER_ALLOWED — so it is rejected at the allowlist gate,
-    // never reaching the "only-PROCESSING" fallback. Verify it never lands in update data.
+    // `status` IS in CUSTOMER_ALLOWED (route.ts:54) and the customer branch
+    // permits exactly one value (route.ts:168-169). This is load-bearing:
+    // the finish page's final submit flips the order out of UNFINISHED by
+    // PATCHing status=PROCESSING as the customer, so blocking it here would
+    // strand every completed application.
+    //
+    // The previous assertion expected `undefined`, contradicting this test's
+    // own name, on the stated grounds that status wasn't in CUSTOMER_ALLOWED
+    // — which it is. The test was stale, not the route.
+    expect(data.status).toBe('PROCESSING');
+  });
+
+  it('silently drops any customer status OTHER than PROCESSING', async () => {
+    const order = makeOrder({ status: 'NEEDS_CORRECTION', billingEmail: 'owner@v.com' });
+    customerCtx(order);
+    const res = await PATCH(asRequest({ status: 'COMPLETED', travelers: '[]' }), params('00042'));
+    // route.ts:167-172 `delete data.status` — the request still succeeds and
+    // the rest of the payload is applied; only the disallowed value is
+    // discarded. Documenting the actual contract: a customer attempting to
+    // self-approve gets a 200 and no error, so the client cannot tell the
+    // field was ignored.
+    expect(res.status).toBe(200);
+    const { data } = mockPrisma.order.update.mock.calls[0][0];
     expect(data.status).toBeUndefined();
   });
 

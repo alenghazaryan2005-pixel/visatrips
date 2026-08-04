@@ -20,6 +20,7 @@ import { chromium, Page } from 'playwright';
 import { PrismaClient } from '@prisma/client';
 import { loadBotOverrides, adminOr, sourceTag, AdminOrResult, createBotRunLogger, BotRunLogger } from '../lib/botRuntime';
 import { getStoredCard, getDecryptedCard, maskCard } from '../lib/cardVault';
+import { resolveDocumentToLocalFile } from '../lib/documents';
 import type { BotSource } from '../lib/botMapping';
 import { normaliseReligion } from '../lib/constants';
 
@@ -3121,11 +3122,13 @@ async function processVisa(orderNumberInput: string, travelerIndex: number = 0) 
       console.log('  ⏭️  Photo upload skipped by admin');
     } else if (photoOverride.value) {
       const photoRef = photoOverride.value;
-      // If the override gave us an absolute path, use it; otherwise treat as relative to public/
-      const photoPath = photoRef.startsWith('/') && fs.existsSync(photoRef)
-        ? photoRef
-        : path.resolve(process.cwd(), 'public', photoRef.replace(/^\//, ''));
-      if (fs.existsSync(photoPath)) {
+      // Documents now live in private Blob storage, so the stored value is
+      // a /api/documents/... reference rather than a file on disk.
+      // resolveDocumentToLocalFile downloads it to a temp path for
+      // setInputFiles, and still resolves legacy /uploads/... refs and
+      // absolute admin-override paths from local disk unchanged.
+      const photoPath = (await resolveDocumentToLocalFile(photoRef)) ?? '';
+      if (photoPath && fs.existsSync(photoPath)) {
         const stat = fs.statSync(photoPath);
         const sizeKB = Math.round(stat.size / 1024);
         console.log(`  📷 Photo: ${photoPath} (${sizeKB} KB)`);
@@ -3455,10 +3458,10 @@ async function processVisa(orderNumberInput: string, travelerIndex: number = 0) 
       console.log('  ⏭️  Passport upload skipped by admin');
     } else if (passportOverride.value) {
       const passportRef = passportOverride.value;
-      const passportPath = passportRef.startsWith('/') && fs.existsSync(passportRef)
-        ? passportRef
-        : path.resolve(process.cwd(), 'public', passportRef.replace(/^\//, ''));
-      if (fs.existsSync(passportPath)) {
+      // See the photo block above — resolves Blob refs, legacy /uploads
+      // paths, and absolute admin-override paths alike.
+      const passportPath = (await resolveDocumentToLocalFile(passportRef)) ?? '';
+      if (passportPath && fs.existsSync(passportPath)) {
         const stat = fs.statSync(passportPath);
         const sizeKB = Math.round(stat.size / 1024);
         console.log(`  📄 Passport: ${passportPath} (${sizeKB} KB)`);
