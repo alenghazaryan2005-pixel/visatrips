@@ -25,7 +25,7 @@
  */
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { ChevronLeft, LogOut, Inbox, User, Layers, FileText } from 'lucide-react';
 import { PRIMARY_BASE } from '@/lib/urls';
@@ -61,7 +61,22 @@ const MANAGE_NAV: NavItem[] = [
   { label: 'Canned Responses', href: '/canned', Icon: FileText, matchPrefix: '/admin/crm/canned' },
 ];
 
+/**
+ * Wrapped in Suspense at the component level rather than at each call site.
+ * This reads `useSearchParams()` (to highlight the active ?view=), which
+ * forces any prerendered page rendering it to declare a Suspense boundary
+ * or `next build` fails. Four CRM pages mount this — doing it here covers
+ * all of them, including the ones that don't otherwise need a boundary.
+ */
 export function CrmSidebar() {
+  return (
+    <Suspense fallback={<aside className="admin-sidebar" />}>
+      <CrmSidebarInner />
+    </Suspense>
+  );
+}
+
+function CrmSidebarInner() {
   const [name, setName] = useState<string>('');
   const [role, setRole] = useState<'owner' | 'employee'>('employee');
   // Middleware rewrites /tickets → /admin/crm and /canned → /admin/crm/canned

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 
@@ -1969,7 +1969,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 
 /* ── Main ──────────────────────────────────────────────────────────────────── */
 
-export default function AdminPage() {
+function AdminPageInner() {
   const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -1984,5 +1984,22 @@ export default function AdminPage() {
     <CustomStatusesProvider country="INDIA">
       <Dashboard onLogout={() => setAuthed(false)} />
     </CustomStatusesProvider>
+  );
+}
+
+/**
+ * `Dashboard` calls `useSearchParams()` (the ?section= selector and the
+ * country tabs), which requires a Suspense boundary on a prerendered App
+ * Router page — without one, `next build` aborts with
+ * "useSearchParams() should be wrapped in a suspense boundary".
+ *
+ * /admin/crm hit this first and failed the build before the builder ever
+ * reached this page; wrapping both so the whole admin tree is covered.
+ */
+export default function AdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPageInner />
+    </Suspense>
   );
 }

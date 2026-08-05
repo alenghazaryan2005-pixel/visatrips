@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CrmSidebar } from '@/components/CrmSidebar';
@@ -62,7 +62,7 @@ const PRIORITY_STYLES: Record<string, { bg: string; color: string; label: string
   URGENT: { bg: '#FEE2E2', color: '#991B1B', label: 'Urgent' },
 };
 
-export default function CrmPage() {
+function CrmPageInner() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
@@ -638,5 +638,24 @@ export default function CrmPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * `CrmPageInner` calls `useSearchParams()` (the ?view= Inbox / My Tickets /
+ * All Tickets selector). In the App Router that opts the page into
+ * client-side bailout, and a statically-prerendered page must declare a
+ * Suspense boundary around it or `next build` fails outright with
+ * "useSearchParams() should be wrapped in a suspense boundary".
+ *
+ * That is exactly what happened when the view selector was added: every
+ * production build since then aborted at this page, so nothing shipped.
+ * Same pattern already used by app/apply/page.tsx and app/apply/finish/page.tsx.
+ */
+export default function CrmPage() {
+  return (
+    <Suspense fallback={<div className="admin-shell"><div className="admin-main"><div className="admin-empty">Loading…</div></div></div>}>
+      <CrmPageInner />
+    </Suspense>
   );
 }
